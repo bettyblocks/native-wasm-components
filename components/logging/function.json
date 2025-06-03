@@ -1,0 +1,51 @@
+{
+  "description": "Log message to the application logs",
+  "label": "Log Message",
+  "category": "Debugging",
+  "icon": {
+    "name": "FileLogIcon",
+    "color": "Orange"
+  },
+  "options": [
+    {
+      "info": "Select the log severity. The severity is also reflected in the log overview.",
+      "label": "Severity",
+      "meta": {
+        "type": "Select",
+        "default": "debug",
+        "values": [
+          {
+            "label": "Debug",
+            "value": "debug"
+          },
+          {
+            "label": "Info",
+            "value": "info"
+          },
+          {
+            "label": "Warning",
+            "value": "warn"
+          },
+          {
+            "label": "Error",
+            "value": "error"
+          }
+        ],
+        "validations": {
+          "required": true
+        }
+      },
+      "name": "severity"
+    },
+    {
+      "info": "Select all the variables you want to log in the application log",
+      "label": "Variables",
+      "meta": {
+        "type": "Map",
+        "allowLazyCollection": true
+      },
+      "name": "variables"
+    }
+  ],
+  "yields": "NONE"
+}
