@@ -1,6 +1,6 @@
 # Expression
 
-Expression component that works similarly to the native function log.
+Expression component that works similarly to the block-store function expression.
 
 ## Building
 
