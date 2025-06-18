@@ -7,6 +7,9 @@ defmodule NativeWasmComponents.MixProject do
       version: "0.1.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
+      preferred_cli_env: [
+        "test.components": :test
+      ],
       deps: deps(),
       aliases: aliases()
     ]
@@ -24,7 +27,8 @@ defmodule NativeWasmComponents.MixProject do
     [
       {:wasmex,
        git: "https://github.com/tessi/wasmex.git", rev: "e8d2f63cdf278ced11720cc58d93f96f72cb9872"},
-      {:styler, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:styler, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:jason, "~> 1.0"}
     ]
   end
 
@@ -32,12 +36,25 @@ defmodule NativeWasmComponents.MixProject do
     [
       format: &format_helper/1,
       build: &builder/1,
-      test: &test_helper/1
+      test: &test_helper/1,
+      "test.components": &test_components/1
     ]
   end
 
   defp builder(_args) do
-    {_, 0} = System.cmd("just", ["build"], cd: "components/logging", into: IO.stream())
+    "components/*"
+    |> Path.wildcard()
+    |> Enum.map(fn path ->
+      {_, 0} = System.cmd("just", ["build"], cd: path, into: IO.stream())
+    end)
+  end
+
+  defp test_components(_args) do
+    "components/*"
+    |> Path.wildcard()
+    |> Enum.map(fn path ->
+      {_, 0} = System.cmd("just", ["test"], cd: path, into: IO.stream())
+    end)
   end
 
   defp test_helper(args) do
