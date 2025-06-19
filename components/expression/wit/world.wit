@@ -1,0 +1,22 @@
+package betty-blocks:expression;
+
+interface expression {
+  type json-string = string;
+
+  record output {
+    %result: json-string
+  }
+
+  record input {
+    expression: string,
+    variables: json-string,
+    schema-model: option<string>,
+    debug-logging: option<bool>,
+  }
+
+  expression: func(input: input) -> result<output, string>;
+}
+
+world main {
+  export expression;
+}

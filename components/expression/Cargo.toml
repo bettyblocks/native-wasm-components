@@ -1,0 +1,12 @@
+[package]
+name = "expression"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+rquickjs = { git = "https://github.com/DelSkayn/rquickjs.git", features = ["full-wasi"], rev="271a718830da7caa2a717902b3aaf022c3b387f2"}
+rquickjs-sys = { git = "https://github.com/DelSkayn/rquickjs.git", features = ["bindgen"], rev="271a718830da7caa2a717902b3aaf022c3b387f2"}
+wit-bindgen = "0.42.0"
