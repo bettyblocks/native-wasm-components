@@ -18,7 +18,8 @@ defmodule NativeWasmComponents.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger],
+      mod: {NativeWasmComponents.Application, []}
     ]
   end
 
@@ -28,7 +29,9 @@ defmodule NativeWasmComponents.MixProject do
       {:wasmex,
        git: "https://github.com/tessi/wasmex.git", rev: "e8d2f63cdf278ced11720cc58d93f96f72cb9872"},
       {:styler, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:jason, "~> 1.0"}
+      {:jason, "~> 1.0"},
+      {:plug, "~> 1.0"},
+      {:bandit, "~> 1.0"}
     ]
   end
 
