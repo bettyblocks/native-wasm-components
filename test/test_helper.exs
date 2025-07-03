@@ -5,7 +5,7 @@ defmodule TestHelper do
     {:ok, pid} =
       Wasmex.Components.start_link(%{
         path: wasm,
-        wasi: %Wasmex.Wasi.WasiP2Options{},
+        wasi: %Wasmex.Wasi.WasiP2Options{allow_http: true},
         imports: imports
       })
 

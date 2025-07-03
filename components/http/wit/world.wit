@@ -1,0 +1,31 @@
+package betty-blocks:http;
+
+interface http {
+  use wasi:http/types@0.2.2.{scheme, method};
+
+  type json-string = string;
+
+  record output {
+    response-code: u16,
+    %as: json-string
+  }
+
+  record input {
+    method: method,
+    protocol: scheme,
+    headers: json-string,
+    url: string,
+    url-parameters: json-string,
+    query-parameters: json-string,
+    body: string,
+    body-parameters: json-string,
+  }
+
+  http: func(input: input) -> result<output, string>;
+}
+
+world main {
+  import wasi:http/outgoing-handler@0.2.2;
+
+  export http;
+}
