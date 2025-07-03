@@ -1,7 +1,7 @@
 package betty-blocks:http;
 
 interface http {
-  use wasi:http/types@0.2.2.{scheme, method};
+  use wasi:http/types@0.2.6.{scheme, method};
 
   type json-string = string;
 
@@ -25,7 +25,7 @@ interface http {
 }
 
 world main {
-  import wasi:http/outgoing-handler@0.2.2;
+  import wasi:http/outgoing-handler@0.2.6;
 
   export http;
 }

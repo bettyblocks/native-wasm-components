@@ -5,17 +5,15 @@ use waki::{header::HeaderMap, Client};
 
 use crate::exports::betty_blocks::http::http::{self, Input, Method, Output, Scheme};
 
-// wit_bindgen::generate!({ with: {
-//     "wasi:io/streams@0.2.6": ::wasi::io::streams,
-//     "wasi:io/error@0.2.6": ::wasi::io::error,
-//     "wasi:clocks/monotonic-clock@0.2.6": ::wasi::clocks::monotonic_clock,
-//     "wasi:io/poll@0.2.6": ::wasi::io::poll,
-//     "wasi:http/types@0.2.6": generate,
-//     "wasi:http/outgoing-handler@0.2.6": generate,
-//     }
-// });
-
-wit_bindgen::generate!({ generate_all });
+wit_bindgen::generate!({ with: {
+    "wasi:io/streams@0.2.6": ::wasi::io::streams,
+    "wasi:io/error@0.2.6": ::wasi::io::error,
+    "wasi:clocks/monotonic-clock@0.2.6": ::wasi::clocks::monotonic_clock,
+    "wasi:io/poll@0.2.6": ::wasi::io::poll,
+    "wasi:http/types@0.2.6": ::wasi::http::types,
+    "wasi:http/outgoing-handler@0.2.6": ::wasi::http::outgoing_handler,
+    }
+});
 
 type SerdeJsonObject = serde_json::Map<String, serde_json::Value>;
 
@@ -43,12 +41,12 @@ fn schema_as_str(scheme: &Scheme) -> &'static str {
 fn to_url_parameter_string(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::String(s) => s.to_string(),
-        serde_json::Value::Null => "".to_string(),
+        serde_json::Value::Null => String::new(),
         serde_json::Value::Bool(bool) => bool.to_string(),
         serde_json::Value::Number(number) => number.to_string(),
         // js encodeURIComponent will convert array to values separated with comma
         // we will do the same
-        serde_json::Value::Array(values) => values.into_iter().fold(String::new(), |mut acc, x| {
+        serde_json::Value::Array(values) => values.iter().fold(String::new(), |mut acc, x| {
             if !acc.is_empty() {
                 acc.push(',');
             }
@@ -76,14 +74,14 @@ fn generate_url(
 
     url_parts
         .set_scheme(schema_as_str(scheme))
-        .map_err(|_| String::from("invalid scheme"))?;
+        .map_err(|()| String::from("invalid scheme"))?;
 
     {
         let mut query_pairs = url_parts.query_pairs_mut();
         query_pairs.clear();
 
         for (key, value) in query_params {
-            query_pairs.append_pair(key, &to_url_parameter_string(&value));
+            query_pairs.append_pair(key, &to_url_parameter_string(value));
         }
     }
     Ok(url_parts.to_string())
