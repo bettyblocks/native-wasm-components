@@ -132,9 +132,15 @@ impl http::Guest for HttpSender {
         let response_body = response.body().map_err(|e| e.to_string())?;
         let response_body = String::from_utf8(response_body).map_err(|e| e.to_string())?;
 
+        // ensure that the 'as' field is always valid json
+        let output_body: serde_json::Value = match serde_json::from_str(&response_body) {
+            Ok(x) => x,
+            Err(_) => serde_json::Value::String(response_body)
+        };
+
         Ok(Output {
             response_code,
-            as_: response_body,
+            as_: output_body.to_string(),
         })
     }
 }

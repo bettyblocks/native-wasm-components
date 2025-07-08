@@ -49,7 +49,34 @@ defmodule NativeWasmComponents.HttpTest do
     end
 
     test "simple", %{host: host, pid: pid} do
-      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+      assert {:ok, %{"response-code" => 200, as: ~s|"works"|}} ==
+               run_component(:get, host, %{}, "", %{}, %{})
+
+      assert 1 == ServerMock.get_call_count(pid)
+    end
+
+    test "request returns json object", %{host: host, pid: pid} do
+      ServerMock.set_callback(pid, fn conn -> Plug.Conn.send_resp(conn, 200, ~s|{"test": 1}|) end)
+
+      assert {:ok, %{"response-code" => 200, as: ~s|{"test":1}|}} ==
+               run_component(:get, host, %{}, "", %{}, %{})
+
+      assert 1 == ServerMock.get_call_count(pid)
+    end
+
+    test "request returns json number", %{host: host, pid: pid} do
+      ServerMock.set_callback(pid, fn conn -> Plug.Conn.send_resp(conn, 200, ~s|1|) end)
+
+      assert {:ok, %{"response-code" => 200, as: ~s|1|}} ==
+               run_component(:get, host, %{}, "", %{}, %{})
+
+      assert 1 == ServerMock.get_call_count(pid)
+    end
+
+    test "request returns json string", %{host: host, pid: pid} do
+      ServerMock.set_callback(pid, fn conn -> Plug.Conn.send_resp(conn, 200, ~s|"works"|) end)
+
+      assert {:ok, %{"response-code" => 200, as: ~s|"works"|}} ==
                run_component(:get, host, %{}, "", %{}, %{})
 
       assert 1 == ServerMock.get_call_count(pid)
@@ -58,7 +85,7 @@ defmodule NativeWasmComponents.HttpTest do
     test "status code 404", %{host: host, pid: pid} do
       ServerMock.set_callback(pid, fn conn -> Plug.Conn.send_resp(conn, 404, "not found") end)
 
-      assert {:ok, %{"response-code" => 404, as: "not found"}} ==
+      assert {:ok, %{"response-code" => 404, as: ~s|"not found"|}} ==
                run_component(:get, host, %{}, "", %{}, %{})
 
       assert 1 == ServerMock.get_call_count(pid)
@@ -72,7 +99,7 @@ defmodule NativeWasmComponents.HttpTest do
         Plug.Conn.send_resp(conn, 200, "works")
       end)
 
-      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+      assert {:ok, %{"response-code" => 200, as: ~s|"works"|}} ==
                run_component(:post, host, %{}, "{{ text }}", %{"text" => "testing"}, %{})
 
       assert 1 == ServerMock.get_call_count(pid)
@@ -84,7 +111,7 @@ defmodule NativeWasmComponents.HttpTest do
         Plug.Conn.send_resp(conn, 200, "works")
       end)
 
-      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+      assert {:ok, %{"response-code" => 200, as: ~s|"works"|}} ==
                run_component(
                  :post,
                  "#{host}/{{path1}}/{{path2}}",
@@ -107,7 +134,7 @@ defmodule NativeWasmComponents.HttpTest do
         Plug.Conn.send_resp(conn, 200, "works")
       end)
 
-      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+      assert {:ok, %{"response-code" => 200, as: ~s|"works"|}} ==
                run_component(
                  :get,
                  host,
@@ -127,7 +154,7 @@ defmodule NativeWasmComponents.HttpTest do
         Plug.Conn.send_resp(conn, 200, "works")
       end)
 
-      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+      assert {:ok, %{"response-code" => 200, as: ~s|"works"|}} ==
                run_component(
                  :post,
                  host,
@@ -142,7 +169,7 @@ defmodule NativeWasmComponents.HttpTest do
     end
 
     test "works without scheme set in url, http", %{port: port, pid: pid} do
-      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+      assert {:ok, %{"response-code" => 200, as: ~s|"works"|}} ==
                run_component(
                  :get,
                  "localhost:#{port}",
