@@ -26,8 +26,7 @@ defmodule NativeWasmComponents.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:wasmex,
-       git: "https://github.com/tessi/wasmex.git", rev: "e8d2f63cdf278ced11720cc58d93f96f72cb9872"},
+      {:wasmex, "~> 0.12"},
       {:styler, "~> 1.4", only: [:dev, :test], runtime: false},
       {:jason, "~> 1.0"},
       {:plug, "~> 1.0"},
@@ -37,9 +36,7 @@ defmodule NativeWasmComponents.MixProject do
 
   def aliases do
     [
-      format: &format_helper/1,
       build: &builder/1,
-      test: &test_helper/1,
       "test.components": &test_components/1
     ]
   end
@@ -58,17 +55,5 @@ defmodule NativeWasmComponents.MixProject do
     |> Enum.map(fn path ->
       {_, 0} = System.cmd("just", ["test"], cd: path, into: IO.stream())
     end)
-  end
-
-  defp test_helper(args) do
-    System.put_env("WASMEX_BUILD", "1")
-
-    Mix.Task.run("test", args)
-  end
-
-  defp format_helper(args) do
-    System.put_env("WASMEX_BUILD", "1")
-
-    Mix.Task.run("format", args)
   end
 end
