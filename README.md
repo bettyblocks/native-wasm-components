@@ -18,6 +18,8 @@ just build
 just test
 ```
 
+[Wkg](https://github.com/bytecodealliance/wasm-pkg-tools#installation) is needed to fetch the wasi wit dependencies 
+
 ### Installation
 
 Install Elixir with any way you like (I would suggest using asdf/[mise](https://mise.jdx.dev/getting-started.html))
@@ -32,7 +34,7 @@ building the wasm components can be done via `mix build`. This will call `just b
 
 ### Testing
 
-component tests are ran via Elixir WasmEx.
+component tests are ran via Elixir Wasmex.
 
 ```sh
 mix test
