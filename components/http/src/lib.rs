@@ -34,7 +34,6 @@ fn schema_as_str(scheme: &Scheme) -> &'static str {
     match scheme {
         Scheme::Http => "http",
         Scheme::Https => "https",
-        Scheme::Other(_) => unimplemented!(),
     }
 }
 
@@ -98,7 +97,6 @@ fn to_waki_method(method: &Method) -> waki::Method {
         Method::Options => waki::Method::Options,
         Method::Trace => waki::Method::Trace,
         Method::Patch => waki::Method::Patch,
-        Method::Other(other) => waki::Method::Other(other.clone()),
     }
 }
 
