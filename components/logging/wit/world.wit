@@ -1,4 +1,4 @@
-package betty-blocks:logging;
+package betty-blocks:logging@0.1.0;
 
 interface logger {
   use wasi:logging/logging@0.1.0-draft.{level};
@@ -23,9 +23,14 @@ interface logger {
 //  }
 
   type json-string = string;
+  record input {
+    severity: level,
+    variables: json-string,
+  }
 
   // TOOD: figure out if this is the interface we want or we have a separate record for the inputs
-  log: func(severity: level, variables: json-string) -> result<_, string>;
+  // log: func(severity: level, variables: json-string) -> result<_, string>;
+  log: func(input: input) -> result<_, string>;
 }
 
 world main {
