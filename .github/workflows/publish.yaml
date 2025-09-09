@@ -1,0 +1,40 @@
+name: Build and Release WASM Component
+
+on:
+  push:
+    # This workflow runs only when you push a tag that starts with 'v'
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      # This permission is required to create a release and upload assets
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just,wkg
+
+      - run: for d in components/*/; do just -f "$d/Justfile" build; done
+
+      - name: Create GitHub Release and Upload WASM Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          # This command will automatically create a release using the tag name
+          # that triggered the workflow. It will then upload the files listed below.
+          files: |
+            target/wasm32-wasip2/release/*.wasm
+        env:
+          # The GITHUB_TOKEN is a secret automatically provided by GitHub Actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
