@@ -116,7 +116,7 @@ impl http::Guest for HttpSender {
         };
 
         let url = render_liquid(&input.url, &url_vars).map_err(|e| e.to_string())?;
-        let body = render_liquid(&input.body, &body_vars).map_err(|e| e.to_string())?;
+        let body = render_liquid(&input.body.unwrap_or_default(), &body_vars).map_err(|e| e.to_string())?;
         let url = generate_url(&url, &input.protocol, &query_vars)?;
 
         let client = Client::new();

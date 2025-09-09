@@ -32,7 +32,7 @@ interface http {
     url: string,
     url-parameters: json-string,
     query-parameters: json-string,
-    body: string,
+    body: option<string>,
     body-parameters: json-string,
   }
 
