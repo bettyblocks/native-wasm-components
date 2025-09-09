@@ -46,7 +46,8 @@ defmodule NativeWasmComponents.HttpTest do
     test "simple", %{host: host, sham: sham} do
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, "works") end)
 
-      assert {:ok, %{"response-code" => 200, as: "works"}} == run_component(:get, host, %{}, "", %{}, %{})
+      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+               run_component(:get, host, %{}, "", %{}, %{})
     end
 
     test "request returns json object", %{host: host, sham: sham} do
@@ -59,19 +60,22 @@ defmodule NativeWasmComponents.HttpTest do
     test "request returns json number", %{host: host, sham: sham} do
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, ~s|1|) end)
 
-      assert {:ok, %{"response-code" => 200, as: 1}} == run_component(:get, host, %{}, "", %{}, %{})
+      assert {:ok, %{"response-code" => 200, as: 1}} ==
+               run_component(:get, host, %{}, "", %{}, %{})
     end
 
     test "request returns json string", %{host: host, sham: sham} do
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, ~s|"works"|) end)
 
-      assert {:ok, %{"response-code" => 200, as: "works"}} == run_component(:get, host, %{}, "", %{}, %{})
+      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+               run_component(:get, host, %{}, "", %{}, %{})
     end
 
     test "status code 404", %{host: host, sham: sham} do
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 404, "not found") end)
 
-      assert {:ok, %{"response-code" => 404, as: "not found"}} == run_component(:get, host, %{}, "", %{}, %{})
+      assert {:ok, %{"response-code" => 404, as: "not found"}} ==
+               run_component(:get, host, %{}, "", %{}, %{})
     end
 
     test "format liquid body", %{host: host, sham: sham} do
@@ -101,7 +105,6 @@ defmodule NativeWasmComponents.HttpTest do
                  %{},
                  %{}
                )
-
     end
 
     test "use query parameters", %{host: host, sham: sham} do
@@ -160,7 +163,6 @@ defmodule NativeWasmComponents.HttpTest do
                  %{"content-type" => "application/json"},
                  :HTTP
                )
-
     end
 
     @tag :capture_log
