@@ -34,7 +34,6 @@ fn schema_as_str(scheme: &Scheme) -> &'static str {
     match scheme {
         Scheme::Http => "http",
         Scheme::Https => "https",
-        Scheme::Other(_) => unimplemented!(),
     }
 }
 
@@ -98,7 +97,6 @@ fn to_waki_method(method: &Method) -> waki::Method {
         Method::Options => waki::Method::Options,
         Method::Trace => waki::Method::Trace,
         Method::Patch => waki::Method::Patch,
-        Method::Other(other) => waki::Method::Other(other.clone()),
     }
 }
 
@@ -118,7 +116,7 @@ impl http::Guest for HttpSender {
         };
 
         let url = render_liquid(&input.url, &url_vars).map_err(|e| e.to_string())?;
-        let body = render_liquid(&input.body, &body_vars).map_err(|e| e.to_string())?;
+        let body = render_liquid(&input.body.unwrap_or_default(), &body_vars).map_err(|e| e.to_string())?;
         let url = generate_url(&url, &input.protocol, &query_vars)?;
 
         let client = Client::new();

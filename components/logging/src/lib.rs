@@ -1,6 +1,6 @@
 use crate::wasi::logging::logging::log;
 
-use crate::exports::betty_blocks::logging::logger;
+use crate::exports::betty_blocks::logging::logger::{self, Input};
 use simd_json::prelude::Writable;
 
 // with: { "wasi:logging/logging@0.1.0-draft": generate, }
@@ -9,7 +9,8 @@ wit_bindgen::generate!({ generate_all });
 struct Logger;
 
 impl logger::Guest for Logger {
-    fn log(severity: logger::Level, mut variables: logger::JsonString) -> Result<(), String> {
+    fn log(input: Input) -> Result<(), String> {
+        let mut variables = input.variables;
         let mut var_bytes = unsafe { variables.as_bytes_mut() };
         let tape = simd_json::to_tape(&mut var_bytes).map_err(|e| e.to_string())?;
         let value = tape.as_value();
@@ -19,7 +20,7 @@ impl logger::Guest for Logger {
             .ok_or_else(|| "expected log variables to be an object/map".to_string())?;
         for (key, item) in map.iter() {
             let item = item.encode();
-            log(severity, "stdout", &format!("{key} : {item}"));
+            log(input.severity, "stdout", &format!("{key} : {item}"));
         }
 
         Ok(())
