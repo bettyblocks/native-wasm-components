@@ -28,8 +28,6 @@ interface logger {
     variables: json-string,
   }
 
-  // TOOD: figure out if this is the interface we want or we have a separate record for the inputs
-  // log: func(severity: level, variables: json-string) -> result<_, string>;
   log: func(input: input) -> result<_, string>;
 }
 
