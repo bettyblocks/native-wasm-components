@@ -10,6 +10,20 @@ defmodule NativeWasmComponents.LoggerTest do
     Logger.log(level, message)
   end
 
+  defp run_component(component, imports, severity, variables) do
+    TestHelper.run_component(
+      component,
+      {"betty-blocks:logging/logger@0.1.0", "log"},
+      [
+        %{
+          severity: severity,
+          variables: variables
+        }
+      ],
+      imports
+    )
+  end
+
   describe "logging component" do
     setup do
       imports = %{
@@ -23,44 +37,33 @@ defmodule NativeWasmComponents.LoggerTest do
 
     test "simple error", %{imports: imports, component: logger} do
       assert CaptureLog.capture_log(fn ->
-               TestHelper.run_component(
-                 logger,
-                 {"betty-blocks:logging/logger", "log"},
-                 [
-                   "error",
-                   ~s({"greeting":"Hello World!"})
-                 ],
-                 imports
-               )
+               run_component(logger, imports, :error, ~s({"greeting":"Hello World!"}))
              end) =~ ~s|[error] greeting : "Hello World!"|
     end
 
     test "nested object", %{imports: imports, component: logger} do
       assert CaptureLog.capture_log(fn ->
-               TestHelper.run_component(
+               run_component(
                  logger,
-                 {"betty-blocks:logging/logger", "log"},
-                 [
-                   "warn",
-                   """
-                   {
-                     "data": [
-                       {
-                         "name": "John",
-                         "address": {
-                           "city": {
-                             "coordinates": [
-                               9123,
-                               98113
-                             ]
-                           }
+                 imports,
+                 :warn,
+                 """
+                 {
+                   "data": [
+                     {
+                       "name": "John",
+                       "address": {
+                         "city": {
+                           "coordinates": [
+                             9123,
+                             98113
+                           ]
                          }
                        }
-                     ]
-                   }
-                   """
-                 ],
-                 imports
+                     }
+                   ]
+                 }
+                 """
                )
              end) =~
                ~s([warning] data : [{"name":"John","address":{"city":{"coordinates":[9123,98113]}}}])
@@ -80,22 +83,14 @@ defmodule NativeWasmComponents.LoggerTest do
         )
 
       assert :ok ==
-               TestHelper.run_component(
-                 logger,
-                 {"betty-blocks:logging/logger", "log"},
-                 [
-                   "info",
-                   """
-                   {
-                     "item1": 1,
-                     "item2": 2,
-                     "item3": 3,
-                     "item4": 4
-                   }
-                   """
-                 ],
-                 imports
-               )
+               run_component(logger, imports, :info, """
+               {
+                 "item1": 1,
+                 "item2": 2,
+                 "item3": 3,
+                 "item4": 4
+               }
+               """)
 
       assert [info: "item1 : 1", info: "item2 : 2", info: "item3 : 3", info: "item4 : 4"] ==
                pid |> Agent.get(fn data -> data end) |> Enum.reverse()

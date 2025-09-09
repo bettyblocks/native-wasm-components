@@ -17,14 +17,14 @@ defmodule NativeWasmComponents.HttpTest do
        ) do
     case TestHelper.run_component(
            @component_path,
-           {"betty-blocks:http/http", "http"},
+           {"betty-blocks:http/http@0.1.0", "http"},
            %{
              "method" => method,
              "protocol" => protocol,
              "headers" => Jason.encode!(headers),
              "url" => url,
              "url-parameters" => Jason.encode!(url_parameters),
-             "body" => body,
+             "body" => {:some, body},
              "body-parameters" => Jason.encode!(body_parameters),
              "query-parameters" => Jason.encode!(query_parameters)
            }
