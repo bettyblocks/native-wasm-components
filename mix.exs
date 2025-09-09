@@ -18,8 +18,7 @@ defmodule NativeWasmComponents.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger],
-      mod: {NativeWasmComponents.Application, []}
+      extra_applications: [:logger]
     ]
   end
 
@@ -29,8 +28,8 @@ defmodule NativeWasmComponents.MixProject do
       {:wasmex, "~> 0.12"},
       {:styler, "~> 1.4", only: [:dev, :test], runtime: false},
       {:jason, "~> 1.0"},
-      {:plug, "~> 1.0"},
-      {:bandit, "~> 1.0"}
+      {:bandit, "~> 1.0"},
+      {:sham, "~> 1.2"}
     ]
   end
 
