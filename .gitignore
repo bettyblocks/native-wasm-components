@@ -29,3 +29,6 @@ native_wasm_components-*.tar
 # Rust output of the components
 /target/
 */**/target/*
+
+# Ignore wasmcloud build artifacts
+*/**/build/*

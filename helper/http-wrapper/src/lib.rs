@@ -18,16 +18,41 @@ struct InputWrapper {
     payload: PayloadWrapper,
 }
 
-fn inner_handle(
-    request: http::IncomingRequest,
-) -> Result<http::Response<impl http::OutgoingBody>, String> {
+// 2**24 = 16mb
+const MAX_READ: u64 = 2u64.pow(24);
+
+enum Error {
+    InvalidInput(String),
+    FailedToReadBody(String),
+    ActionCallFailed(String),
+}
+
+impl Into<http::Response<String>> for Error {
+    fn into(self) -> http::Response<String> {
+        match self {
+            Error::InvalidInput(message) => {
+                http::Response::builder().status(400).body(message).unwrap()
+            }
+            Error::FailedToReadBody(message) => {
+                http::Response::builder().status(500).body(message).unwrap()
+            }
+            Error::ActionCallFailed(message) => {
+                http::Response::builder().status(400).body(message).unwrap()
+            }
+        }
+    }
+}
+
+fn inner_handle(request: http::IncomingRequest) -> Result<http::Response<String>, Error> {
     let body = request.body();
 
     body.subscribe().block();
-    let body_bytes = body.read(u64::MAX).expect("Failed to read body");
+    let body_bytes = body
+        .read(MAX_READ)
+        .map_err(|e| Error::FailedToReadBody(e.to_string()))?;
 
     let input_wrapper = serde_json::from_slice::<InputWrapper>(&body_bytes)
-        .map_err(|e| return format!("Debug: {:?}", e))?;
+        .map_err(|e| Error::InvalidInput(e.to_string()))?;
 
     let input = Input {
         action_id: input_wrapper.action_id,
@@ -36,7 +61,7 @@ fn inner_handle(
         },
     };
 
-    let result = call(&input).map_err(|e| return format!("call_error: {:?}", e))?;
+    let result = call(&input).map_err(|e| Error::ActionCallFailed(e))?;
 
     Ok(http::Response::new(result.result))
 }
@@ -45,7 +70,10 @@ impl http::Server for Component {
     fn handle(
         request: http::IncomingRequest,
     ) -> http::Result<http::Response<impl http::OutgoingBody>> {
-        inner_handle(request).map_err(|e| http::ErrorCode::InternalError(Some(e)))
+        match inner_handle(request) {
+            Ok(response) => Ok(response),
+            Err(e) => Ok(e.into()),
+        }
     }
 }
 

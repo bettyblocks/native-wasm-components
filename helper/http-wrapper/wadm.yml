@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: rust-hello-world
+  name: http-wrapper
   annotations:
     version: v0.0.1
 spec:
