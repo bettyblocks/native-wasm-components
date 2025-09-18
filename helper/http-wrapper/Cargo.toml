@@ -1,0 +1,13 @@
+[package]
+name = "http-wrapper"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+serde = { version = "1.0.225", features = ["derive"] }
+serde_json = "1.0.145"
+wasmcloud-component = "0.2.0"
+wit-bindgen = "0.39.0"

@@ -4,7 +4,7 @@ on:
   push:
     # This workflow runs only when you push a tag that starts with 'v'
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   create-release:
@@ -24,9 +24,10 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,wkg
+          tool: just,wkg,wash
 
       - run: for d in components/*/; do just -f "$d/Justfile" build; done
+      - run: wash build -p ./helper/http-wrapper
 
       - name: Create GitHub Release and Upload WASM Asset
         uses: softprops/action-gh-release@v2
@@ -35,6 +36,12 @@ jobs:
           # that triggered the workflow. It will then upload the files listed below.
           files: |
             target/wasm32-wasip2/release/*.wasm
+            helper/http-wrapper/build/http_wrapper_s.wasm
         env:
           # The GITHUB_TOKEN is a secret automatically provided by GitHub Actions
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        run: |
+          VERSION=$(wash inspect ./helper/http-wrapper/build/http_wrapper_s.wasm -o json | jq -r '.version')
+          wash push --username ${{github.actor}} --password ${{ secrets.GITHUB_TOKEN }} ghcr.io/${{ github.repository_owner }}/http-wrapper:$VERSION-draft helper/http-wrapper/build/http_wrapper_s.wasm
