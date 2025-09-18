@@ -12,6 +12,7 @@ jobs:
     permissions:
       # This permission is required to create a release and upload assets
       contents: write
+      packages: write
 
     steps:
       - name: Checkout repository
