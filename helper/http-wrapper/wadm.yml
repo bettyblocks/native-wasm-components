@@ -30,7 +30,7 @@ spec:
     - name: http-component
       type: component
       properties:
-        image: file://./build/http_s.wasm
+        image: file://./build/http_wrapper_s.wasm
       traits:
         - type: spreadscaler
           properties:
