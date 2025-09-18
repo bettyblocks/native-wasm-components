@@ -45,4 +45,4 @@ jobs:
       - name: Publish to GitHub Packages
         run: |
           VERSION=$(wash inspect ./helper/http-wrapper/build/http_wrapper_s.wasm -o json | jq -r '.version')
-          wash push --user ${{github.actor}} --password ${{ secrets.GITHUB_TOKEN }} ghcr.io/${{ github.repository_owner }}/http-wrapper:$VERSION-draft helper/http-wrapper/build/http_wrapper_s.wasm
+          wash push --user ${{github.actor}} --password ${{ secrets.GITHUB_TOKEN }} ghcr.io/${{ github.repository_owner }}/http-wrapper:$VERSION helper/http-wrapper/build/http_wrapper_s.wasm
