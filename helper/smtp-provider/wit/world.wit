@@ -1,0 +1,55 @@
+// NOTE: namespace::identifier
+package betty-blocks:smtp;
+
+interface client {
+    record credentials {
+        host: string,
+        port: u16,
+        username: option<string>,
+        password: option<string>,
+        secure: option<bool>,
+        ignore-tls: option<bool>,
+        require-tls: option<bool>,
+    }
+
+    record sender {
+        %from: string,
+        reply-to: option<string>,
+    }
+
+    record recipient {
+        to: list<string>,
+        cc: option<list<string>>,
+        bcc: option<list<string>>,
+    }
+
+    record attachment {
+        filename: string,
+        path: string,
+    }
+
+    record message {
+        sender: sender,
+        recipient: recipient,
+        subject: string,
+        body: string,
+        attachment: option<list<attachment>>,
+    }
+
+    record send-result {
+        accepted: bool,
+        server: option<string>,
+        message-id: option<string>,
+    }
+
+
+    send: func(
+        credentials: credentials,
+        application-id: string,
+        message: message
+        ) -> result<send-result, string>;
+}
+
+world provider {
+    export client;
+}
