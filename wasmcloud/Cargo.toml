@@ -1,0 +1,18 @@
+[package]
+name = "wasmcloud"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = "1.47.1"
+testcontainers = "0.25.0"
+
+[dev-dependencies]
+anyhow = "1.0.100"
+serde = "1.0.228"
+serde_yaml_ng = "0.10.0"
+wadm-client = "0.10.0"
+reqwest = { version = "0.12.23", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = "1.0.145"
+futures = "0.3.31"
+serial_test = "3.2.0"
