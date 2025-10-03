@@ -1,10 +1,10 @@
-import path from "path";
-import { validateFunctions } from "@betty-blocks/cli/build/functions/validateFunctions";
 import { getAllWasmFunctionsWithVersions } from "@betty-blocks/cli/build/functions/functionDefinitions";
 import { publishWasmBlockStoreFunctions } from "@betty-blocks/cli/build/functions/publishWasmBlockStoreFunctions";
-import os from "os";
+import { validateFunctions } from "@betty-blocks/cli/build/functions/validateFunctions";
 import fs from "fs-extra";
 import Jaws from "@betty-blocks/jaws";
+import os from "node:os";
+import path from "node:path";
 
 const args = process.argv.slice(2);
 
