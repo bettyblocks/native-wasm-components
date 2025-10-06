@@ -17,9 +17,9 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bun install --frozen-lockfile
 
       - name: Publish to Betty Blocks
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bun run publish.ts ${{ secrets.BLOCKSTORE_CLI_SECRET }} ${{ github.ref_name }}
