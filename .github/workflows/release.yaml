@@ -48,9 +48,6 @@ jobs:
           otp-version: ${{matrix.pair.otp}}
           elixir-version: ${{matrix.pair.elixir}}
 
-      - name: Build wasm components
-        run: mix build
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -59,8 +56,8 @@ jobs:
       - name: Install npm dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install Elixir Dependencies
-        run: mix deps.get
+      - name: Build wasm components
+        run: mix build
 
       - name: Publish to Betty Blocks
         run: bun run publish.ts ${{ secrets.BLOCKSTORE_CLI_SECRET }} ${{ github.ref_name }}

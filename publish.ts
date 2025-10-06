@@ -53,11 +53,12 @@ fs.writeJSONSync(
   { spaces: 2 }
 );
 
-let blockstoreApiUrl = "https://my.bettyblock.com/block-store-api/internal/cli";
+let blockstoreApiUrl =
+  "https://my.bettyblocks.com/block-store-api/internal/cli";
 if (branch === "edge" || branch === "acceptance") {
   blockstoreApiUrl = blockstoreApiUrl.replace(
-    "my.bettyblock.com",
-    `my.${branch}.bettyblock.com`
+    "my.bettyblocks.com",
+    `my.${branch}.bettyblocks.com`
   );
 }
 
