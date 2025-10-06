@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches:
+      - edge
+      - acceptance
       - main
 
 jobs:
