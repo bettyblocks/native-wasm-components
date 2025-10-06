@@ -1,7 +1,7 @@
 defmodule NativeWasmComponents.ExpressionTest do
   use ExUnit.Case, async: true
 
-  @component_path "target/wasm32-wasip2/release/expression.wasm"
+  @component_path "functions/expression/1.0/expression.wasm"
 
   defp run_expression(expression, variables) do
     case TestHelper.run_component(

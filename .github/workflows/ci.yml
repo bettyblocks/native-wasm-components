@@ -62,7 +62,7 @@ jobs:
       - run: mix compile --warnings-as-errors
         if: ${{ matrix.lint }}
 
-      - run: mix test.components
       - name: Build wasm components
         run: mix build
+      - run: mix test.components
       - run: mix test
