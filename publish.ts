@@ -28,11 +28,6 @@ if (!valid) {
 
 const functionNames = getAllWasmFunctionsWithVersions(baseFunctionsPath);
 
-const authBBCli = path.join(os.homedir(), ".bb-cli.json");
-if (!fs.existsSync(authBBCli)) {
-  throw new Error("No authentication file found at: " + authBBCli);
-}
-
 const jaws = Jaws.getInstance({
   issuer: "cli",
   services: {
@@ -46,6 +41,7 @@ const { jwt } = jaws.sign("cli", {
   application_id: "native",
 });
 
+const authBBCli = path.join(os.homedir(), ".bb-cli.json");
 fs.writeJSONSync(
   authBBCli,
   {
