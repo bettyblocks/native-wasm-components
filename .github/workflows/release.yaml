@@ -15,10 +15,11 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: npm config set '//registry.npmjs.org/:_authToken' '${{ secrets.NPM_TOKEN }}'
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Publish to Betty Blocks
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bun run publish.ts ${{ secrets.BLOCKSTORE_CLI_SECRET }} ${{ github.ref_name }}
