@@ -36,4 +36,4 @@ native_wasm_components-*.tar
 # publish files
 /node_modules/
 
-*/**/.wasm
+*.wasm
