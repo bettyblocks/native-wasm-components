@@ -1,0 +1,6 @@
+name = "mock-data-api-provider"
+language = "rust"
+type = "provider"
+
+[provider]
+vendor = "Betty Blocks"
