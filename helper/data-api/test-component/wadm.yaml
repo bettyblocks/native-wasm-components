@@ -1,0 +1,51 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: crud-component-with-test-runner
+  annotations:
+    version: v0.1.0
+    description: "crud-component component + separate test runner that calls crud::run"
+spec:
+  components:
+    - name: crud-component
+      type: component
+      properties:
+        image: file://../component/build/crud_component_s.wasm
+      traits:
+        - type: spreadscaler
+          properties:
+            instances: 1
+        - type: link
+          properties:
+            target:
+              name: mock-data-api-provider
+            namespace: betty-blocks
+            package: data-api
+            interfaces: [data-api]
+
+    - name: test-runner
+      type: component
+      properties:
+        image: file://./build/test_crud_component_s.wasm
+      traits:
+        - type: spreadscaler
+          properties:
+            instances: 1
+        - type: link
+          properties:
+            target:
+              name: crud-component
+            namespace: data-api
+            package: crud
+            interfaces: [crud]
+
+
+    - name: mock-data-api-provider
+      type: capability
+      properties:
+        image: file://../build/wasmcloud-provider-custom-template.par.gz
+        id: mock-data-api-provider
+      traits:
+        - type: spreadscaler
+          properties:
+            instances: 1

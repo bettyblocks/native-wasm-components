@@ -1,0 +1,17 @@
+package test:runner;
+
+interface test {
+
+  type json-string = string;
+
+  run-create: func() -> result<json-string, string>;
+  run-update: func() -> result<json-string, string>;
+  run-delete: func() -> result<json-string, string>;
+}
+
+world component {
+  import wasi:logging/logging@0.1.0-draft;
+  import data-api:crud/crud;
+
+  export test;
+}
