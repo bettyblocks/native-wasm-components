@@ -10,11 +10,11 @@ pub(crate) mod bindings {
 
 use bindings::exports::betty_blocks::data_api::data_api::{Handler, HelperContext};
 #[derive(Default, Clone)]
-pub struct DataApiProvider {}
+pub struct GraphqlProvider {}
 
-impl DataApiProvider {
+impl GraphqlProvider {
     fn name() -> &'static str {
-        "data-api-provider"
+        "mock-graphql-provider"
     }
 
     pub async fn run() -> anyhow::Result<()> {
@@ -23,7 +23,7 @@ impl DataApiProvider {
             std::env::var_os("DATA_API_PROVIDER_FLAMEGRAPH_PATH")
         );
         let provider = Self::default();
-        let shutdown = run_provider(provider.clone(), DataApiProvider::name())
+        let shutdown = run_provider(provider.clone(), GraphqlProvider::name())
             .await
             .context("failed to run provider")?;
 
@@ -40,13 +40,13 @@ impl DataApiProvider {
         .await
     }
 }
-impl Handler<Option<Context>> for DataApiProvider {
+impl Handler<Option<Context>> for GraphqlProvider {
     async fn request(
         &self,
         _ctx: Option<Context>,
-        helper_context: HelperContext,
+        _helper_context: HelperContext,
         query: String,
-        variables: String,
+        _variables: String,
     ) -> anyhow::Result<Result<String, String>> {
         if query.contains("create") {
             return Ok(Ok(serde_json::json!({
@@ -75,7 +75,7 @@ impl Handler<Option<Context>> for DataApiProvider {
     }
 }
 
-impl Provider for DataApiProvider {
+impl Provider for GraphqlProvider {
     async fn init(&self, _config: impl ProviderInitConfig) -> anyhow::Result<()> {
         Ok(())
     }

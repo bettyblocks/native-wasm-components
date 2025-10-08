@@ -1,15 +1,13 @@
 [package]
-name = "wasmcloud-provider-custom-template"
+name = "mock-graphql-provider"
 version = "0.1.0"
 edition = "2021"
 description = """
-A capability provider template built for implementation of custom capabilities.
+A simple mock graphql provider.
 """
 
 [workspace]
 
-[badges.maintenance]
-status = "actively-developed"
 
 [dependencies]
 anyhow = "1"

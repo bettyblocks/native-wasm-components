@@ -1189,6 +1189,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mock-graphql-provider"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "wasmcloud-provider-sdk",
+ "wit-bindgen-wrpc",
+]
+
+[[package]]
 name = "nkeys"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2872,19 +2885,6 @@ dependencies = [
  "url",
  "wascap",
  "webpki-roots 0.26.11",
-]
-
-[[package]]
-name = "wasmcloud-provider-custom-template"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "wasmcloud-provider-sdk",
- "wit-bindgen-wrpc",
 ]
 
 [[package]]

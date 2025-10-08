@@ -1,4 +1,4 @@
-name = "mock-data-api-provider"
+name = "mock-graphql-provider"
 language = "rust"
 type = "provider"
 

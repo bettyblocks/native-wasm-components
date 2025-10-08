@@ -1,3 +1,3 @@
-# Data Api Provider
+# Mock Graphql Provider
 
-This is sort of a mock implementation of the data-api provider
+This is a simple mock implementation of the graphql provider

@@ -1,10 +1,10 @@
 mod provider;
 
-use provider::DataApiProvider;
+use provider::GraphqlProvider;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    DataApiProvider::run().await?;
-    eprintln!("Data Api Provider exiting");
+    GraphqlProvider::run().await?;
+    eprintln!("Graphql Provider exiting");
     Ok(())
 }
