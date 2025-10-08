@@ -1,3 +1,3 @@
 # Crud component
 
-CRUD component using the data api provider.
+CRUD component using the Graphql provider.
