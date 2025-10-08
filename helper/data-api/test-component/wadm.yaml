@@ -4,7 +4,7 @@ metadata:
   name: crud-component-with-test-runner
   annotations:
     version: v0.1.0
-    description: "crud-component component + separate test runner that calls crud::run"
+    description: "crud-component + mock provider + separate test runner that calls crud functions/"
 spec:
   components:
     - name: crud-component
@@ -18,7 +18,7 @@ spec:
         - type: link
           properties:
             target:
-              name: mock-data-api-provider
+              name: mock-graphql-provider
             namespace: betty-blocks
             package: data-api
             interfaces: [data-api]
@@ -40,11 +40,11 @@ spec:
             interfaces: [crud]
 
 
-    - name: mock-data-api-provider
+    - name: mock-graphql-provider
       type: capability
       properties:
-        image: file://../build/wasmcloud-provider-custom-template.par.gz
-        id: mock-data-api-provider
+        image: file://../build/mock-graphql-provider.par.gz
+        id: mock-graphql-provider
       traits:
         - type: spreadscaler
           properties:
