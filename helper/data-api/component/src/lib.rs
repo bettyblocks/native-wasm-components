@@ -188,9 +188,10 @@ fn get_assigned_value(kind: &PropertyKind, value: serde_json::Value) -> serde_js
                         val.to_owned()
                     })
                     .collect();
-                let mut map = serde_json::Map::new();
-                map.insert("id".to_string(), serde_json::Value::Array(record_ids));
-                return map.into();
+
+                return serde_json::json!({
+                  "id": record_ids
+                });
             }
             value
         }
