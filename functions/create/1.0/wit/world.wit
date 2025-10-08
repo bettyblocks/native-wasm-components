@@ -1,0 +1,19 @@
+package betty-blocks:create@0.1.0;
+
+interface create {
+  use data-api:crud/crud.{helper-context, model, property-mapping};
+  type json-string = string;
+
+  record input {
+    model: model,
+    mapping: property-mapping,
+    validates: bool
+   }
+
+  create: func(input: input) -> result<json-string, string>;
+}
+
+world main {
+   import data-api:crud/crud;
+   export create;
+}
