@@ -12,18 +12,6 @@ struct GraphQL {
     gql: String,
 }
 
-impl From<HelperContext> for betty_blocks::data_api::data_api::HelperContext {
-    fn from(o: HelperContext) -> Self {
-        Self {
-            application_id: o.application_id,
-            action_id: o.action_id,
-            log_id: o.log_id,
-            encrypted_configurations: o.encrypted_configurations,
-            jwt: o.jwt,
-        }
-    }
-}
-
 fn capitalize_first_letter(mut s: String) -> String {
     if let Some(r) = s.get_mut(0..1) {
         r.make_ascii_uppercase();
@@ -260,7 +248,7 @@ fn fetch_record(
     );
 
     let result = request(
-        &helper_context.into(),
+        &helper_context,
         &query,
         &serde_json::json!({
             "where": { "id" : { "eq": id }, }, })
@@ -373,7 +361,7 @@ impl Guest for CrudComponent {
         );
 
         let result = request(
-            &helper_context.clone().into(),
+            &helper_context.clone(),
             &mutation,
             &serde_json::to_string(&input).unwrap(),
         );
@@ -413,7 +401,7 @@ impl Guest for CrudComponent {
         );
 
         let result = request(
-            &helper_context.clone().into(),
+            &helper_context.clone(),
             &mutation,
             &serde_json::to_string(&input).unwrap(),
         );
@@ -444,7 +432,7 @@ impl Guest for CrudComponent {
         );
 
         let result = request(
-            &helper_context.into(),
+            &helper_context,
             &mutation,
             &serde_json::to_string(&input).unwrap(),
         );
