@@ -32,3 +32,8 @@ native_wasm_components-*.tar
 
 # Ignore wasmcloud build artifacts
 */**/build/*
+
+# publish files
+/node_modules/
+
+*.wasm

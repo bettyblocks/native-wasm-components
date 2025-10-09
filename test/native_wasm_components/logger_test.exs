@@ -32,7 +32,7 @@ defmodule NativeWasmComponents.LoggerTest do
         }
       }
 
-      {:ok, imports: imports, component: "target/wasm32-wasip2/release/logging.wasm"}
+      {:ok, imports: imports, component: "functions/logging/1.0/logging.wasm"}
     end
 
     test "simple error", %{imports: imports, component: logger} do

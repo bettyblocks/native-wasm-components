@@ -1,7 +1,7 @@
 defmodule NativeWasmComponents.HttpTest do
   use ExUnit.Case, async: true
 
-  @component_path "target/wasm32-wasip2/release/http.wasm"
+  @component_path "functions/http/1.0/http.wasm"
 
   defp run_component(
          method,

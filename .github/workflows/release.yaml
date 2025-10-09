@@ -1,19 +1,15 @@
-name: CI
+name: Release WASM Components to Betty Blocks
 
 on:
-  pull_request:
   push:
-    branches:
-      - edge
-      - acceptance
-      - main
+    branches: ["main", "acceptance", "edge"]
 
 jobs:
-  mix_test:
-    runs-on: ubuntu-24.04
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
     env:
-      MIX_ENV: test
-    name: Elixir ${{ matrix.pair.elixir }} / OTP ${{ matrix.pair.otp }}
+      npm_token: ${{ secrets.NPM_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -21,7 +17,6 @@ jobs:
           - pair:
               elixir: 1.18.4
               otp: 27.3.4
-            lint: lint
     steps:
       - uses: actions/checkout@v4
       - name: Cache Rust
@@ -46,31 +41,23 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,wkg,wash
+          tool: just,wkg
 
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.pair.otp}}
           elixir-version: ${{matrix.pair.elixir}}
 
-      - name: Install Dependencies
-        run: mix deps.get
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
-      - run: mix format --check-formatted
-        if: ${{ matrix.lint }}
-
-      - run: mix deps.compile
-
-      - run: mix compile --warnings-as-errors
-        if: ${{ matrix.lint }}
+      - name: Install npm dependencies
+        run: bun install --frozen-lockfile
 
       - name: Build wasm components
         run: mix build
 
-      - name: Run rust tests
-        run: mix test.components
-
-      - run: mix test.providers
-
-      - name: Run elixir tests
-        run: mix test
+      - name: Publish to Betty Blocks
+        run: bun run publish.ts ${{ secrets.BLOCKSTORE_CLI_SECRET }} ${{ github.ref_name }}

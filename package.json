@@ -1,0 +1,17 @@
+{
+  "name": "native-wasm-components",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "1.2.23",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@betty-blocks/cli": "26.0.0",
+    "@betty-blocks/jaws": "^1.2.4",
+    "form-data": "^4.0.4",
+    "fs-extra": "^11.3.2",
+    "shelljs": "^0.10.0"
+  }
+}
