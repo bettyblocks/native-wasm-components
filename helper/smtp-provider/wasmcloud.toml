@@ -1,0 +1,6 @@
+name = "SMTP Provider"
+language = "rust"
+type = "provider"
+
+[provider]
+vendor = "Betty Blocks"

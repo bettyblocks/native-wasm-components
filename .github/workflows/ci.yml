@@ -46,7 +46,7 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,wkg
+          tool: just,wkg,wash
 
       - uses: erlef/setup-beam@v1
         with:
@@ -69,6 +69,8 @@ jobs:
 
       - name: Run rust tests
         run: mix test.components
+
+      - run: mix test.providers
 
       - name: Run elixir tests
         run: mix test

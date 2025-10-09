@@ -1,0 +1,8 @@
+package smtp:sendmail;
+
+world component {
+  import wasi:logging/logging@0.1.0-draft;
+
+  import betty-blocks:smtp/client;
+  export wasi:http/incoming-handler@0.2.2;
+}
