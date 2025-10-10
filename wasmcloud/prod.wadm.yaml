@@ -4,7 +4,7 @@ metadata:
   name: native
   annotations:
     description: betty blocks native app which contains the providers and components to connect to the betty blocks platform
-    version: v0.1.0
+    version: v0.2.0
     experimental.wasmcloud.dev/shared: 'true'
 spec:
   components:
@@ -43,3 +43,24 @@ spec:
                   properties:
                     address: '0.0.0.0:8080'
                     path: '/admin'
+    - name: data-api
+      type: capability
+      properties:
+        image: bettywasmregistryedge.azurecr.io/data-api:0.1.0
+        config:
+          - name: data-config
+            properties:
+              key-vault-target: "key-vault"
+              jaws-issuer: "actions_js"
+              jaws-secret-key: "DATA_RPC_ACTIONS_JS_SECRET"
+              data-api-address: http://data-rpc.frontend.svc.cluster.local:50054
+    - name: key-vault
+      type: capability
+      properties:
+        image: bettywasmregistryedge.azurecr.io/key-vault:0.1.0
+        id: "key-vault"
+        config:
+          - name: key-vault-config
+            properties:
+              endpoint: https://betty-edge-keyvault.vault.azure.net/
+              key: actions-js-secrets
