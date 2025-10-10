@@ -1,29 +1,10 @@
 #!/bin/bash
 
 # List of zones to deploy to
+## generate this list by running `kubectl config view -o json | jq '.contexts[] | select(.name | test("betty-")) | .name'`
 declare -a ZONES=(
   "betty-edge-k8s"
   # "betty-acceptance-k8s"
-  # "betty-ca4-k8s"
-  # "betty-cc2-k8s"
-  # "betty-chiesi-k8s"
-  # "betty-frasers-k8s"
-  # "betty-holygrow-k8s"
-  # "betty-meditel-k8s"
-  # "betty-nh1816-k8s"
-  # "betty-nl3-k8s"
-  # "betty-nl4-k8s"
-  # "betty-nl6-k8s"
-  # "betty-pfl-k8s"
-  # "betty-pluryn-k8s"
-  # "betty-police-k8s"
-  # "betty-rva-k8s"
-  # "betty-sanofi-k8s"
-  # "betty-spc1-k8s"
-  # "betty-trial-k8s"
-  # "betty-us2-k8s"
-  # "betty-uwm-k8s"
-  # "betty-vabi-k8s"
 )
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
