@@ -1,6 +1,6 @@
 # SMTP Provider
 
-This SMTP provider is based on [Actions-JS SMTP helper](https://gitlab.betty.services/code/actions-js/-/tree/edge/src/worker/helpers/smtp?ref_type=heads) and [Chiel's SMTP function](https://github.com/Betty-Blocks-Services/chiels-block-store-functions/blob/main/functions/send-email/2.3/index.js).
+This SMTP provider is based on [Actions SMTP helper]([https://gitlab.betty.services/code/actions-js/-/tree/edge/src/worker/helpers/smtp?ref_type=heads](https://github.com/bettyblocks/cli/wiki/Functions:SMTP)) and [Chiel's SMTP function](https://github.com/Betty-Blocks-Services/chiels-block-store-functions/blob/main/functions/send-email/2.3/index.js).
 
 ## Running Locally
 
