@@ -1,0 +1,18 @@
+[package]
+name = "crud-component"
+edition = "2021"
+version = "0.1.0"
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.32"
+wasmcloud-component = "0.2.0"
+serde_json = "1.0.145"
+
+[dev-dependencies]
+graphql-minify = "0.1.0"
+tokio = { version = "1.47.1", features = ["macros", "rt"] }
