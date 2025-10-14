@@ -1,17 +1,10 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-<<<<<<< HEAD
   name: crud-component-mock-provider
   annotations:
     version: v0.0.1
     description: 'An application to run the crud component with a mock graphql provider'
-=======
-  name: crud-provider
-  annotations:
-    version: v0.0.1
-    description: 'An application to test the crud component'
->>>>>>> 6a1ca80 (feat: create wadm application)
 spec:
   components:
     - name: crud-component
@@ -25,28 +18,15 @@ spec:
         - type: link
           properties:
             target:
-<<<<<<< HEAD
-                name: mock-graphql-provider
-=======
                 name: mock-data-api-provider
->>>>>>> 6a1ca80 (feat: create wadm application)
             namespace: betty-blocks
             package: data-api
             interfaces: [data-api]
-
-<<<<<<< HEAD
-    - name: mock-graphql-provider
-      type: capability
-      properties:
-        image: file://./build/mock-graphql-provider.par.gz
-        id: mock-graphql-provider
-=======
     - name: mock-data-api-provider
       type: capability
       properties:
         image: file://./build/wasmcloud-provider-custom-template.par.gz
         id: mock-data-api-provider
->>>>>>> 6a1ca80 (feat: create wadm application)
       traits:
         - type: spreadscalar
           properties:
