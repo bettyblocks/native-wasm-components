@@ -63,8 +63,7 @@ fn object_to_graphql_query(
     object: &serde_json::Map<String, serde_json::Value>,
 ) -> String {
     format!(
-        "{} {{ {} }}",
-        field,
+        "{field} {{ {} }}",
         object
             .iter()
             .map(|(key, val)| convert_object_to_graphql(key, val,))
@@ -73,13 +72,12 @@ fn object_to_graphql_query(
     )
 }
 
+fn parse_json_or_string(value: &str) -> serde_json::Value {
+    serde_json::from_str(value).unwrap_or_else(|_| serde_json::Value::String(value.to_string()))
+}
+
 fn parse_property_value(value: Option<&str>) -> Option<serde_json::Value> {
-    if let Some(value) = value {
-        serde_json::from_str(value)
-            .unwrap_or_else(|_| Some(serde_json::Value::String(value.to_string())))
-    } else {
-        None
-    }
+    value.map(parse_json_or_string)
 }
 
 fn object_fields_str(object_fields: &Option<Vec<ObjectField>>) -> String {
@@ -93,7 +91,7 @@ fn object_fields_str(object_fields: &Option<Vec<ObjectField>>) -> String {
 }
 
 fn id_fragment(name: &str) -> String {
-    format!("{} {{ id\n }}", name)
+    format!("{name} {{ id\n }}",)
 }
 
 fn get_query_fields(property_map: PropertyMapping) -> String {
@@ -111,7 +109,7 @@ fn get_query_fields(property_map: PropertyMapping) -> String {
 
             match kind {
                 PropertyKind::Object => {
-                    format!("{} {{ {} }}", name, object_fields_str(object_fields))
+                    format!("{name} {{ {} }}", object_fields_str(object_fields))
                 }
                 PropertyKind::BelongsTo if property_json.is_some() => {
                     let property_json = property_json.as_ref().expect("is always some");
@@ -144,7 +142,7 @@ fn get_query_fields(property_map: PropertyMapping) -> String {
         .join("\n")
 }
 
-fn parse_to_gql_fragment(model_name: String, property_map: PropertyMapping) -> GraphQL {
+fn parse_to_gql_fragment(model_name: &str, property_map: PropertyMapping) -> GraphQL {
     if model_name.is_empty() {
         return GraphQL {
             name: "".to_string(),
@@ -157,7 +155,7 @@ fn parse_to_gql_fragment(model_name: String, property_map: PropertyMapping) -> G
         gql: format!(
             "fragment {}Fields on {} {{id {} }}",
             model_name.to_lowercase(),
-            capitalize_first_letter(model_name),
+            capitalize_first_letter(model_name.to_string()),
             get_query_fields(property_map)
         ),
     }
@@ -229,84 +227,79 @@ fn fetch_record(
     id: &str,
     fragment: &GraphQL,
 ) -> Result<JsonString, String> {
-    let query_name = format!("one{}", model_name);
+    let query_name = format!("one{model_name}",);
     let GraphQL { name, gql } = fragment;
 
-    let s: String = if gql.is_empty() {
-        format!("...{}", name)
+    let selection_set: String = if gql.is_empty() {
+        format!("...{name}",)
     } else {
         "id".to_string()
     };
 
     let query = format!(
-        r#"{}
-        query($where: {}FilterInput) {{
-            {}(where: $where) {{
-                {}
+        r#"{gql}
+        query($where: {model_name}FilterInput) {{
+            {query_name}(where: $where) {{
+                {selection_set}
             }}
         }}"#,
-        gql, model_name, query_name, s,
     );
 
     let result = request(
         &helper_context,
         &query,
-        &serde_json::json!({
-            "where": { "id" : { "eq": id }, }, })
+        &serde_json::json!(
+        {
+            "where": {
+                "id" : {
+                    "eq": id
+                },
+            },
+        })
         .to_string(),
     );
 
     match result {
-        Ok(data) => {
-            let j: serde_json::Value = serde_json::from_str(&data).unwrap();
-
-            match j {
-                serde_json::Value::Object(record) => Ok(serde_json::to_string(&record).unwrap()),
-                _ => Err("ERROR".to_string()),
-            }
-        }
+        Ok(data) => match serde_json::from_str(&data).unwrap() {
+            serde_json::Value::Object(record) => Ok(serde_json::to_string(&record).unwrap()),
+            _ => Err("Return type of provider should always be an object".to_string()),
+        },
         Err(e) => Err(e),
     }
 }
 
 fn format_input_mutation(mutation_name: &str, model_name: &str) -> String {
     format!(
-        r#"mutation($input: {}Input, $validationSets: [String]) {{
-            {}(input: $input, validationSets: $validationSets) {{
+        r#"mutation($input: {model_name}Input, $validationSets: [String]) {{
+            {mutation_name}(input: $input, validationSets: $validationSets) {{
                 id
             }}
         }}"#,
-        model_name, mutation_name,
     )
 }
 
 fn format_update_mutation(mutation_name: &str, model_name: &str) -> String {
     format!(
-        r#"mutation($id: Int!, $input, {}Input, $validationSets: [String]) {{
-            {}(id: $id, input: $input, validationSets: $validationSets) {{
+        r#"mutation($id: Int!, $input: {model_name}Input, $validationSets: [String]) {{
+            {mutation_name}(id: $id, input: $input, validationSets: $validationSets) {{
                 id
             }}
         }}"#,
-        model_name, mutation_name,
     )
 }
 
 fn format_delete_mutation(mutation_name: &str) -> String {
     format!(
         r#"mutation($id: Int!) {{
-            {}(id: $id) {{
+            {mutation_name}(id: $id) {{
                 id
             }}
         }}"#,
-        mutation_name,
     )
 }
 
 fn get_record_id(gql_result: &str, mutation_name: &str) -> Option<String> {
-    let j: serde_json::Value = serde_json::from_str(gql_result)
-        .unwrap_or_else(|_| serde_json::Value::String(gql_result.to_string()));
-
-    match j {
+    match parse_json_or_string(gql_result) {
         serde_json::Value::Object(record) => {
             // NOTE:
             // A successfull create/update mutation will always contain an id as string
@@ -347,7 +340,7 @@ impl Guest for CrudComponent {
         mapping: PropertyMapping,
         validation_sets: Option<Vec<String>>,
     ) -> Result<JsonString, String> {
-        let fragment = parse_to_gql_fragment(model.name.clone(), mapping.clone());
+        let fragment = parse_to_gql_fragment(&model.name, mapping.clone());
 
         let assign_properties = parse_assigned_properties(mapping.clone());
 
@@ -386,7 +379,7 @@ impl Guest for CrudComponent {
         mapping: PropertyMapping,
         validation_sets: Option<Vec<String>>,
     ) -> Result<JsonString, String> {
-        let fragment = parse_to_gql_fragment(model.name.clone(), mapping.clone());
+        let fragment = parse_to_gql_fragment(&model.name, mapping.clone());
 
         let assign_properties = parse_assigned_properties(mapping.clone());
 
@@ -475,14 +468,19 @@ mod tests {
             value: Some("New Task".to_string()),
         }];
 
-        let model_name = "Task".to_string();
+        let model_name = "Task";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
         assert_eq!(
             fragment.minify(),
             GraphQL {
-                gql: "fragment taskFields on Task {\n        id\n    name\n  }".to_string(),
+                gql: r#"
+fragment taskFields on Task {
+  id
+  name
+}"#
+                .to_string(),
                 name: "taskFields".to_string()
             }
             .minify()
@@ -510,25 +508,24 @@ mod tests {
             value: Some("New Task".to_string()),
         }];
 
-        let model_name = "Task".to_string();
+        let model_name = "Task";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
         assert_eq!(
             fragment.minify(),
             GraphQL {
-                gql: concat!(
-                    "fragment taskFields on Task {\n",
-                    "        id\n",
-                    "    object {\n",
-                    "                uuid\n",
-                    "answer\n",
-                    "score\n",
-                    "              }\n",
-                    "  }"
-                )
+                gql: r#"
+fragment taskFields on Task {
+    id
+    object {
+        uuid
+        answer
+        score
+    }
+}"#
                 .to_string(),
-                name: "taskFields".to_string()
+                name: "taskFields".to_string(),
             }
             .minify()
         );
@@ -553,16 +550,27 @@ mod tests {
             ),
         }];
 
-        let model_name = "Task".to_string();
+        let model_name = "Task";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
         assert_eq!(
             fragment.minify(),
             GraphQL {
-                gql: "fragment taskFields on Task {\n        id\n    model {\n      createdAt\nid\nname\nupdatedAt\n    }\n  }".to_string(),
-                name: "taskFields".to_string()
-            }.minify()
+                gql: r#"
+fragment taskFields on Task {
+    id
+    model {
+        createdAt
+        id
+        name
+        updatedAt
+    }
+}"#
+                .to_string(),
+                name: "taskFields".to_string(),
+            }
+            .minify()
         );
     }
 
@@ -595,16 +603,35 @@ mod tests {
             ),
         }];
 
-        let model_name = "Task".to_string();
+        let model_name = "Task";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
         assert_eq!(
             fragment.minify(),
             GraphQL {
-                gql: "fragment taskFields on Task {\n        id\n    users {\n      active\ncasToken\ncreatedAt\ndeveloper\nemail\nid\nlocale\nname\npassword\nreadMetadata\nreceivesNotifications\nupdatedAt\n    }\n  }".to_string(),
-                name: "taskFields".to_string()
-            }.minify()
+                gql: r#"
+fragment taskFields on Task {
+    id
+    users {
+        active
+        casToken
+        createdAt
+        developer
+        email
+        id
+        locale
+        name
+        password
+        readMetadata
+        receivesNotifications
+        updatedAt
+    }
+}"#
+                .to_string(),
+                name: "taskFields".to_string(),
+            }
+            .minify()
         );
     }
 
@@ -641,16 +668,41 @@ mod tests {
             ),
         }];
 
-        let model_name = "Task".to_string();
+        let model_name = "Task";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
         assert_eq!(
             fragment.minify(),
             GraphQL {
-                gql: "fragment taskFields on Task {\n        id\n    information {\n      createdAt\nid\nname\nupdatedAt\nuser {\n      active\ncasToken\ncreatedAt\ndeveloper\nemail\nid\nlocale\nname\npassword\nreadMetadata\nreceivesNotifications\nupdatedAt\n    }\n    }\n  }".to_string(),
-                name: "taskFields".to_string()
-            }.minify()
+                gql: r#"
+fragment taskFields on Task {
+    id
+    information {
+        createdAt
+        id
+        name
+        updatedAt
+        user {
+            active
+            casToken
+            createdAt
+            developer
+            email
+            id
+            locale
+            name
+            password
+            readMetadata
+            receivesNotifications
+            updatedAt
+        }
+    }
+}"#
+                .to_string(),
+                name: "taskFields".to_string(),
+            }
+            .minify()
         );
     }
 
@@ -688,7 +740,7 @@ mod tests {
             ),
         }];
 
-        let model_name = "Task".to_string();
+        let model_name = "Task";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
@@ -767,7 +819,7 @@ mod tests {
                 .to_string(),
             ),
         }];
-        let model_name = "Task".to_string();
+        let model_name = "Task";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
@@ -825,16 +877,22 @@ fragment taskFields on Task {
             value: Some("1".to_string()),
         }];
 
-        let model_name = "Task".to_string();
+        let model_name = "Task";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
         assert_eq!(
             fragment.minify(),
             GraphQL {
-                gql: "fragment taskFields on Task {\n        id\n    model {\n    id\n\n  }\n  }"
-                    .to_string(),
-                name: "taskFields".to_string()
+                gql: r#"
+fragment taskFields on Task {
+    id
+    model {
+        id
+    }
+}"#
+                .to_string(),
+                name: "taskFields".to_string(),
             }
             .minify()
         );
@@ -850,16 +908,22 @@ fragment taskFields on Task {
             }],
             value: None,
         }];
-        let model_name = "Task".to_string();
+        let model_name = "Task";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
         assert_eq!(
             fragment.minify(),
             GraphQL {
-                gql: "fragment taskFields on Task {\n        id\n    users {\n    id\n\n  }\n  }"
-                    .to_string(),
-                name: "taskFields".to_string()
+                gql: r#"
+fragment taskFields on Task {
+    id
+    users {
+        id
+    }
+}"#
+                .to_string(),
+                name: "taskFields".to_string(),
             }
             .minify()
         );
@@ -876,7 +940,7 @@ fragment taskFields on Task {
             value: None,
         }];
 
-        let model_name = "".to_string();
+        let model_name = "";
 
         let fragment = parse_to_gql_fragment(model_name, property_map);
 
@@ -944,12 +1008,15 @@ fragment taskFields on Task {
         let model_name = "user";
 
         assert_eq!(
-            format_input_mutation(&mutation_name, &model_name),
-            r#"mutation($input: userInput, $validationSets: [String]) {
-            createuser(input: $input, validationSets: $validationSets) {
-                id
-            }
-        }"#
+            graphql_minify::minify(format_input_mutation(&mutation_name, &model_name)),
+            graphql_minify::minify(
+                r#"
+mutation ($input: userInput, $validationSets: [String]) {
+  createuser(input: $input, validationSets: $validationSets) {
+    id
+  }
+}"#
+            ),
         );
     }
 
@@ -959,12 +1026,15 @@ fragment taskFields on Task {
         let model_name = "user";
 
         assert_eq!(
-            format_update_mutation(&mutation_name, &model_name),
-            r#"mutation($id: Int!, $input, userInput, $validationSets: [String]) {
-            updateuser(id: $id, input: $input, validationSets: $validationSets) {
-                id
-            }
-        }"#
+            graphql_minify::minify(format_update_mutation(&mutation_name, &model_name)),
+            graphql_minify::minify(
+                r#"
+mutation ($id: Int!, $input: userInput, $validationSets: [String]) {
+  updateuser(id: $id, input: $input, validationSets: $validationSets) {
+    id
+  }
+}"#
+            ),
         );
     }
 
@@ -973,12 +1043,15 @@ fragment taskFields on Task {
         let mutation_name = "deleteuser";
 
         assert_eq!(
-            format_delete_mutation(&mutation_name),
-            r#"mutation($id: Int!) {
-            deleteuser(id: $id) {
-                id
-            }
-        }"#
+            graphql_minify::minify(format_delete_mutation(&mutation_name)),
+            graphql_minify::minify(
+                r#"
+mutation ($id: Int!) {
+  deleteuser(id: $id) {
+    id
+  }
+}"#
+            ),
         );
     }
 

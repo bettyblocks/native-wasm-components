@@ -8,7 +8,7 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "@betty-blocks/cli": "26.0.0-alpha.4",
+    "@betty-blocks/cli": "26.0.0",
     "@betty-blocks/jaws": "^1.2.4",
     "form-data": "^4.0.4",
     "fs-extra": "^11.3.2",

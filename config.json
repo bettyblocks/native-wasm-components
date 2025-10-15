@@ -1,5 +1,5 @@
 {
   "applicationId": "native",
   "zone": "cli",
-  "blockstoreApiUrl": "https://my.bettyblock.com/block-store-api/internal/cli"
+  "blockstoreApiUrl": "https://my.edge.bettyblocks.com/block-store-api/internal/cli"
 }

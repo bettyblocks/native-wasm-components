@@ -64,13 +64,13 @@ jobs:
       - run: mix compile --warnings-as-errors
         if: ${{ matrix.lint }}
 
-      - run: mix test.components
-      - run: mix test.providers
       - name: Build wasm components
         run: mix build
 
       - name: Run rust tests
         run: mix test.components
+
+      - run: mix test.providers
 
       - name: Run elixir tests
         run: mix test

@@ -18,16 +18,15 @@ spec:
         - type: link
           properties:
             target:
-                name: mock-graphql-provider
+                name: mock-data-api-provider
             namespace: betty-blocks
             package: data-api
             interfaces: [data-api]
-
-    - name: mock-graphql-provider
+    - name: mock-data-api-provider
       type: capability
       properties:
-        image: file://./build/mock-graphql-provider.par.gz
-        id: mock-graphql-provider
+        image: file://./build/wasmcloud-provider-custom-template.par.gz
+        id: mock-data-api-provider
       traits:
         - type: spreadscalar
           properties:
