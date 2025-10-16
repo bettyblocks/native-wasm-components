@@ -25,6 +25,13 @@ spec:
         - type: daemonscaler
           properties:
             instances: 1
+        - type: link
+          properties:
+            name: link-data-api
+            target: data-api
+            namespace: betty-blocks
+            package: data-api
+            interfaces: [data-api]
     - name: httpserver
       type: capability
       properties:
