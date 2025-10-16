@@ -29,6 +29,7 @@ jobs:
 
       - run: for d in components/*/; do just -f "$d/Justfile" build; done
       - run: wash build -p ./helper/http-wrapper
+      - run: wash build -p ./helper/data-api/component
 
       - name: Create GitHub Release and Upload WASM Asset
         uses: softprops/action-gh-release@v2
@@ -38,6 +39,7 @@ jobs:
           files: |
             target/wasm32-wasip2/release/*.wasm
             helper/http-wrapper/build/http_wrapper_s.wasm
+            helper/data-api/component/build/crud_component_s.wasm
         env:
           # The GITHUB_TOKEN is a secret automatically provided by GitHub Actions
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,3 +48,7 @@ jobs:
         run: |
           VERSION=$(wash inspect ./helper/http-wrapper/build/http_wrapper_s.wasm -o json | jq -r '.version')
           wash push --user ${{github.actor}} --password ${{ secrets.GITHUB_TOKEN }} ghcr.io/${{ github.repository_owner }}/http-wrapper:$VERSION helper/http-wrapper/build/http_wrapper_s.wasm
+      - name: Publish to GitHub Packages
+        run: |
+          VERSION=$(wash inspect ./helper/data-api/component/build/crud_component_s.wasm -o json | jq -r '.version')
+          wash push --user ${{github.actor}} --password ${{ secrets.GITHUB_TOKEN }} ghcr.io/${{ github.repository_owner }}/crud-component:$VERSION helper/data-api/component/build/crud_component_s.wasm
