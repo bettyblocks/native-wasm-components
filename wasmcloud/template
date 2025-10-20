@@ -1,0 +1,28 @@
+#!/usr/bin/env bun
+
+import config from "./wadm.template.yaml";
+
+const variables = {
+  VERSION: process.env.VERSION || '0.1.0',
+  DATA_API_IMAGE: process.env.DATA_API_IMAGE || 'ghcr.io/bettyblocks/data-api:latest',
+  KEY_VAULT_IMAGE: process.env.KEY_VAULT_IMAGE || 'ghcr.io/bettyblocks/key-vault:latest',
+  KEY_VAULT_ENDPOINT: process.env.KEY_VAULT_ENDPOINT || 'http://key-vault:8080'
+}
+
+function replaceVariables(config: any): any {
+  const typeOfConfig = typeof config;
+  if (typeOfConfig === "object") {
+    for (const key in config) {
+      config[key] = replaceVariables(config[key]);
+    }
+  } else if (typeOfConfig === "string") {
+    for (const [key, value] of Object.entries(variables)) {
+      config = config.replaceAll(`{{${key}}}`, value);
+    }
+  }
+  return config;
+}
+
+const updatedConfig = replaceVariables(config);
+
+console.log(Bun.YAML.stringify(updatedConfig, null, 2));
