@@ -1,7 +1,5 @@
 wit_bindgen::generate!({ generate_all });
 
-use std::str::FromStr;
-
 use crate::betty_blocks::data_api::data_api::request;
 use crate::exports::betty_blocks::crud::crud::{
     Guest, HelperContext, JsonString, Model, ObjectField, PropertyKey, PropertyMap, PropertyMapping,
@@ -14,19 +12,18 @@ enum PropertyKind {
     HasMany,
     HasAndBelongsToMany,
     String,
-    Other,
+    Other(String),
 }
 
-impl FromStr for PropertyKind {
-    type Err = ();
-    fn from_str(input: &str) -> Result<PropertyKind, Self::Err> {
-        match input {
-            "OBJECT" => Ok(PropertyKind::Object),
-            "BELONGS_TO" => Ok(PropertyKind::BelongsTo),
-            "HAS_MANY" => Ok(PropertyKind::HasMany),
-            "HAS_AND_BELONGS_TO_MANY" => Ok(PropertyKind::HasAndBelongsToMany),
-            "STRING" => Ok(PropertyKind::String),
-            _ => Ok(PropertyKind::Other),
+impl<T: AsRef<str>> From<T> for PropertyKind {
+    fn from(input: T) -> PropertyKind {
+        match input.as_ref() {
+            "OBJECT" => PropertyKind::Object,
+            "BELONGS_TO" => PropertyKind::BelongsTo,
+            "HAS_MANY" => PropertyKind::HasMany,
+            "HAS_AND_BELONGS_TO_MANY" => PropertyKind::HasAndBelongsToMany,
+            "STRING" => PropertyKind::String,
+            x => PropertyKind::Other(x.to_string()),
         }
     }
 }
@@ -130,7 +127,7 @@ fn get_query_fields(property_map: PropertyMapping) -> String {
                 object_fields,
             } = property.key.first().unwrap();
 
-            let kind = PropertyKind::from_str(kind).unwrap();
+            let kind = PropertyKind::from(kind);
 
             let property_json = parse_property_value(property.value.as_deref());
 
@@ -230,7 +227,7 @@ fn parse_assigned_properties(property_map: PropertyMapping) -> serde_json::Value
         assert!(property.key.len() == 1, "Currently the builder doesn't support nested assignments, so we also take the first one");
         let PropertyKey { name, kind, .. } = property.key.first().unwrap();
 
-        let kind = PropertyKind::from_str(kind).unwrap();
+        let kind = PropertyKind::from(kind);
         let property_json = parse_property_value(property.value.as_deref());
 
         if let Some(json) = property_json {
@@ -480,7 +477,7 @@ mod tests {
         }
     }
 
-    use crate::exports::data_api::crud::crud::ObjectField;
+    use crate::exports::betty_blocks::crud::crud::ObjectField;
     use serde_json::json;
 
     use super::*;
