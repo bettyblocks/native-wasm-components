@@ -1,7 +1,7 @@
 struct Create;
 
 wit_bindgen::generate!({ generate_all });
-use crate::data_api::crud::crud::{create as crud_create, HelperContext};
+use crate::betty_blocks::crud::crud::{create as crud_create, HelperContext};
 use crate::exports::betty_blocks::create::create::{Guest, Input, JsonString};
 
 impl Guest for Create {
@@ -10,7 +10,12 @@ impl Guest for Create {
             true => vec!["default".to_string()],
             false => vec!["empty".to_string()],
         };
-        let response = crud_create(&helper_context, &input.model, &input.mapping, Some(&validates));
+        let response = crud_create(
+            &helper_context,
+            &input.model,
+            &input.mapping,
+            Some(&validates),
+        );
         Ok(response?)
     }
 }
