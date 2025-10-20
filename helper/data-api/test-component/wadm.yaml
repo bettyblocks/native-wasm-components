@@ -35,8 +35,8 @@ spec:
           properties:
             target:
               name: crud-component
-            namespace: data-api
-            package: crud
+            namespace: betty-blocks
+            package: data-api
             interfaces: [crud]
 
 
