@@ -41,7 +41,7 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,wkg
+          tool: just,wkg,wash
 
       - uses: erlef/setup-beam@v1
         with:
