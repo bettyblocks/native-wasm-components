@@ -323,23 +323,29 @@ fn format_delete_mutation(mutation_name: &str) -> String {
     )
 }
 
-fn get_record_id(gql_result: &str, mutation_name: &str) -> Option<String> {
+fn parse_id(id: &serde_json::Value) -> Result<String, String> {
+    match id {
+        serde_json::Value::String(id) => Ok(id.to_string()),
+        serde_json::Value::Number(id) => Ok(id.to_string()),
+        _ => Err("ID should be a string or number".to_string()),
+    }
+}
+
+fn get_record_id(gql_result: &str, mutation_name: &str) -> Result<String, String> {
     match parse_json_or_string(gql_result) {
         serde_json::Value::Object(record) => {
             // NOTE:
             // A successfull create/update mutation will always contain an id as string
-            Some(
-                record
-                    .get(mutation_name)
-                    .expect("always has this key")
-                    .get("id")
-                    .expect("always contains an id")
-                    .as_str()
-                    .expect("always is a string")
-                    .to_string(),
-            )
+            let id = record
+                .get("data")
+                .ok_or("missing data field".to_string())?
+                .get(mutation_name)
+                .ok_or(format!("missing {}", &mutation_name))?
+                .get("id")
+                .ok_or("missing id in return".to_string())?;
+            Ok(parse_id(id)?)
         }
-        _ => None,
+        _ => Err("Expected result to be an object".to_string()),
     }
 }
 
@@ -350,9 +356,7 @@ fn get_affected_record(
     model_name: &str,
     fragment: &GraphQL,
 ) -> Result<String, String> {
-    let id = get_record_id(request_result, mutation_name)
-        .expect("Succesfull create should always return an id");
-
+    let id = get_record_id(request_result, mutation_name)?;
     fetch_record(helper_context, model_name, &id, fragment)
 }
 
