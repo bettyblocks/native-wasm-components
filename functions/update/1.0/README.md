@@ -1,6 +1,6 @@
-# Create
+# Update
 
-Create component that uses the native CRUD component to perform an create operation.
+Update component that uses the native CRUD component to perform an update operation.
 
 ## Building
 
