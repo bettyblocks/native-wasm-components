@@ -1,7 +1,11 @@
-fetch_wit_deps:
+fetch_wit_deps: 
   wash wit deps
 
+move_wasm_to_root: 
+  mv ./build/*.wasm .
+
 build: fetch_wit_deps
-  wash build
+  wash build --build-only
+  just move_wasm_to_root
 
 test:
