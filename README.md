@@ -45,3 +45,14 @@ To run all the unit tests for the component run:
 ```sh
 mix test.components
 ```
+
+### Running on locally
+
+For running locally, there is a `wasmcloud/local.wamd.yaml` file. The Github components / providers are pulled from the Github repository. However, for components / providers in private repositories, you need to push them to a local repository and pull them from there. Currently, the local repository is set to be `wasmcloud-registry:5000`.
+
+The steps to run it then are:
+
+1. Run a wasmcloud server, for example with `wash dev`
+2. Deploy the private provider / components to the local repository with `wash push` to the specified registry
+3. Change the secret to the correct secret in the key-vault provider
+4. Deploy the app: `wash app deploy local.wadm.yaml`
