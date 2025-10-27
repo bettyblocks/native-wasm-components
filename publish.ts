@@ -1,7 +1,7 @@
 import { getAllWasmFunctionsWithVersions } from "@betty-blocks/cli/build/functions/functionDefinitions";
 import { publishWasmBlockStoreFunctions } from "@betty-blocks/cli/build/functions/publishWasmBlockStoreFunctions";
 import { validateFunctions } from "@betty-blocks/cli/build/functions/validateFunctions";
-import fs from "fs-extra";
+
 import Jaws from "@betty-blocks/jaws";
 import os from "node:os";
 import path from "node:path";
@@ -42,15 +42,18 @@ const { jwt } = jaws.sign("cli", {
 });
 
 const authBBCli = path.join(os.homedir(), ".bb-cli.json");
-fs.writeJSONSync(
+await Bun.write(
   authBBCli,
-  {
-    applicationMap: {},
-    auth: {
-      "jwt.cli": jwt,
+  JSON.stringify(
+    {
+      applicationMap: {},
+      auth: {
+        "jwt.cli": jwt,
+      },
     },
-  },
-  { spaces: 2 }
+    null,
+    2
+  )
 );
 
 let blockstoreApiUrl =
@@ -62,14 +65,17 @@ if (branch === "edge" || branch === "acceptance") {
   );
 }
 
-const config = fs.readJSONSync(path.join(workingDir, "config.json"));
-fs.writeJSONSync(
+const config = await Bun.file(path.join(workingDir, "config.json")).json();
+await Bun.write(
   path.join(workingDir, "config.json"),
-  {
-    ...config,
-    blockstoreApiUrl,
-  },
-  { spaces: 2 }
+  JSON.stringify(
+    {
+      ...config,
+      blockstoreApiUrl,
+    },
+    null,
+    2
+  )
 );
 
 await publishWasmBlockStoreFunctions(baseFunctionsPath, functionNames);
