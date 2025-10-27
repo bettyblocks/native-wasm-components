@@ -1,10 +1,32 @@
 wit_bindgen::generate!({ generate_all });
 
 use crate::betty_blocks::data_api::data_api::request;
-use crate::exports::data_api::crud::crud::{
-    Guest, HelperContext, JsonString, Model, ObjectField, PropertyKey, PropertyKind, PropertyMap,
-    PropertyMapping,
+use crate::exports::betty_blocks::crud::crud::{
+    Guest, HelperContext, JsonString, Model, ObjectField, PropertyKey, PropertyMap, PropertyMapping,
 };
+
+#[derive(Debug, PartialEq)]
+enum PropertyKind {
+    Object,
+    BelongsTo,
+    HasMany,
+    HasAndBelongsToMany,
+    String,
+    Other(String),
+}
+
+impl<T: AsRef<str>> From<T> for PropertyKind {
+    fn from(input: T) -> PropertyKind {
+        match input.as_ref() {
+            "OBJECT" => PropertyKind::Object,
+            "BELONGS_TO" => PropertyKind::BelongsTo,
+            "HAS_MANY" => PropertyKind::HasMany,
+            "HAS_AND_BELONGS_TO_MANY" => PropertyKind::HasAndBelongsToMany,
+            "STRING" => PropertyKind::String,
+            x => PropertyKind::Other(x.to_string()),
+        }
+    }
+}
 
 #[derive(Eq, PartialEq, Debug)]
 struct GraphQL {
@@ -105,6 +127,8 @@ fn get_query_fields(property_map: PropertyMapping) -> String {
                 object_fields,
             } = property.key.first().unwrap();
 
+            let kind = PropertyKind::from(kind);
+
             let property_json = parse_property_value(property.value.as_deref());
 
             match kind {
@@ -203,13 +227,14 @@ fn parse_assigned_properties(property_map: PropertyMapping) -> serde_json::Value
         assert!(property.key.len() == 1, "Currently the builder doesn't support nested assignments, so we also take the first one");
         let PropertyKey { name, kind, .. } = property.key.first().unwrap();
 
+        let kind = PropertyKind::from(kind);
         let property_json = parse_property_value(property.value.as_deref());
 
         if let Some(json) = property_json {
             result.insert(
                 name.to_string(),
                 get_assigned_value(
-                    kind,
+                    &kind,
                     json,
                 ),
             );
@@ -298,23 +323,29 @@ fn format_delete_mutation(mutation_name: &str) -> String {
     )
 }
 
-fn get_record_id(gql_result: &str, mutation_name: &str) -> Option<String> {
+fn parse_id(id: &serde_json::Value) -> Result<String, String> {
+    match id {
+        serde_json::Value::String(id) => Ok(id.to_string()),
+        serde_json::Value::Number(id) => Ok(id.to_string()),
+        _ => Err("ID should be a string or number".to_string()),
+    }
+}
+
+fn get_record_id(gql_result: &str, mutation_name: &str) -> Result<String, String> {
     match parse_json_or_string(gql_result) {
         serde_json::Value::Object(record) => {
             // NOTE:
             // A successfull create/update mutation will always contain an id as string
-            Some(
-                record
-                    .get(mutation_name)
-                    .expect("always has this key")
-                    .get("id")
-                    .expect("always contains an id")
-                    .as_str()
-                    .expect("always is a string")
-                    .to_string(),
-            )
+            let id = record
+                .get("data")
+                .ok_or("missing data field".to_string())?
+                .get(mutation_name)
+                .ok_or(format!("missing {}", &mutation_name))?
+                .get("id")
+                .ok_or("missing id in return".to_string())?;
+            Ok(parse_id(id)?)
         }
-        _ => None,
+        _ => Err("Expected result to be an object".to_string()),
     }
 }
 
@@ -325,9 +356,7 @@ fn get_affected_record(
     model_name: &str,
     fragment: &GraphQL,
 ) -> Result<String, String> {
-    let id = get_record_id(request_result, mutation_name)
-        .expect("Succesfull create should always return an id");
-
+    let id = get_record_id(request_result, mutation_name)?;
     fetch_record(helper_context, model_name, &id, fragment)
 }
 
@@ -452,7 +481,7 @@ mod tests {
         }
     }
 
-    use crate::exports::data_api::crud::crud::ObjectField;
+    use crate::exports::betty_blocks::crud::crud::ObjectField;
     use serde_json::json;
 
     use super::*;
@@ -461,7 +490,7 @@ mod tests {
     fn returns_task_fragment() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::String,
+                kind: "STRING".to_string(),
                 name: "name".to_string(),
                 object_fields: None,
             }],
@@ -491,7 +520,7 @@ fragment taskFields on Task {
     fn returns_task_fragment_with_object_property() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::Object,
+                kind: "OBJECT".to_string(),
                 name: "object".to_string(),
                 object_fields: Some(vec![
                     ObjectField {
@@ -535,7 +564,7 @@ fragment taskFields on Task {
     fn returns_task_fragment_with_belongs_to_relation() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::BelongsTo,
+                kind: "BELONGS_TO".to_string(),
                 name: "model".to_string(),
                 object_fields: None,
             }],
@@ -578,7 +607,7 @@ fragment taskFields on Task {
     fn returns_task_fragment_with_has_many_relation() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::HasMany,
+                kind: "HAS_MANY".to_string(),
                 name: "users".to_string(),
                 object_fields: None,
             }],
@@ -639,7 +668,7 @@ fragment taskFields on Task {
     fn returns_task_fragment_with_multiple_belongs_to_relations() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::BelongsTo,
+                kind: "BELONGS_TO".to_string(),
                 name: "information".to_string(),
                 object_fields: None,
             }],
@@ -710,7 +739,7 @@ fragment taskFields on Task {
     fn returns_task_fragment_with_nested_belongs_to_relations() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::BelongsTo,
+                kind: "BELONGS_TO".to_string(),
                 name: "information".to_string(),
                 object_fields: None,
             }],
@@ -786,7 +815,7 @@ fragment taskFields on Task {
     fn returns_task_fragment_with_nested_relations_array() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::BelongsTo,
+                kind: "BELONGS_TO".to_string(),
                 name: "information".to_string(),
                 object_fields: None,
             }],
@@ -870,7 +899,7 @@ fragment taskFields on Task {
     fn returns_task_fragment_belongs_to_by_id() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::BelongsTo,
+                kind: "BELONGS_TO".to_string(),
                 name: "model".to_string(),
                 object_fields: None,
             }],
@@ -902,7 +931,7 @@ fragment taskFields on Task {
     fn returns_task_fragment_has_many_by_id() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::HasMany,
+                kind: "HAS_MANY".to_string(),
                 name: "users".to_string(),
                 object_fields: None,
             }],
@@ -933,7 +962,7 @@ fragment taskFields on Task {
     fn returns_empty_when_model_missing() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::String,
+                kind: "STRING".to_string(),
                 name: "name".to_string(),
                 object_fields: None,
             }],
@@ -958,7 +987,7 @@ fragment taskFields on Task {
     fn parse_assigned_propertie_should_create_simple_input_variables() {
         let property_map = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::String,
+                kind: "STRING".to_string(),
                 name: "name".to_string(),
                 object_fields: None,
             }],
@@ -975,7 +1004,7 @@ fragment taskFields on Task {
         let property_map = vec![
             PropertyMap {
                 key: vec![PropertyKey {
-                    kind: PropertyKind::String,
+                    kind: "STRING".to_string(),
                     name: "name".to_string(),
                     object_fields: None,
                 }],
@@ -983,7 +1012,7 @@ fragment taskFields on Task {
             },
             PropertyMap {
                 key: vec![PropertyKey {
-                    kind: PropertyKind::HasMany,
+                    kind: "HAS_MANY".to_string(),
                     name: "abilities".to_string(),
                     object_fields: None,
                 }],

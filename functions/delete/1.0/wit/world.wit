@@ -1,0 +1,27 @@
+package betty-blocks:delete@0.1.0;
+
+interface delete {
+  use betty-blocks:data-api/data-api.{helper-context};
+  use betty-blocks:crud/crud.{model};
+  type json-string = string;
+
+  record betty-record {
+    id: u64
+  }
+
+  record selected-record {
+    model: model,
+    data: betty-record
+  }
+
+  record input {
+    %record: selected-record
+   }
+
+  create: func(helper-context: helper-context, input: input) -> result<json-string, string>;
+}
+
+world main {
+   import betty-blocks:crud/crud;
+   export delete;
+}

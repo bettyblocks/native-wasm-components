@@ -1,8 +1,8 @@
 wit_bindgen::generate!({ generate_all });
 use wasmcloud_component::info;
 
-use crate::data_api::crud::crud::{
-    create, delete, update, HelperContext, Model, PropertyKey, PropertyKind, PropertyMap,
+use crate::betty_blocks::crud::crud::{
+    create, delete, update, HelperContext, Model, PropertyKey, PropertyMap,
 };
 use crate::exports::test::runner::test::{Guest, JsonString};
 
@@ -25,7 +25,7 @@ impl Guest for TestComponent {
         };
         let mapping = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::String,
+                kind: "STRING".to_string(),
                 name: "name".to_string(),
                 object_fields: None,
             }],
@@ -66,7 +66,7 @@ impl Guest for TestComponent {
         };
         let mapping = vec![PropertyMap {
             key: vec![PropertyKey {
-                kind: PropertyKind::String,
+                kind: "STRING".to_string(),
                 name: "name".to_string(),
                 object_fields: None,
             }],

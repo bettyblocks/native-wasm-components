@@ -12,5 +12,5 @@ target = "betty-blocks:data-api/data-api"
 source = "file://../wit/world.wit"
 
 [[registry.pull.sources]]
-target = "data-api:crud/crud"
+target = "betty-blocks:crud/crud"
 source = "file://../component/wit/world.wit"

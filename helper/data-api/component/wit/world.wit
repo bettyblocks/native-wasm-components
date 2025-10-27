@@ -1,4 +1,4 @@
-package data-api:crud;
+package betty-blocks:crud;
 
 interface crud {
   use betty-blocks:data-api/data-api.{helper-context};
@@ -9,29 +9,13 @@ interface crud {
     name: string
   }
 
-  enum property-kind {
-    %string,
-    integer,
-    boolean,
-    rich-text,
-    text,
-    image,
-    file,
-    %list,
-    phone-number,
-    object,
-    has-and-belongs-to-many,
-    belongs-to,
-    has-many,
-  }
-
   record object-field {
     name: string,
   }
 
   record property-key {
     name: string,
-    kind: property-kind,
+    kind: string,
     object-fields: option<list<object-field>>
   }
 
