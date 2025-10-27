@@ -11,7 +11,7 @@ interface test {
 
 world component {
   import wasi:logging/logging@0.1.0-draft;
-  import data-api:crud/crud;
+  import betty-blocks:crud/crud;
 
   export test;
 }
