@@ -1,4 +1,4 @@
-package betty-blocks:types@0.1.0;
+package betty-blocks:types@0.2.0;
 
 interface actions {
    type json-string = string;
@@ -17,4 +17,5 @@ interface actions {
    }
 
    call: func(input: input) -> result<output, string>;
+   health: func() -> result<string, string>;
 }

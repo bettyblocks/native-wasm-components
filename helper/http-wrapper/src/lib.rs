@@ -4,7 +4,7 @@ pub mod bindings {
     wit_bindgen::generate!({ generate_all });
 }
 
-use crate::bindings::betty_blocks::types::actions::{Input, Payload, call};
+use crate::bindings::betty_blocks::types::actions::{Input, Payload, call, health};
 
 struct Component;
 
@@ -44,6 +44,11 @@ impl Into<http::Response<String>> for Error {
 }
 
 fn inner_handle(request: http::IncomingRequest) -> Result<http::Response<String>, Error> {
+    if request.uri().query() == Some("health=true") {
+        let health_status = health().map_err(|e: String| Error::ActionCallFailed(e))?;
+        return Ok(http::Response::new(health_status));
+    }
+
     let body = request.body();
 
     body.subscribe().block();
