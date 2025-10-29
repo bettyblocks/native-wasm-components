@@ -25,6 +25,7 @@ enum Error {
     InvalidInput(String),
     FailedToReadBody(String),
     ActionCallFailed(String),
+    HealthCheckFailed(String),
 }
 
 impl From<Error> for http::Response<String> {
@@ -39,13 +40,16 @@ impl From<Error> for http::Response<String> {
             Error::ActionCallFailed(message) => {
                 http::Response::builder().status(400).body(message).unwrap()
             }
+            Error::HealthCheckFailed(message) => {
+                http::Response::builder().status(400).body(message).unwrap()
+            }
         }
     }
 }
 
 fn inner_handle(request: http::IncomingRequest) -> Result<http::Response<String>, Error> {
-    if request.uri().query() == Some("health=true") {
-        let health_status = health().map_err(|e: String| Error::ActionCallFailed(e))?;
+    if request.uri().path().contains("health") {
+        let health_status = health().map_err(Error::HealthCheckFailed)?;
         return Ok(http::Response::new(health_status));
     }
 

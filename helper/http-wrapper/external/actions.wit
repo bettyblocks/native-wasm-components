@@ -1,4 +1,4 @@
-package betty-blocks:types@0.2.0;
+package betty-blocks:types;
 
 interface actions {
    type json-string = string;
