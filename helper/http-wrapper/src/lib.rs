@@ -4,7 +4,7 @@ pub mod bindings {
     wit_bindgen::generate!({ generate_all });
 }
 
-use crate::bindings::betty_blocks::types::actions::{Input, Payload, call};
+use crate::bindings::betty_blocks::types::actions::{Input, Payload, call, health};
 
 struct Component;
 
@@ -25,11 +25,12 @@ enum Error {
     InvalidInput(String),
     FailedToReadBody(String),
     ActionCallFailed(String),
+    HealthCheckFailed(String),
 }
 
-impl Into<http::Response<String>> for Error {
-    fn into(self) -> http::Response<String> {
-        match self {
+impl From<Error> for http::Response<String> {
+    fn from(val: Error) -> Self {
+        match val {
             Error::InvalidInput(message) => {
                 http::Response::builder().status(400).body(message).unwrap()
             }
@@ -39,11 +40,19 @@ impl Into<http::Response<String>> for Error {
             Error::ActionCallFailed(message) => {
                 http::Response::builder().status(400).body(message).unwrap()
             }
+            Error::HealthCheckFailed(message) => {
+                http::Response::builder().status(400).body(message).unwrap()
+            }
         }
     }
 }
 
 fn inner_handle(request: http::IncomingRequest) -> Result<http::Response<String>, Error> {
+    if request.uri().path().contains("health") {
+        let health_status = health().map_err(Error::HealthCheckFailed)?;
+        return Ok(http::Response::new(health_status));
+    }
+
     let body = request.body();
 
     body.subscribe().block();
@@ -61,7 +70,7 @@ fn inner_handle(request: http::IncomingRequest) -> Result<http::Response<String>
         },
     };
 
-    let result = call(&input).map_err(|e| Error::ActionCallFailed(e))?;
+    let result = call(&input).map_err(Error::ActionCallFailed)?;
 
     Ok(http::Response::new(result.result))
 }

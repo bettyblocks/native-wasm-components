@@ -1,5 +1,5 @@
 name = "http-wrapper"
-version = "0.1.0"
+version = "0.2.0"
 language = "rust"
 type = "component"
 
@@ -8,5 +8,5 @@ wit_world = "main"
 wasm_target = "wasm32-wasip2"
 
 [[registry.pull.sources]]
-target = "betty-blocks:types@0.1.0"
+target = "betty-blocks:types"
 source = "file://./external/actions.wit"
