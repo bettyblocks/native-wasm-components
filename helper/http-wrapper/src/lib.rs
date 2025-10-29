@@ -27,9 +27,9 @@ enum Error {
     ActionCallFailed(String),
 }
 
-impl Into<http::Response<String>> for Error {
-    fn into(self) -> http::Response<String> {
-        match self {
+impl From<Error> for http::Response<String> {
+    fn from(val: Error) -> Self {
+        match val {
             Error::InvalidInput(message) => {
                 http::Response::builder().status(400).body(message).unwrap()
             }
@@ -66,7 +66,7 @@ fn inner_handle(request: http::IncomingRequest) -> Result<http::Response<String>
         },
     };
 
-    let result = call(&input).map_err(|e| Error::ActionCallFailed(e))?;
+    let result = call(&input).map_err(Error::ActionCallFailed)?;
 
     Ok(http::Response::new(result.result))
 }
