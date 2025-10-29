@@ -12,7 +12,7 @@ spec:
       # placeholder for the http server to link to (for kubernetes)
       type: component
       properties:
-        image: ghcr.io/bettyblocks/http-wrapper:0.1.0
+        image: ghcr.io/bettyblocks/http-wrapper:0.2.0
       traits:
         - type: daemonscaler
           properties:
