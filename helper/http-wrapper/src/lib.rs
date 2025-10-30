@@ -48,7 +48,8 @@ impl From<Error> for http::Response<String> {
 }
 
 fn inner_handle(request: http::IncomingRequest) -> Result<http::Response<String>, Error> {
-    if request.uri().path().contains("health") {
+    // Use GET for health checks because cant cdefine multiple paths in wadm in kubernetes
+    if request.method() == http::Method::GET {
         let health_status = health().map_err(Error::HealthCheckFailed)?;
         return Ok(http::Response::new(health_status));
     }
