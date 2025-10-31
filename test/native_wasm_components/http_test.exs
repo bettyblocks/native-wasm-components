@@ -11,7 +11,7 @@ defmodule NativeWasmComponents.HttpTest do
          body_parameters,
          query_parameters,
          headers \\ %{},
-         protocol \\ :HTTP
+         protocol \\ :http
        ) do
     case TestHelper.run_component(
            @component_path,
@@ -161,7 +161,7 @@ defmodule NativeWasmComponents.HttpTest do
                  %{},
                  %{},
                  %{"content-type" => "application/json"},
-                 :HTTP
+                 :http
                )
     end
 
@@ -176,7 +176,7 @@ defmodule NativeWasmComponents.HttpTest do
                  %{},
                  %{},
                  %{"content-type" => "application/json"},
-                 :HTTPS
+                 :https
                )
     end
   end

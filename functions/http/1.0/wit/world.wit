@@ -2,8 +2,8 @@ package betty-blocks:http@0.1.0;
 
 interface http {
   enum scheme {
-    HTTP,
-    HTTPS,
+    http,
+    https,
   }
 
   enum method {
