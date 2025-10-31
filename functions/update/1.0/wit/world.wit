@@ -11,7 +11,7 @@ interface update {
 
   record selected-record {
     model: model,
-    data: betty-record
+    data: option<betty-record>
   }
 
   record input {

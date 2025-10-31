@@ -255,7 +255,7 @@ fn fetch_record(
     let query_name = format!("one{model_name}",);
     let GraphQL { name, gql } = fragment;
 
-    let selection_set: String = if gql.is_empty() {
+    let selection_set: String = if !gql.is_empty() {
         format!("...{name}",)
     } else {
         "id".to_string()
@@ -286,7 +286,14 @@ fn fetch_record(
 
     match result {
         Ok(data) => match serde_json::from_str(&data).unwrap() {
-            serde_json::Value::Object(record) => Ok(serde_json::to_string(&record).unwrap()),
+            serde_json::Value::Object(record) => {
+                let fetched_record = record
+                    .get("data")
+                    .ok_or("missing data field".to_string())?
+                    .get(&query_name)
+                    .ok_or(format!("missing {}", &query_name))?;
+                Ok(serde_json::to_string(&fetched_record).unwrap())
+            }
             _ => Err("Return type of provider should always be an object".to_string()),
         },
         Err(e) => Err(e),
