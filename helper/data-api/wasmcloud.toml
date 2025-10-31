@@ -1,6 +1,0 @@
-name = "mock-graphql-provider"
-language = "rust"
-type = "provider"
-
-[provider]
-vendor = "Betty Blocks"

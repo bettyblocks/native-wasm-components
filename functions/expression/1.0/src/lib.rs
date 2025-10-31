@@ -137,6 +137,19 @@ fn templated_magic_test_3() {
 }
 
 #[test]
+fn templated_magic_test_4() {
+    let out = run_expression(
+        r#""{{array1.length}}" + " " + "{{array2.length}}""#.to_string(),
+        r#"{
+        "array1": [{"id":1}, {"id":2}, {"id":3}, {"id":4}, {"id":5}],
+        "array2": [{"id":6}, {"id":7}, {"id":8}, {"id":9}, {"id":10}]
+        }"#.to_string(),
+    )
+    .unwrap();
+    assert_eq!(r#""5 5""#.to_string(), out.result);
+}
+
+#[test]
 fn variable_not_found_test() {
     let out = run_expression(r#"{{ testing }}"#.to_string(), r#"{}"#.to_string()).unwrap();
 
