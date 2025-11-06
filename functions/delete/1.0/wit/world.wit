@@ -11,14 +11,14 @@ interface delete {
 
   record selected-record {
     model: model,
-    data: betty-record
+    data: option<betty-record>
   }
 
   record input {
     %record: selected-record
    }
 
-  create: func(helper-context: helper-context, input: input) -> result<json-string, string>;
+  delete: func(helper-context: helper-context, input: input) -> result<json-string, string>;
 }
 
 world main {
