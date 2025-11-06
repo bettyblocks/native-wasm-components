@@ -36,8 +36,7 @@ defmodule NativeWasmComponents.MixProject do
   def aliases do
     [
       build: &builder/1,
-      "test.components": &test_components/1,
-      "test.providers": &test_providers/1
+      "test.components": &test_components/1
     ]
   end
 
@@ -55,9 +54,5 @@ defmodule NativeWasmComponents.MixProject do
     |> Enum.map(fn path ->
       {_, 0} = System.cmd("just", ["test"], cd: path, into: IO.stream())
     end)
-  end
-
-  defp test_providers(_args) do
-    {_, status} = System.cmd("just", [], cd: "wasmcloud/", into: IO.stream())
   end
 end

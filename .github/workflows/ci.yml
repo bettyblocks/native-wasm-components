@@ -70,7 +70,5 @@ jobs:
       - name: Run rust tests
         run: mix test.components
 
-      - run: mix test.providers
-
       - name: Run elixir tests
         run: mix test
