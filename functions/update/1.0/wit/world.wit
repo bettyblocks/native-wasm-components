@@ -1,0 +1,29 @@
+package betty-blocks:update@0.1.0;
+
+interface update {
+  use betty-blocks:data-api/data-api.{helper-context};
+  use betty-blocks:crud/crud.{property-mapping, model};
+  type json-string = string;
+
+  record betty-record {
+    id: u64
+  }
+
+  record selected-record {
+    model: model,
+    data: option<betty-record>
+  }
+
+  record input {
+    mapping: property-mapping,
+    selected-record: selected-record,
+    validates: bool
+   }
+
+  update: func(helper-context: helper-context, input: input) -> result<json-string, string>;
+}
+
+world main {
+   import betty-blocks:crud/crud;
+   export update;
+}

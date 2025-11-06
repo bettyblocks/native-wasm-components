@@ -35,13 +35,13 @@ jobs:
             deps
           key: ${{ runner.os }}-elixir-${{ hashFiles('mix.lock') }}
       - name: Install stable Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
         with:
           targets: wasm32-wasip2
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,wkg
+          tool: just,wkg,wash
 
       - uses: erlef/setup-beam@v1
         with:
