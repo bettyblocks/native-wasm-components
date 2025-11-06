@@ -1,0 +1,40 @@
+package betty-blocks:crud;
+
+interface crud {
+    use betty-blocks:data-api/data-api.{helper-context};
+
+    type json-string = string;
+
+    record model {
+        name: string
+    }
+
+    record object-field {
+        name: string,
+    }
+
+    record property-key {
+        name: string,
+        kind: string,
+        object-fields: option<list<object-field>>
+    }
+
+    record property-map {
+        key: list<property-key>,
+        value: option<json-string>
+    }
+
+    type property-mapping = list<property-map>;
+
+    create: func(helper-context: helper-context, model: model, mapping: property-mapping, validation-sets: option<list<string>>) -> result<json-string, string>;
+    update: func(helper-context: helper-context, model: model, record-id: string, mapping: property-mapping, validation-sets: option<list<string>>) -> result<json-string, string>;
+    delete: func(helper-context: helper-context, model: model, record-id: string) -> result<json-string, string>;
+}
+
+
+world component {
+    import wasi:logging/logging@0.1.0-draft;
+    import betty-blocks:data-api/data-api;
+
+    export crud;
+}

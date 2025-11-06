@@ -9,8 +9,8 @@ wasm_target = "wasm32-wasip2"
 
 [[registry.pull.sources]]
 target = "betty-blocks:crud/crud"
-source = "file://../../../helper/data-api/component/wit/world.wit"
+source = "file://./external/crud.wit"
 
 [[registry.pull.sources]]
 target = "betty-blocks:data-api/data-api"
-source = "file://../../../helper/data-api/wit/world.wit"
+source = "file://./external/data-api.wit"
