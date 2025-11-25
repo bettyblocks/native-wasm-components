@@ -8,13 +8,13 @@ import path from "node:path";
 
 const args = process.argv.slice(2);
 
-const [BLOCKSTORE_CLI_SECRET, branch] = args;
+const [BLOCKSTORE_CLI_SECRET, branchOrEndpoint] = args;
 
 if (!BLOCKSTORE_CLI_SECRET) {
   throw new Error("No BLOCKSTORE_CLI_SECRET provided");
 }
 
-if (!branch) {
+if (!branchOrEndpoint) {
   throw new Error("No branch provided");
 }
 
@@ -58,10 +58,16 @@ await Bun.write(
 
 let blockstoreApiUrl =
   "https://my.bettyblocks.com/block-store-api/internal/cli";
-if (branch === "edge" || branch === "acceptance") {
+
+if (branchOrEndpoint.startsWith("http")) {
+  blockstoreApiUrl = blockstoreApiUrl.replace(
+    "https://my.bettyblocks.com",
+    branchOrEndpoint
+  );
+} else if (branchOrEndpoint === "edge" || branchOrEndpoint === "acceptance") {
   blockstoreApiUrl = blockstoreApiUrl.replace(
     "my.bettyblocks.com",
-    `my.${branch}.bettyblocks.com`
+    `my.${branchOrEndpoint}.bettyblocks.com`
   );
 }
 
