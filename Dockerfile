@@ -27,9 +27,6 @@ RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/ca
 RUN cargo binstall -y just wkg wash
 
 # Install Bun
-# ARG npm_token
-# ENV npm_token=$npm_token
-
 RUN curl -fsSL https://bun.sh/install | bash -s -- bun-v1.3.3
 ENV PATH="/root/.bun/bin:${PATH}"
 
@@ -54,9 +51,5 @@ RUN --mount=type=secret,id=npm_token,env=npm_token bun install --frozen-lockfile
 # Build WASM components
 RUN mix build
 
-# Set environment variables for publish (can be overridden at runtime)
-# ENV npm_token=""
-
 # Default command - can be overridden to run publish or other commands
 CMD ["bash"]
-
