@@ -13,21 +13,8 @@ node_modules/
 .vscode/
 .idea/
 
-# Logs and temporary files
-*.log
-erl_crash.dump
-out.txt
-tmp.txt
-tmp.json
-tmp.rs
-
-# Documentation
-README__.md
-*.md
-
 # Test files
 test/
 
 # Other
 .DS_Store
-
