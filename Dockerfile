@@ -1,4 +1,4 @@
-FROM hexpm/elixir:1.18.4-erlang-27.3.4-debian-trixie-20251117
+FROM debian:trixie-slim
 
 # Avoid prompts from apt
 ENV DEBIAN_FRONTEND=noninteractive
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust 1.88.0 with wasm32-wasip2 target
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain  1.88.0 --target wasm32-wasip2
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain  1.88.0 --profile minimal --target wasm32-wasip2
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN wget -qO- https://apt.llvm.org/llvm.sh | bash -s -- 18
 
@@ -26,30 +26,16 @@ RUN wget -qO- https://apt.llvm.org/llvm.sh | bash -s -- 18
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 RUN cargo binstall -y just wkg wash
 
-# Install Bun
-RUN curl -fsSL https://bun.sh/install | bash -s -- bun-v1.3.3
-ENV PATH="/root/.bun/bin:${PATH}"
-
-# Set working directory
 WORKDIR /app
 
-# Copy dependency files first for better caching
-COPY mix.exs mix.lock ./
-COPY package.json bun.lock bunfig.toml ./
-
-# Copy all source files
 COPY . .
 
-# Install Elixir dependencies
-RUN mix local.hex --force && \
-    mix local.rebar --force && \
-    mix deps.get
+RUN just build
+RUN just clean
 
-# Install npm dependencies
-RUN --mount=type=secret,id=npm_token,env=npm_token bun install --frozen-lockfile --production --verbose
+FROM debian:trixie-slim
 
-# Build WASM components
-RUN mix build
+WORKDIR /app
 
-# Default command - can be overridden to run publish or other commands
-CMD ["bash"]
+COPY . .
+COPY --from=0 /app/functions /app/functions

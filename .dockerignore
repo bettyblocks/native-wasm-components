@@ -1,5 +1,6 @@
 # Build artifacts
 _build/
+deps/
 target/
 **/target/
 .elixir_ls/
