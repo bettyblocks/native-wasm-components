@@ -1,4 +1,4 @@
-FROM debian:trixie-slim
+FROM debian:trixie-slim AS components
 
 # Avoid prompts from apt
 ENV DEBIAN_FRONTEND=noninteractive
@@ -33,9 +33,12 @@ COPY . .
 RUN just build
 RUN just clean
 
-FROM debian:trixie-slim
+FROM oven/bun:1.3-alpine
 
 WORKDIR /app
-
 COPY . .
-COPY --from=0 /app/functions /app/functions
+COPY --from=components /app/functions /app/functions
+
+RUN --mount=type=secret,id=npm_token,env=npm_token bun install --frozen-lockfile --production --verbose
+
+CMD ["bash"]
