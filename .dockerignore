@@ -1,0 +1,21 @@
+# Build artifacts
+_build/
+deps/
+target/
+**/target/
+.elixir_ls/
+node_modules/
+
+# Git
+.git/
+.github/
+
+# IDE
+.vscode/
+.idea/
+
+# Test files
+test/
+
+# Other
+.DS_Store
