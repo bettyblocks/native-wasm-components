@@ -1,0 +1,36 @@
+package betty-blocks:data-api;
+
+interface data-api {
+    record helper-context {
+        application-id: string,      // Identifies the Betty Blocks application
+        action-id: string,           // Identifies the specific action being executed
+        log-id: string,              // For tracking/logging purposes
+        encrypted-configurations: option<list<string>>, // Encrypted config values
+        jwt: option<string>,        
+    }
+
+    request: func(
+        helper-context: helper-context, 
+        query: string,              // GraphQL query/mutation
+        variables: string           // JSON string of GraphQL variables
+    ) -> result<string, string>;    // Returns JSON response or error
+}
+
+interface data-api-utilities {
+    use betty-blocks:types/types.{model,property};
+
+    record policy-field {
+        key: string,
+        value: string,
+    }
+
+    type policy-fields = list<policy-field>;
+
+    record presigned-post {
+        url: string,
+        fields: policy-fields,
+        reference: string,
+    }
+    
+    fetch-presigned-post: func(model: model, property: property, content-type: string, filename: string) -> result<presigned-post,string>;
+}

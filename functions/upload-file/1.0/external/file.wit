@@ -1,0 +1,22 @@
+package betty-blocks:file;
+
+interface uploader {
+    use betty-blocks:data-api/data-api.{helper-context};
+    use betty-blocks:data-api/data-api-utilities.{model, property};
+    
+    type download-headers = option<list<tuple<string, string>>>;
+    
+    record upload-result {
+        reference: string,
+        file-size: u64,
+        message: option<string>,
+    }
+    
+    upload: func(helper-context: helper-context, model: model, property: property, download-url: string, download-headers: download-headers) -> result<upload-result, string>;
+}
+
+world file-upload {
+    // this is for fetch-presigned-post
+    import betty-blocks:data-api/data-api-utilities;
+    export uploader;
+}

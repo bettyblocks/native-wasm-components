@@ -1,0 +1,13 @@
+package bettyblocks:upload-file;
+
+world upload {
+    import wasi:filesystem/types@0.2.2;
+    import wasi:filesystem/preopens@0.2.2;
+    import wasi:http/outgoing-handler@0.2.2;
+    import wasi:logging/logging@0.1.0-draft;
+    import betty-blocks:data-api/data-api-utilities;
+    import betty-blocks:types/types;
+    
+    export wasi:http/incoming-handler@0.2.2;
+    export betty-blocks:file/uploader;
+}
