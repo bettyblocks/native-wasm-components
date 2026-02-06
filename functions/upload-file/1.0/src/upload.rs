@@ -18,7 +18,7 @@ pub fn upload_file_internal(
     let (file_size, file_name, content_type) = match crate::download::download_and_stream_to_disk(
         &client,
         &download_url,
-        &download_headers,
+        download_headers.as_deref(),
     ) {
         Ok(data) => data,
         Err(e) => {

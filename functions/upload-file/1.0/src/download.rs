@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use tracing::{debug, error};
-use waki::{header::HeaderName, Client, Response};
+use waki::{header::HeaderName, Client, RequestBuilder, Response};
 
 use crate::bindings::wasi::filesystem::{
     preopens::get_directories,
@@ -12,27 +12,16 @@ const CHUNK_SIZE: u64 = 65536; // 64kb
 pub fn download_and_stream_to_disk(
     client: &Client,
     url: &str,
-    headers: &Option<Vec<(String, String)>>,
+    headers: Option<&[(String, String)]>,
 ) -> Result<(u64, String, String)> {
     debug!("Downloading from: {}", url);
 
     let (file_name, content_type) =
         extract_file_info_from_url(url).context("Failed to extract file info from URL")?;
 
-    let mut request = client.get(url);
-
-    // Add custom headers if provided
-    if let Some(custom_headers) = headers {
-        for (key, value) in custom_headers {
-            let header_name = HeaderName::try_from(key.to_lowercase())
-                .map_err(|e| anyhow::anyhow!("Invalid header name '{}': {}", key, e))?;
-            request = request.header(header_name, value.as_str());
-        }
-    }
-
-    let response = request
+    let response = build_request(client, url, headers)?
         .send()
-        .map_err(|e| anyhow::anyhow!("Failed to send HTTP request: {e:?}"))?;
+        .context("Failed to send HTTP request")?;
 
     let status = response.status_code();
     if !(200..300).contains(&status) {
@@ -47,6 +36,22 @@ pub fn download_and_stream_to_disk(
     Ok((file_size, file_name, content_type))
 }
 
+fn build_request(
+    client: &Client,
+    url: &str,
+    headers: Option<&[(String, String)]>,
+) -> Result<RequestBuilder> {
+    let mut request = client.get(url);
+    if let Some(custom_headers) = headers {
+        for (key, value) in custom_headers {
+            let header_name = HeaderName::try_from(key.to_lowercase())
+                .with_context(|| format!("Invalid header name: '{}'", key))?;
+            request = request.header(header_name, value.as_str());
+        }
+    }
+    Ok(request)
+}
+
 fn stream_response_to_file(response: &Response, filename: &str) -> Result<u64> {
     let preopens = get_directories();
 
@@ -57,7 +62,6 @@ fn stream_response_to_file(response: &Response, filename: &str) -> Result<u64> {
 
     let (dir, _dir_name) = &preopens[0];
 
-    // Open file for writing with CREATE flag
     let file = dir
         .open_at(
             PathFlags::empty(),
@@ -70,7 +74,6 @@ fn stream_response_to_file(response: &Response, filename: &str) -> Result<u64> {
             anyhow::anyhow!("Failed to open file for writing: {e:?}")
         })?;
 
-    // io output stream
     let write_stream = file.write_via_stream(0).map_err(|e| {
         error!("stream_response_to_file: Failed to get write stream: {e:?}");
         anyhow::anyhow!("Failed to get write stream: {e:?}")
@@ -91,35 +94,24 @@ fn stream_response_to_file(response: &Response, filename: &str) -> Result<u64> {
                         "stream_response_to_file: Failed to write chunk {}: {}",
                         chunk_count, e
                     );
-                    drop(write_stream);
-                    drop(file);
                     let _ = dir.unlink_file_at(filename);
                     return Err(e.context(format!("Failed to write chunk {}", chunk_count)));
                 }
                 total_bytes += chunk.len() as u64;
             }
-            Ok(Some(_empty_chunk)) => {
-                break;
-            }
-            Ok(None) => {
-                break;
-            }
+            Ok(Some(_)) | Ok(None) => break,
             Err(e) => {
                 error!("stream_response_to_file: Failed to read response chunk: {e:?}");
-                drop(write_stream);
-                drop(file);
                 let _ = dir.unlink_file_at(filename);
                 return Err(anyhow::anyhow!("Failed to read response chunk: {e:?}"));
             }
         }
     }
 
-    // flush, close
     write_stream.flush().map_err(|e| {
         error!("stream_response_to_file: Failed to flush write stream: {e:?}");
         anyhow::anyhow!("Failed to flush write stream: {e:?}")
     })?;
-
     drop(write_stream);
     drop(file);
 
@@ -161,14 +153,14 @@ pub fn extract_file_info_from_url(url: &str) -> Result<(String, String)> {
         .next()
         .ok_or_else(|| anyhow::anyhow!("Invalid URL format"))?;
 
-    let filename = url_path
+    let encoded_filename = url_path
         .split('/')
+        .filter(|s| !s.is_empty())
         .next_back()
-        .ok_or_else(|| anyhow::anyhow!("Could not extract filename from URL"))?
-        .to_string();
+        .ok_or_else(|| anyhow::anyhow!("Could not extract filename from URL"))?;
 
-    let filename = urlencoding::decode(&filename)
-        .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&filename))
+    let filename = urlencoding::decode(encoded_filename)
+        .unwrap_or_else(|_| std::borrow::Cow::Borrowed(encoded_filename))
         .to_string();
 
     let content_type = mime_guess::from_path(&filename)

@@ -2,7 +2,7 @@ package betty-blocks:file;
 
 interface uploader {
     use betty-blocks:data-api/data-api.{helper-context};
-    use betty-blocks:data-api/data-api-utilities.{model, property};
+    use betty-blocks:types/types.{model, property};
     
     type download-headers = option<list<tuple<string, string>>>;
     

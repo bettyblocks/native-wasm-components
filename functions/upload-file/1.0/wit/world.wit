@@ -8,6 +8,5 @@ world upload {
     import betty-blocks:data-api/data-api-utilities;
     import betty-blocks:types/types;
     
-    export wasi:http/incoming-handler@0.2.2;
     export betty-blocks:file/uploader;
 }

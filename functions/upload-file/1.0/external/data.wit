@@ -2,18 +2,18 @@ package betty-blocks:data-api;
 
 interface data-api {
     record helper-context {
-        application-id: string,      // Identifies the Betty Blocks application
-        action-id: string,           // Identifies the specific action being executed
-        log-id: string,              // For tracking/logging purposes
-        encrypted-configurations: option<list<string>>, // Encrypted config values
+        application-id: string,      
+        action-id: string,           
+        log-id: string,              
+        encrypted-configurations: option<list<string>>,
         jwt: option<string>,        
     }
 
     request: func(
         helper-context: helper-context, 
-        query: string,              // GraphQL query/mutation
-        variables: string           // JSON string of GraphQL variables
-    ) -> result<string, string>;    // Returns JSON response or error
+        query: string,              
+        variables: string           
+    ) -> result<string, string>;    
 }
 
 interface data-api-utilities {
