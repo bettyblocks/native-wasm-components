@@ -16,4 +16,4 @@ wit-bindgen = "0.47.0"
 tokio = { version = "1.47.1", features = ["macros", "rt"] }
 mime_guess = "2.0"
 urlencoding = "2.1"
-waki = { version = "0.5.1", features = ["multipart"] }
+waki = { git = "https://github.com/Aditya1404Sal/waki.git", features = ["multipart"] }

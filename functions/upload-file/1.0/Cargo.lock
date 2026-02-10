@@ -544,8 +544,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "waki"
 version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e2db2daf1dfbadf228fd8b3c22b96a359135fd673b3d2c203274ee6a0df9c77"
+source = "git+https://github.com/Aditya1404Sal/waki.git#fc3bc4c70ebc17cc421eb7743c03f38d57e1abe1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -564,8 +563,7 @@ dependencies = [
 [[package]]
 name = "waki-macros"
 version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a061143f321cc5eeb523f60bdbcd45cfc3ee8851f8cf24f7a4b963bddc5642eb"
+source = "git+https://github.com/Aditya1404Sal/waki.git#fc3bc4c70ebc17cc421eb7743c03f38d57e1abe1"
 dependencies = [
  "proc-macro2",
  "quote",

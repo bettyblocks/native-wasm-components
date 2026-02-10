@@ -1,11 +1,13 @@
 use anyhow::Result;
 use tracing::{debug, error};
-use waki::{multipart, Client};
+use waki::multipart::{StreamingForm, StreamingPart};
+use waki::Client;
 
 use crate::bindings::{
     betty_blocks::data_api::data_api_utilities::{self, Model, PresignedPost, Property},
     exports::betty_blocks::file::uploader::{DownloadHeaders, UploadResult},
 };
+use crate::fs::WasiFileReader;
 
 pub fn upload_file_internal(
     model: Model,
@@ -69,30 +71,26 @@ fn upload_to_presigned_post(
     filename: &str,
     content_type: &str,
 ) -> Result<()> {
-    let mut form = multipart::Form::new();
+    // Build streaming multipart form
+    let mut form = StreamingForm::new();
 
-    // policy form fields added
+    // Add policy form fields (these are small, in-memory is fine)
     for field in &presigned_post.fields {
         form = form.text(field.key.clone(), field.value.clone());
     }
 
-    // Read file from disk for upload
-    // Note: waki's multipart api requires the complete file data as Vec<u8> upfront,
-    // so we can't stream chunks directly into the request body like we do for downloads
-    // WIP : will be creating a fork of waki to support this (T agrees)
-    let file_data = crate::fs::read_with_retry(filename)?;
+    let file_reader = WasiFileReader::open(filename)?;
 
-    let file_part = multipart::Part::new("file", file_data)
+    let file_part = StreamingPart::from_reader("file", file_reader)
         .filename(filename)
         .mime_str(content_type)
         .map_err(|e| anyhow::anyhow!("Failed to set mime type: {e:?}"))?;
 
-    // file in last field
     form = form.part(file_part);
 
     let response = client
         .post(&presigned_post.url)
-        .multipart(form)
+        .streaming_multipart(form)
         .send()
         .map_err(|e| anyhow::anyhow!("Failed to send upload request: {e:?}"))?;
 
@@ -113,6 +111,6 @@ fn upload_to_presigned_post(
         ));
     }
 
-    debug!("Presigned POST upload succeeded");
+    debug!("Presigned POST upload succeeded (streamed from disk)");
     Ok(())
 }
