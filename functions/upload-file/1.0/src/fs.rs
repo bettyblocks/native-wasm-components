@@ -11,7 +11,8 @@ use crate::bindings::wasi::{
     io::streams::{InputStream, StreamError},
 };
 
-const CHUNK_SIZE: u64 = 65536; // 64kb
+const CHUNK_SIZE: usize = 4 * 1024; // 4kb
+const RES_CHUNK_SIZE: u64 = 65536; // 64kb
 
 /// A reader that streams from a WASI filesystem file.
 ///
@@ -65,40 +66,11 @@ impl Read for WasiFileReader {
                 Ok(len)
             }
             Err(StreamError::Closed) => Ok(0),
-            Err(e) => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("WASI stream read error: {e:?}"),
-            )),
+            Err(e) => Err(std::io::Error::other(format!(
+                "WASI stream read error: {e:?}"
+            ))),
         }
     }
-}
-
-pub fn save_to_filesystem(filename: &str, data: &[u8]) -> Result<()> {
-    let preopens = get_directories();
-    if preopens.is_empty() {
-        return Err(anyhow::anyhow!("No preopened directories available"));
-    }
-
-    let (dir, _) = &preopens[0];
-
-    let file = dir
-        .open_at(
-            PathFlags::empty(),
-            filename,
-            OpenFlags::CREATE,
-            DescriptorFlags::READ | DescriptorFlags::WRITE,
-        )
-        .map_err(|e| anyhow::anyhow!("Failed to open file for writing: {e:?}"))?;
-
-    let stream = file
-        .write_via_stream(0)
-        .map_err(|e| anyhow::anyhow!("Failed to get write stream: {e:?}"))?;
-
-    write_stream_in_chunks(&stream, data)?;
-
-    debug!("Saved {} bytes to {}", data.len(), filename);
-
-    Ok(())
 }
 
 pub fn delete_from_filesystem(filename: &str) -> Result<()> {
@@ -107,7 +79,7 @@ pub fn delete_from_filesystem(filename: &str) -> Result<()> {
         return Err(anyhow::anyhow!("No preopened directories available"));
     }
 
-    let (dir, _) = &preopens[0];
+    let (dir, _) = &preopens.first().unwrap();
 
     dir.unlink_file_at(filename)
         .map_err(|e| anyhow::anyhow!("Failed to delete file: {e:?}"))?;
@@ -148,7 +120,7 @@ pub fn stream_response_to_file(response: &Response, filename: &str) -> Result<u6
     let mut chunk_count: u64 = 0;
 
     loop {
-        let chunk_result = response.chunk(CHUNK_SIZE);
+        let chunk_result = response.chunk(RES_CHUNK_SIZE);
         match chunk_result {
             Ok(Some(chunk)) if !chunk.is_empty() => {
                 chunk_count += 1;
@@ -163,7 +135,9 @@ pub fn stream_response_to_file(response: &Response, filename: &str) -> Result<u6
                 }
                 total_bytes += chunk.len() as u64;
             }
-            Ok(Some(_)) | Ok(None) => break,
+            Ok(Some(_)) | Ok(None) => {
+                break;
+            }
             Err(e) => {
                 error!("stream_response_to_file: Failed to read response chunk: {e:?}");
                 let _ = dir.unlink_file_at(filename);
@@ -184,7 +158,7 @@ pub fn write_stream_in_chunks(
     stream: &crate::bindings::wasi::io::streams::OutputStream,
     data: &[u8],
 ) -> Result<()> {
-    for chunk in data.chunks(CHUNK_SIZE.try_into().unwrap()) {
+    for chunk in data.chunks(CHUNK_SIZE) {
         stream
             .blocking_write_and_flush(chunk)
             .map_err(|e| anyhow::anyhow!("Stream write error: {e:?}"))?;

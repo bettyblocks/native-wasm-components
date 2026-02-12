@@ -61,8 +61,7 @@ pub fn extract_file_info_from_url(url: &str) -> Result<(String, String)> {
 
     let encoded_filename = url_path
         .split('/')
-        .filter(|s| !s.is_empty())
-        .next_back()
+        .rfind(|s| !s.is_empty())
         .ok_or_else(|| anyhow::anyhow!("Could not extract filename from URL"))?;
 
     let filename = urlencoding::decode(encoded_filename)

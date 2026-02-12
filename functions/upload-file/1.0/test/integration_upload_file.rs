@@ -10,19 +10,23 @@ use common::find_available_port;
 use wash_runtime::{
     engine::Engine,
     host::{
-        HostApi, HostBuilder,
         http::{DevRouter, HttpServer},
+        HostApi, HostBuilder,
     },
     plugin::{
-        wasi_blobstore::WasiBlobstore, wasi_config::WasiConfig,
-        wasi_keyvalue::WasiKeyvalue, wasi_logging::WasiLogging,
+        wasi_blobstore::WasiBlobstore, wasi_config::WasiConfig, wasi_keyvalue::WasiKeyvalue,
+        wasi_logging::WasiLogging,
     },
-    types::{Component, LocalResources, Volume, VolumeMount, VolumeType, EmptyDirVolume, Workload, WorkloadStartRequest},
+    types::{
+        Component, EmptyDirVolume, LocalResources, Volume, VolumeMount, VolumeType, Workload,
+        WorkloadStartRequest,
+    },
     wit::WitInterface,
 };
 
-const STORE_FILE_WASM: &[u8] = include_bytes!("fixtures/store_file.wasm");
+const UPLOAD_FILE_WASM: &[u8] = include_bytes!("fixtures/upload_file.wasm");
 const PRESIGN_POST_GENERATOR_WASM: &[u8] = include_bytes!("fixtures/presign_post_generator.wasm");
+const HTTP_ROUTER_WASM: &[u8] = include_bytes!("fixtures/http_router.wasm");
 
 fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
     vec![
@@ -70,7 +74,7 @@ async fn start_host_with_plugins(addr: SocketAddr) -> Result<impl HostApi> {
         .with_http_handler(Arc::new(HttpServer::new(DevRouter::default(), addr)))
         .with_plugin(Arc::new(WasiBlobstore::new(None)))?
         .with_plugin(Arc::new(WasiKeyvalue::new()))?
-        .with_plugin(Arc::new(WasiLogging{}))?
+        .with_plugin(Arc::new(WasiLogging {}))?
         .with_plugin(Arc::new(WasiConfig::default()))?
         .build()?;
 
@@ -114,13 +118,11 @@ fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest 
                     max_invocations: 100,
                 },
                 Component {
-                    bytes: bytes::Bytes::from_static(STORE_FILE_WASM),
+                    bytes: bytes::Bytes::from_static(UPLOAD_FILE_WASM),
                     local_resources: LocalResources {
                         memory_limit_mb: 512,
                         cpu_limit: 1,
-                        config: HashMap::from([
-                            ("test_mode".to_string(), "true".to_string()),
-                        ]),
+                        config: HashMap::from([("test_mode".to_string(), "true".to_string())]),
                         environment: HashMap::new(),
                         volume_mounts: vec![volume_mount],
                         allowed_hosts: vec![
@@ -128,6 +130,28 @@ fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest 
                             "*.wasabisys.com".to_string(),
                             "s3.eu-central-1.wasabisys.com".to_string(),
                         ],
+                    },
+                    pool_size: 1,
+                    max_invocations: 100,
+                },
+                Component {
+                    bytes: bytes::Bytes::from_static(HTTP_ROUTER_WASM),
+                    local_resources: LocalResources {
+                        memory_limit_mb: 256,
+                        cpu_limit: 1,
+                        config: HashMap::new(),
+                        environment: HashMap::from([
+                            (
+                                "STORAGE_ACCESS_KEY".to_string(),
+                                "get_this_from_the_storage_bucket".to_string(),
+                            ),
+                            (
+                                "STORAGE_SECRET_KEY".to_string(),
+                                "get_this_from_the_storage_service".to_string(),
+                            ),
+                        ]),
+                        volume_mounts: vec![],
+                        allowed_hosts: vec![],
                     },
                     pool_size: 1,
                     max_invocations: 100,
@@ -167,8 +191,6 @@ async fn test_file_upload_integration() -> Result<()> {
         "filename": "dummy.pdf",
         "content-type": "application/pdf"
     });
-
-    eprintln!("🧪 Sending file upload request...");
 
     let response = timeout(
         Duration::from_secs(30),
