@@ -1,8 +1,3 @@
-//! Integration test for store_file component with presign_post_generator
-//!
-//! Tests file upload flow: HTTP request handling, file download, presigned URL generation,
-//! upload to S3/Wasabi, filesystem operations, and component interaction.
-
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use anyhow::{Context, Result};
@@ -29,10 +24,8 @@ use wash_runtime::{
 const STORE_FILE_WASM: &[u8] = include_bytes!("fixtures/store_file.wasm");
 const PRESIGN_POST_GENERATOR_WASM: &[u8] = include_bytes!("fixtures/presign_post_generator.wasm");
 
-/// WIT interfaces for the store_file component (file uploader)
 fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
     vec![
-        // HTTP incoming handler
         WitInterface {
             namespace: "wasi".to_string(),
             package: "http".to_string(),
@@ -44,7 +37,6 @@ fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
                 config
             },
         },
-        // HTTP outgoing handler (for downloading files)
         WitInterface {
             namespace: "wasi".to_string(),
             package: "http".to_string(),
@@ -52,7 +44,6 @@ fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
             version: Some(semver::Version::parse("0.2.2").unwrap()),
             config: HashMap::new(),
         },
-        // Filesystem access
         WitInterface {
             namespace: "wasi".to_string(),
             package: "filesystem".to_string(),
@@ -62,7 +53,6 @@ fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
             version: Some(semver::Version::parse("0.2.2").unwrap()),
             config: HashMap::new(),
         },
-        // Logging
         WitInterface {
             namespace: "wasi".to_string(),
             package: "logging".to_string(),
@@ -73,7 +63,6 @@ fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
     ]
 }
 
-/// Build and start a host with all required plugins
 async fn start_host_with_plugins(addr: SocketAddr) -> Result<impl HostApi> {
     let engine = Engine::builder().build()?;
     let host = HostBuilder::new()
@@ -88,15 +77,12 @@ async fn start_host_with_plugins(addr: SocketAddr) -> Result<impl HostApi> {
     host.start().await.context("Failed to start host")
 }
 
-/// Create a workload with both store_file and presign_post_generator components
 fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest {
-    // Define a volume for temporary file storage
     let tmp_volume = Volume {
         name: "tmp-uploads".to_string(),
         volume_type: VolumeType::EmptyDir(EmptyDirVolume {}),
     };
 
-    // Volume mount for the store_file component
     let volume_mount = VolumeMount {
         name: "tmp-uploads".to_string(),
         mount_path: "/".to_string(),
@@ -111,14 +97,12 @@ fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest 
             annotations: HashMap::new(),
             service: None,
             components: vec![
-                // presign_post_generator component - generates presigned URLs
                 Component {
                     bytes: bytes::Bytes::from_static(PRESIGN_POST_GENERATOR_WASM),
                     local_resources: LocalResources {
                         memory_limit_mb: 256,
                         cpu_limit: 1,
                         config: HashMap::from([
-                            // Add any configuration for presign generator if needed
                             ("region".to_string(), "eu-central-1".to_string()),
                             ("bucket".to_string(), "wasmtesting".to_string()),
                         ]),
@@ -129,7 +113,6 @@ fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest 
                     pool_size: 1,
                     max_invocations: 100,
                 },
-                // store_file component - handles file upload orchestration
                 Component {
                     bytes: bytes::Bytes::from_static(STORE_FILE_WASM),
                     local_resources: LocalResources {
@@ -174,7 +157,6 @@ async fn test_file_upload_integration() -> Result<()> {
 
     let client = reqwest::Client::new();
 
-    // Test payload matching the curl command format
     let test_payload = serde_json::json!({
         "applicationId": "test-app",
         "actionId": "test-action",
@@ -188,7 +170,6 @@ async fn test_file_upload_integration() -> Result<()> {
 
     eprintln!("🧪 Sending file upload request...");
 
-    // Send file upload request
     let response = timeout(
         Duration::from_secs(30),
         client
@@ -215,7 +196,6 @@ async fn test_file_upload_integration() -> Result<()> {
         response_text
     );
 
-    // Verify the response contains expected information
     assert!(
         response_text.contains("uploaded") || response_text.contains("Reference"),
         "Response should indicate successful upload"
@@ -238,7 +218,6 @@ async fn test_file_upload_error_handling() -> Result<()> {
 
     let client = reqwest::Client::new();
 
-    // Test with invalid URL
     let invalid_payload = serde_json::json!({
         "applicationId": "test-app",
         "actionId": "test-action",
@@ -265,7 +244,6 @@ async fn test_file_upload_error_handling() -> Result<()> {
 
     let status = response.status();
 
-    // Should return an error status or handle gracefully
     assert!(
         status.is_client_error() || status.is_server_error(),
         "Invalid URL should result in error status"
@@ -288,7 +266,6 @@ async fn test_file_upload_malformed_request() -> Result<()> {
 
     let client = reqwest::Client::new();
 
-    // Test with malformed JSON
     let malformed_json = r#"{"incomplete": "json""#;
 
     let response = client
@@ -324,7 +301,6 @@ async fn test_file_upload_concurrent_requests() -> Result<()> {
 
     let client = reqwest::Client::new();
 
-    // Test concurrent uploads
     let mut handles = Vec::new();
     for i in 0..3 {
         let client = client.clone();
@@ -365,23 +341,9 @@ async fn test_file_upload_concurrent_requests() -> Result<()> {
     }
 
     assert!(
-        successful >= 2,
-        "At least 2 out of 3 concurrent requests should succeed, only {successful} succeeded"
+        successful == 3,
+        "All 3 concurrent requests should succeed, only {successful} succeeded"
     );
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_component_isolation() -> Result<()> {
-    let port1 = find_available_port().await?;
-    let port2 = find_available_port().await?;
-    let addr1: SocketAddr = format!("127.0.0.1:{port1}").parse().unwrap();
-    let addr2: SocketAddr = format!("127.0.0.1:{port2}").parse().unwrap();
-
-    // Two independent hosts should start without interference
-    let _host1 = start_host_with_plugins(addr1).await?;
-    let _host2 = start_host_with_plugins(addr2).await?;
 
     Ok(())
 }

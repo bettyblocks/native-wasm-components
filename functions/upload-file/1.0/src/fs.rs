@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::io::Read;
-use tracing::debug;
+use tracing::{debug, error};
+use waki::Response;
 
 use crate::bindings::wasi::{
     filesystem::{
@@ -10,6 +11,7 @@ use crate::bindings::wasi::{
     io::streams::{InputStream, StreamError},
 };
 
+const CHUNK_SIZE: u64 = 65536; // 64kb
 
 /// A reader that streams from a WASI filesystem file.
 ///
@@ -30,7 +32,7 @@ impl WasiFileReader {
             return Err(anyhow::anyhow!("No preopened directories available"));
         }
 
-        let (dir, _) = &preopens[0];
+        let (dir, _) = &preopens.first().unwrap();
 
         let file = dir
             .open_at(
@@ -71,7 +73,6 @@ impl Read for WasiFileReader {
     }
 }
 
-// Code is referred mostly from wasmtime p2-fs test components.
 pub fn save_to_filesystem(filename: &str, data: &[u8]) -> Result<()> {
     let preopens = get_directories();
     if preopens.is_empty() {
@@ -89,15 +90,11 @@ pub fn save_to_filesystem(filename: &str, data: &[u8]) -> Result<()> {
         )
         .map_err(|e| anyhow::anyhow!("Failed to open file for writing: {e:?}"))?;
 
-    // Write from position 0
     let stream = file
         .write_via_stream(0)
         .map_err(|e| anyhow::anyhow!("Failed to get write stream: {e:?}"))?;
 
     write_stream_in_chunks(&stream, data)?;
-
-    drop(stream);
-    drop(file);
 
     debug!("Saved {} bytes to {}", data.len(), filename);
 
@@ -120,11 +117,74 @@ pub fn delete_from_filesystem(filename: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn stream_response_to_file(response: &Response, filename: &str) -> Result<u64> {
+    let preopens = get_directories();
+
+    if preopens.is_empty() {
+        error!("stream_response_to_file: No preopened directories available!");
+        return Err(anyhow::anyhow!("No preopened directories available"));
+    }
+
+    let (dir, _) = &preopens.first().unwrap();
+
+    let file = dir
+        .open_at(
+            PathFlags::empty(),
+            filename,
+            OpenFlags::CREATE | OpenFlags::TRUNCATE,
+            DescriptorFlags::WRITE,
+        )
+        .map_err(|e| {
+            error!("stream_response_to_file: Failed to open file for writing: {e:?}");
+            anyhow::anyhow!("Failed to open file for writing: {e:?}")
+        })?;
+
+    let write_stream = file.write_via_stream(0).map_err(|e| {
+        error!("stream_response_to_file: Failed to get write stream: {e:?}");
+        anyhow::anyhow!("Failed to get write stream: {e:?}")
+    })?;
+
+    let mut total_bytes: u64 = 0;
+    let mut chunk_count: u64 = 0;
+
+    loop {
+        let chunk_result = response.chunk(CHUNK_SIZE);
+        match chunk_result {
+            Ok(Some(chunk)) if !chunk.is_empty() => {
+                chunk_count += 1;
+
+                if let Err(e) = crate::fs::write_stream_in_chunks(&write_stream, &chunk) {
+                    error!(
+                        "stream_response_to_file: Failed to write chunk {}: {}",
+                        chunk_count, e
+                    );
+                    let _ = dir.unlink_file_at(filename);
+                    return Err(anyhow::anyhow!("Failed to write chunk {}", chunk_count));
+                }
+                total_bytes += chunk.len() as u64;
+            }
+            Ok(Some(_)) | Ok(None) => break,
+            Err(e) => {
+                error!("stream_response_to_file: Failed to read response chunk: {e:?}");
+                let _ = dir.unlink_file_at(filename);
+                return Err(anyhow::anyhow!("Failed to read response chunk: {e:?}"));
+            }
+        }
+    }
+
+    write_stream.flush().map_err(|e| {
+        error!("stream_response_to_file: Failed to flush write stream: {e:?}");
+        anyhow::anyhow!("Failed to flush write stream: {e:?}")
+    })?;
+
+    Ok(total_bytes)
+}
+
 pub fn write_stream_in_chunks(
     stream: &crate::bindings::wasi::io::streams::OutputStream,
     data: &[u8],
 ) -> Result<()> {
-    for chunk in data.chunks(4096) {
+    for chunk in data.chunks(CHUNK_SIZE.try_into().unwrap()) {
         stream
             .blocking_write_and_flush(chunk)
             .map_err(|e| anyhow::anyhow!("Stream write error: {e:?}"))?;

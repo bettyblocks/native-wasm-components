@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use tracing::{debug, error};
 use waki::multipart::{StreamingForm, StreamingPart};
 use waki::Client;
@@ -17,19 +17,29 @@ pub fn upload_file_internal(
 ) -> Result<UploadResult> {
     let client = Client::new();
 
-    let (file_size, file_name, content_type) = match crate::download::download_and_stream_to_disk(
+    let (base_name, content_type) = crate::download::extract_file_info_from_url(&download_url)
+        .context("Failed to extract file info from URL")?;
+    let file_name = crate::download::make_unique_filename(&base_name);
+
+    let file_size = match crate::download::download_and_stream_to_disk(
         &client,
         &download_url,
         download_headers.as_deref(),
+        &file_name,
     ) {
-        Ok(data) => data,
+        Ok(size) => size,
         Err(e) => {
             error!("upload_file_internal: Failed to download file: {:?}", e);
+            if let Err(cleanup_err) = crate::fs::delete_from_filesystem(&file_name) {
+                debug!(
+                    "Warning: Failed to cleanup temporary file after download failure: {}",
+                    cleanup_err
+                );
+            }
             return Err(e.context(format!("Failed to download file from {}", download_url)));
         }
     };
 
-    // fetch presigned upload url
     let presigned_upload_url =
         data_api_utilities::fetch_presigned_post(&model, &property, &content_type, &file_name)
             .map_err(|e| {
@@ -37,12 +47,10 @@ pub fn upload_file_internal(
                 anyhow::anyhow!("Failed to fetch presigned URL: {}", e)
             })?;
 
-    // upload to s3
     if let Err(e) =
         upload_to_presigned_post(&client, &presigned_upload_url, &file_name, &content_type)
     {
-        error!("upload_file_internal: Upload to S3 failed: {:?}", e);
-        // Try to clean up the temporary file if upload failed
+        error!("upload_file_internal: Upload to Storage failed: {:?}", e);
         if let Err(cleanup_err) = crate::fs::delete_from_filesystem(&file_name) {
             debug!(
                 "Warning: Failed to cleanup temporary file after upload failure: {}",
@@ -50,10 +58,9 @@ pub fn upload_file_internal(
             );
         }
 
-        return Err(e.context("Failed to upload file to S3"));
+        return Err(e.context("Failed to upload file to Storage"));
     }
 
-    // cleanup
     if let Err(e) = crate::fs::delete_from_filesystem(&file_name) {
         debug!("Warning: Failed to delete temporary file: {}", e);
     }
@@ -71,10 +78,8 @@ fn upload_to_presigned_post(
     filename: &str,
     content_type: &str,
 ) -> Result<()> {
-    // Build streaming multipart form
     let mut form = StreamingForm::new();
 
-    // Add policy form fields (these are small, in-memory is fine)
     for field in &presigned_post.fields {
         form = form.text(field.key.clone(), field.value.clone());
     }
