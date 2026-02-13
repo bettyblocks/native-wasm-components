@@ -14,10 +14,11 @@ tracing = "0.1.44"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 wit-bindgen = "0.47.0"
-tokio = { version = "1.47.1", features = ["macros", "rt"] }
 mime_guess = "2.0"
+mime = "0.3"
 urlencoding = "2.1"
-waki = { git = "https://github.com/Aditya1404Sal/waki.git", features = ["multipart"] }
+wstd = "0.5"
+multipart = { version = "0.18", default-features = false, features = ["client"] }
 
 [dev-dependencies]
 wash-runtime = { git = "https://github.com/Aditya1404Sal/wash", branch = "mcp-testing-full"}

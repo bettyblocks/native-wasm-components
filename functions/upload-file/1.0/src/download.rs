@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use tracing::debug;
-use waki::{header::HeaderName, Client, RequestBuilder};
+use wstd::http::{body::BoundedBody, Client, IntoBody, Request};
 
-pub fn download_and_stream_to_disk(
+pub async fn download_and_stream_to_disk(
     client: &Client,
     url: &str,
     headers: Option<&[(String, String)]>,
@@ -10,11 +10,14 @@ pub fn download_and_stream_to_disk(
 ) -> Result<u64> {
     debug!("Downloading from: {}", url);
 
-    let response = build_request(client, url, headers)?
-        .send()
+    let request = build_request(url, headers)?;
+
+    let response = client
+        .send(request)
+        .await
         .context("Failed to send HTTP request")?;
 
-    let status = response.status_code();
+    let status = response.status().as_u16();
     if !(200..300).contains(&status) {
         return Err(anyhow::anyhow!(
             "HTTP request failed with status code: {}",
@@ -22,7 +25,8 @@ pub fn download_and_stream_to_disk(
         ));
     }
 
-    let file_size = crate::fs::stream_response_to_file(&response, file_name)?;
+    let mut body = response.into_body();
+    let file_size = crate::fs::stream_incoming_to_file(&mut body, file_name).await?;
 
     Ok(file_size)
 }
@@ -38,19 +42,18 @@ pub fn make_unique_filename(filename: &str) -> String {
 }
 
 fn build_request(
-    client: &Client,
     url: &str,
     headers: Option<&[(String, String)]>,
-) -> Result<RequestBuilder> {
-    let mut request = client.get(url);
+) -> Result<Request<BoundedBody<Vec<u8>>>> {
+    let mut builder = Request::get(url);
     if let Some(custom_headers) = headers {
         for (key, value) in custom_headers {
-            let header_name = HeaderName::try_from(key.to_lowercase())
-                .with_context(|| format!("Invalid header name: '{}'", key))?;
-            request = request.header(header_name, value.as_str());
+            builder = builder.header(key.to_lowercase().as_str(), value.as_str());
         }
     }
-    Ok(request)
+    builder
+        .body(Vec::<u8>::new().into_body())
+        .context("Failed to build HTTP request")
 }
 
 pub fn extract_file_info_from_url(url: &str) -> Result<(String, String)> {

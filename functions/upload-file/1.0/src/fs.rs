@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::io::Read;
 use tracing::{debug, error};
-use waki::Response;
+use wstd::{http::body::IncomingBody, io::AsyncRead};
 
 use crate::bindings::wasi::{
     filesystem::{
@@ -11,13 +11,13 @@ use crate::bindings::wasi::{
     io::streams::{InputStream, StreamError},
 };
 
-const CHUNK_SIZE: usize = 4 * 1024; // 4kb
-const RES_CHUNK_SIZE: u64 = 65536; // 64kb
+const WASI_WRITE_CHUNK: usize = 4 * 1024; // 4kb - max per WASI blocking_write_and_flush call (that's a wasi limitation)
+pub const NETWORK_BUF_SIZE: usize = 64 * 1024; // 64kb - buffer for network I/O
 
 /// A reader that streams from a WASI filesystem file.
 ///
-/// implements std::io::Read so it can be used with our waki fork's streaming body API.
-/// This allows streaming file uploads without loading the entire file into memory.
+/// Implements std::io::Read so it can be used with the multipart crate's streaming API.
+/// This will allow streaming file uploads without loading the entire file into memory.
 pub struct WasiFileReader {
     stream: InputStream,
     #[allow(dead_code)]
@@ -26,7 +26,7 @@ pub struct WasiFileReader {
 
 impl WasiFileReader {
     /// Open a file for streaming read.
-    /// returns a reader that can be passed to waki fork's streaming_body() or StreamingPart::from_reader()
+    /// Returns a reader that can be passed to multipart's add_stream()
     pub fn open(filename: &str) -> Result<Self> {
         let preopens = get_directories();
         if preopens.is_empty() {
@@ -89,11 +89,11 @@ pub fn delete_from_filesystem(filename: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn stream_response_to_file(response: &Response, filename: &str) -> Result<u64> {
+pub async fn stream_incoming_to_file(body: &mut IncomingBody, filename: &str) -> Result<u64> {
     let preopens = get_directories();
 
     if preopens.is_empty() {
-        error!("stream_response_to_file: No preopened directories available!");
+        error!("stream_incoming_to_file: No preopened directories available!");
         return Err(anyhow::anyhow!("No preopened directories available"));
     }
 
@@ -107,47 +107,40 @@ pub fn stream_response_to_file(response: &Response, filename: &str) -> Result<u6
             DescriptorFlags::WRITE,
         )
         .map_err(|e| {
-            error!("stream_response_to_file: Failed to open file for writing: {e:?}");
+            error!("stream_incoming_to_file: Failed to open file for writing: {e:?}");
             anyhow::anyhow!("Failed to open file for writing: {e:?}")
         })?;
 
     let write_stream = file.write_via_stream(0).map_err(|e| {
-        error!("stream_response_to_file: Failed to get write stream: {e:?}");
+        error!("stream_incoming_to_file: Failed to get write stream: {e:?}");
         anyhow::anyhow!("Failed to get write stream: {e:?}")
     })?;
 
     let mut total_bytes: u64 = 0;
-    let mut chunk_count: u64 = 0;
+    let mut buf = [0u8; NETWORK_BUF_SIZE];
 
     loop {
-        let chunk_result = response.chunk(RES_CHUNK_SIZE);
-        match chunk_result {
-            Ok(Some(chunk)) if !chunk.is_empty() => {
-                chunk_count += 1;
+        let n = body.read(&mut buf).await.map_err(|e| {
+            error!("stream_incoming_to_file: Failed to read response chunk: {e}");
+            let _ = dir.unlink_file_at(filename);
+            anyhow::anyhow!("Failed to read response chunk: {e}")
+        })?;
 
-                if let Err(e) = crate::fs::write_stream_in_chunks(&write_stream, &chunk) {
-                    error!(
-                        "stream_response_to_file: Failed to write chunk {}: {}",
-                        chunk_count, e
-                    );
-                    let _ = dir.unlink_file_at(filename);
-                    return Err(anyhow::anyhow!("Failed to write chunk {}", chunk_count));
-                }
-                total_bytes += chunk.len() as u64;
-            }
-            Ok(Some(_)) | Ok(None) => {
-                break;
-            }
-            Err(e) => {
-                error!("stream_response_to_file: Failed to read response chunk: {e:?}");
-                let _ = dir.unlink_file_at(filename);
-                return Err(anyhow::anyhow!("Failed to read response chunk: {e:?}"));
-            }
+        if n == 0 {
+            break;
         }
+
+        if let Err(e) = write_stream_in_chunks(&write_stream, &buf[..n]) {
+            error!("stream_incoming_to_file: Failed to write chunk: {}", e);
+            let _ = dir.unlink_file_at(filename);
+            return Err(anyhow::anyhow!("Failed to write chunk to file"));
+        }
+
+        total_bytes += n as u64;
     }
 
     write_stream.flush().map_err(|e| {
-        error!("stream_response_to_file: Failed to flush write stream: {e:?}");
+        error!("stream_incoming_to_file: Failed to flush write stream: {e:?}");
         anyhow::anyhow!("Failed to flush write stream: {e:?}")
     })?;
 
@@ -158,7 +151,7 @@ pub fn write_stream_in_chunks(
     stream: &crate::bindings::wasi::io::streams::OutputStream,
     data: &[u8],
 ) -> Result<()> {
-    for chunk in data.chunks(CHUNK_SIZE) {
+    for chunk in data.chunks(WASI_WRITE_CHUNK) {
         stream
             .blocking_write_and_flush(chunk)
             .map_err(|e| anyhow::anyhow!("Stream write error: {e:?}"))?;

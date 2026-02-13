@@ -22,12 +22,11 @@ impl FetchGuest for Component {
         content_type: String,
         filename: String,
     ) -> Result<PresignedPost, String> {
-        // TODO: Get these from configuration or environment
         // read credentials from environment and return an error if missing
         let access_key = std::env::var("STORAGE_ACCESS_KEY").map_err(|e| e.to_string())?;
         let secret_key = std::env::var("STORAGE_SECRET_KEY").map_err(|e| e.to_string())?;
         let region = "eu-central-1";
-        let bucket = "wasmtesting";
+        let bucket = std::env::var("BUCKET_NAME").map_err(|e| e.to_string())?;
         let expires_in = 3600; // 1 hour
 
         
@@ -35,7 +34,7 @@ impl FetchGuest for Component {
             &access_key,
             &secret_key,
             region,
-            bucket,
+            &bucket,
             &filename,
             &content_type,
             expires_in,

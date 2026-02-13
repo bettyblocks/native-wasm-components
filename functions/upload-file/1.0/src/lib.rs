@@ -1,4 +1,3 @@
-use anyhow::Result;
 pub mod download;
 pub mod fs;
 pub mod upload;
@@ -27,8 +26,13 @@ impl UploaderGuest for Component {
         download_url: String,
         download_headers: DownloadHeaders,
     ) -> Result<UploadResult, String> {
-        upload_file_internal(model, property, download_url, download_headers)
-            .map_err(|e| e.to_string())
+        wstd::runtime::block_on(upload_file_internal(
+            model,
+            property,
+            download_url,
+            download_headers,
+        ))
+        .map_err(|e| e.to_string())
     }
 }
 

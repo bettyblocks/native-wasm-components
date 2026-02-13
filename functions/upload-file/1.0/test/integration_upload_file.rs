@@ -106,10 +106,7 @@ fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest 
                     local_resources: LocalResources {
                         memory_limit_mb: 256,
                         cpu_limit: 1,
-                        config: HashMap::from([
-                            ("region".to_string(), "eu-central-1".to_string()),
-                            ("bucket".to_string(), "wasmtesting".to_string()),
-                        ]),
+                        config: HashMap::new(),
                         environment: HashMap::new(),
                         volume_mounts: vec![],
                         allowed_hosts: vec![],
@@ -147,6 +144,10 @@ fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest 
                             ),
                             (
                                 "STORAGE_SECRET_KEY".to_string(),
+                                "get_this_from_the_storage_service".to_string(),
+                            ),
+                            (
+                                "BUCKET_NAME".to_string(),
                                 "get_this_from_the_storage_service".to_string(),
                             ),
                         ]),

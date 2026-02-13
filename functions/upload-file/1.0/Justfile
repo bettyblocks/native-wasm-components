@@ -7,3 +7,6 @@ move_wasm_to_root:
 build: fetch_wit_deps
   wash build --build-only
   just move_wasm_to_root
+
+test:
+  cargo test
