@@ -7,10 +7,9 @@ struct Component;
 impl Guest for Component {
     fn init_array() -> Output {
         Output {
-            result: String::from("[]")
+            result: String::from("[]"),
         }
     }
 }
 
 export! {Component}
-    
