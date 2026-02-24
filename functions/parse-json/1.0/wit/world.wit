@@ -1,0 +1,16 @@
+package betty-blocks:parse-json@1.0.0;
+
+interface parse-json {
+    type json-string = string;
+
+    record output {
+        %result: json-string
+    }
+
+    parse-json: func(input: json-string) -> output;
+}
+
+world main {
+    export parse-json;
+}
+    

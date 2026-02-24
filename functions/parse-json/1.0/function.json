@@ -1,0 +1,48 @@
+{
+  "description": "Parses a stringified JSON string to a JSON object",
+  "label": "Parse Json",
+  "category": "String Functions",
+  "icon": {
+    "name": "ExpressionIcon",
+    "color": "Orange"
+  },
+  "options": [
+    {
+      "meta": {
+        "type": "Text"
+      },
+      "name": "input",
+      "label": "JSON value",
+      "info": "The stringified JSON value",
+      "advanced": false
+    },
+    {
+      "info": "The schema model can be utilized to type the output of this step when it is an object or an array of objects.",
+      "meta": {
+        "type": "SchemaModel"
+      },
+      "name": "schemaModel",
+      "label": "Schema Model"
+    },
+    {
+      "meta": {
+        "type": "Output",
+        "output": {
+          "anyOf": [
+            { "type": "Text" },
+            { "type": "Object", "schemaModel": "schemaModel" },
+            {
+              "type": "Array",
+              "schemaModel": "schemaModel",
+              "dataType": "SCHEMA"
+            }
+          ]
+        }
+      },
+      "name": "result",
+      "label": "The JSON object as the result",
+      "info": "The result as the parsed JSON object"
+    }
+  ],
+  "yields": "NONE"
+}
