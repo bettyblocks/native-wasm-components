@@ -1,0 +1,10 @@
+[package]
+name = "add_variable_to_array"
+version = "1.0.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.42.0"
