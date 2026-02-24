@@ -1,0 +1,23 @@
+{
+  "description": "Initializes an empty array variable",
+  "label": "Init Array",
+  "category": "Array Functions",
+  "icon": {
+    "name": "VariableIcon",
+    "color": "Orange"
+  },
+  "options": [
+    {
+      "meta": {
+        "type": "Output",
+        "output": {
+          "type": "Array",
+          "dataType": "STRING"
+        }
+      },
+      "name": "result",
+      "label": "Resulting array"
+    }
+  ],
+  "yields": "NONE"
+}
