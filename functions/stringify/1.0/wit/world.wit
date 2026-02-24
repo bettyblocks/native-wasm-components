@@ -7,7 +7,7 @@ interface stringify {
         %result: json-string
     }
 
-    stringify: func(input: json-string) -> output;
+    stringify: func(value: json-string) -> output;
 }
 
 world main {

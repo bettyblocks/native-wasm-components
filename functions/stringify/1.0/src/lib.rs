@@ -5,12 +5,9 @@ wit_bindgen::generate!({ generate_all });
 struct Component;
 
 impl Guest for Component {
-    fn stringify(input: String) -> Output {
-        Output {
-            result: input
-        }
+    fn stringify(value: String) -> Output {
+        Output { result: value }
     }
 }
 
 export! {Component}
-    
