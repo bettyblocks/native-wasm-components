@@ -64,7 +64,8 @@
               "type": "Number"
             },
             {
-              "type": "Object"
+              "type": "Object",
+              "schemaModel": "schemaModel"
             },
             {
               "type": "Array",
