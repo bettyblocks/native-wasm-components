@@ -16,7 +16,7 @@
         },
         "type": "Map"
       },
-      "name": "keyValueMap"
+      "name": "key-value-map"
     },
     {
       "info": "The schema model can be utilized to type the output of the object.",
