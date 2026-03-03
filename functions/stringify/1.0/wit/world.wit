@@ -3,11 +3,7 @@ package betty-blocks:stringify@1.0.0;
 interface stringify {
     type json-string = string;
 
-    record output {
-        %result: json-string
-    }
-
-    stringify: func(value: json-string) -> output;
+    stringify: func(value: json-string) -> string;
 }
 
 world main {

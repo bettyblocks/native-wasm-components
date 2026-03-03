@@ -3,11 +3,7 @@ package betty-blocks:init-array@1.0.0;
 interface init-array {
     type json-string = string;
 
-    record output {
-        %result: json-string
-    }
-
-    init-array: func() -> output;
+    init-array: func() -> json-string;
 }
 
 world main {
