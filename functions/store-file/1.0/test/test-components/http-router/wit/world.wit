@@ -1,0 +1,6 @@
+package wasmcloud:hello;
+
+world hello {
+   import betty-blocks:file/store;
+   export wasi:http/incoming-handler@0.2.2;
+}

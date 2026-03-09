@@ -1,0 +1,36 @@
+package betty-blocks:data-api;
+
+interface data-api {
+    record helper-context {
+        application-id: string,
+        action-id: string,
+        log-id: string,
+        encrypted-configurations: option<list<string>>,
+        jwt: option<string>,
+    }
+
+    request: func(
+        helper-context: helper-context,
+        query: string,
+        variables: string
+    ) -> result<string, string>;
+}
+
+interface data-api-utilities {
+    use betty-blocks:types/types.{model,property};
+
+    record policy-field {
+        key: string,
+        value: string,
+    }
+
+    type policy-fields = list<policy-field>;
+
+    record presigned-post {
+        url: string,
+        fields: policy-fields,
+        reference: string,
+    }
+
+    fetch-presigned-post: func(model: model, property: property, content-type: string, filename: string) -> result<presigned-post,string>;
+}

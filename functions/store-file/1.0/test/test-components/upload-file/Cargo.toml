@@ -1,0 +1,17 @@
+[package]
+name = "upload-file"
+edition = "2021"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[workspace]
+
+[dependencies]
+anyhow = "1"
+tracing = "0.1.44"
+wit-bindgen = "0.47.0"
+mime = "0.3"
+wstd = "0.6.5"
+multipart = { version = "0.18", default-features = false, features = ["client"] }

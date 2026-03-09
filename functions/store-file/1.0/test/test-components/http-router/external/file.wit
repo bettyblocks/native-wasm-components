@@ -1,0 +1,26 @@
+package betty-blocks:file;
+
+interface store {
+    use betty-blocks:data-api/data-api.{helper-context};
+    use betty-blocks:types/types.{model, property};
+
+    type download-headers = option<list<tuple<string, string>>>;
+
+    record store-file-result {
+        reference: string,
+        file-size: u64,
+        message: option<string>,
+    }
+
+    record url-source {
+        url: string,
+        headers: download-headers,
+    }
+
+    record source-content {
+        url-source: option<url-source>,
+        source: option<string>,
+    }
+
+    store-file: func(helper-context: helper-context, model: model, property: property, source: source-content) -> result<store-file-result, string>;
+}

@@ -1,0 +1,4 @@
+/target
+wit/deps
+wasmcloud.lock
+Cargo.lock
