@@ -14,7 +14,8 @@ base64 = "0.22"
 tracing = "0.1.44"
 wit-bindgen = "0.47.0"
 mime_guess = "2.0"
-urlencoding = "2.1"
+percent-encoding = "2"
+url = "2"
 wstd = "0.5"
 
 [dev-dependencies]

@@ -1,12 +1,18 @@
-fetch_wit_deps:
-  wash wit deps
 
-move_wasm_to_root:
-  mv ./build/*.wasm .
-
-build: fetch_wit_deps
-  wash build --build-only
-  just move_wasm_to_root
+build:
+    wash build
 
 test:
-  cargo test
+    cargo test --lib --bins
+
+integration-test:
+    cargo test --tests '*'
+
+lint:
+    cargo check
+
+formatting *args:
+    cargo fmt --all {{args}}
+
+clippy:
+    cargo clippy --all-targets --all-features -- -D warnings

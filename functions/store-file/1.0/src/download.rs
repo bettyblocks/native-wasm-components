@@ -67,23 +67,20 @@ fn build_request(
         }
     }
     builder
-        .body(Vec::<u8>::new().into_body())
+        .body(Vec::new().into_body())
         .context("Failed to build HTTP request")
 }
 
-pub fn extract_file_info_from_url(url: &str) -> Result<(String, String)> {
-    let url_path = url
-        .split('?')
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Invalid URL format"))?;
+pub fn extract_file_info_from_url(raw_url: &str) -> Result<(String, String)> {
+    let parsed = url::Url::parse(raw_url).context("Invalid URL")?;
 
-    let encoded_filename = url_path
-        .split('/')
-        .rfind(|s| !s.is_empty())
+    let filename = parsed
+        .path_segments()
+        .and_then(|segments| segments.filter(|s| !s.is_empty()).last())
         .ok_or_else(|| anyhow::anyhow!("Could not extract filename from URL"))?;
 
-    let filename = urlencoding::decode(encoded_filename)
-        .unwrap_or(std::borrow::Cow::Borrowed(encoded_filename))
+    let filename = percent_encoding::percent_decode_str(filename)
+        .decode_utf8_lossy()
         .to_string();
 
     let content_type = mime_guess::from_path(&filename)

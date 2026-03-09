@@ -1,9 +1,8 @@
 package betty-blocks:store-file;
 
 world store-file {
-    import wasi:http/outgoing-handler@0.2.2;
-    import wasi:random/random@0.2.2;
-    import wasi:logging/logging@0.1.0-draft;
+    import wasi:http/outgoing-handler@0.2.0;
+    import wasi:random/random@0.2.0;
     import betty-blocks:data-api/data-api;
     import betty-blocks:types/types;
     import betty-blocks:file/upload-file;

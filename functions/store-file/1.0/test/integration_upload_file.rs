@@ -44,15 +44,7 @@ fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
             namespace: "wasi".to_string(),
             package: "http".to_string(),
             interfaces: ["outgoing-handler".to_string()].into_iter().collect(),
-            version: Some(semver::Version::parse("0.2.2").unwrap()),
-            config: HashMap::new(),
-            name: None,
-        },
-        WitInterface {
-            namespace: "wasi".to_string(),
-            package: "logging".to_string(),
-            interfaces: ["logging".to_string()].into_iter().collect(),
-            version: Some(semver::Version::parse("0.1.0-draft").unwrap()),
+            version: Some(semver::Version::parse("0.2.0").unwrap()),
             config: HashMap::new(),
             name: None,
         },
@@ -65,9 +57,6 @@ async fn start_host_with_plugins(addr: SocketAddr) -> Result<impl HostApi> {
     let host = HostBuilder::new()
         .with_engine(engine)
         .with_http_handler(Arc::new(http_server))
-        .with_plugin(Arc::new(InMemoryBlobstore::new(None)))?
-        .with_plugin(Arc::new(InMemoryKeyValue::new()))?
-        .with_plugin(Arc::new(TracingLogger::default()))?
         .with_plugin(Arc::new(DynamicConfig::default()))?
         .build()?;
 

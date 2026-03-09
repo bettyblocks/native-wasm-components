@@ -90,26 +90,22 @@ fn handle_upload_request(request: IncomingRequest) -> Result<String, String> {
         name: property_name,
     };
 
-    let url_source = download_url.map(|url| store::UrlSource {
-        url,
-        headers: None,
-    });
-
-    let base64_source = match (source_data, filename) {
-        (Some(data), Some(filename)) => Some(store::Base64Source { data, filename }),
-        _ => None,
-    };
-
-    let source_content = store::SourceContent {
-        url_source,
-        base64_source,
+    let file_source = match (download_url, source_data, filename) {
+        (Some(url), _, _) => store::FileSource::Url(store::UrlSource {
+            url,
+            headers: None,
+        }),
+        (None, Some(data), Some(filename)) => {
+            store::FileSource::Base64(store::Base64Source { data, filename })
+        }
+        _ => return Err("Either 'url' or 'source'+'filename' must be provided".to_string()),
     };
 
     let result = store::store_file(
         &helper_context,
         &model,
         &property,
-        &source_content,
+        &file_source,
     )?;
 
     let message = result.message.unwrap_or_default();

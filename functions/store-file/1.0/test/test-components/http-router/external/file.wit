@@ -22,10 +22,10 @@ interface store {
         filename: string,
     }
 
-    record source-content {
-        url-source: option<url-source>,
-        base64-source: option<base64-source>,
+    variant file-source {
+        url(url-source),
+        base64(base64-source),
     }
 
-    store-file: func(helper-context: helper-context, model: model, property: property, source: source-content) -> result<store-file-result, string>;
+    store-file: func(helper-context: helper-context, model: model, property: property, source: file-source) -> result<store-file-result, string>;
 }

@@ -3405,13 +3405,14 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "mime_guess",
+ "percent-encoding",
  "reqwest",
  "semver",
  "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "urlencoding",
+ "url",
  "uuid",
  "wash-runtime",
  "wit-bindgen 0.47.0",
@@ -4150,12 +4151,6 @@ dependencies = [
  "percent-encoding",
  "serde",
 ]
-
-[[package]]
-name = "urlencoding"
-version = "2.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 
 [[package]]
 name = "utf8_iter"
