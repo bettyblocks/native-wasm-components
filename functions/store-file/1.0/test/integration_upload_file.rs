@@ -14,8 +14,8 @@ use wash_runtime::{
         HostApi, HostBuilder,
     },
     plugin::{
-        wasi_blobstore::WasiBlobstore, wasi_config::WasiConfig, wasi_keyvalue::WasiKeyvalue,
-        wasi_logging::WasiLogging,
+        wasi_blobstore::InMemoryBlobstore, wasi_config::DynamicConfig,
+        wasi_keyvalue::InMemoryKeyValue, wasi_logging::TracingLogger,
     },
     types::{Component, LocalResources, Workload, WorkloadStartRequest},
     wit::WitInterface,
@@ -38,6 +38,7 @@ fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
                 config.insert("host".to_string(), http_host_config.to_string());
                 config
             },
+            name: None,
         },
         WitInterface {
             namespace: "wasi".to_string(),
@@ -45,15 +46,7 @@ fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
             interfaces: ["outgoing-handler".to_string()].into_iter().collect(),
             version: Some(semver::Version::parse("0.2.2").unwrap()),
             config: HashMap::new(),
-        },
-        WitInterface {
-            namespace: "wasi".to_string(),
-            package: "filesystem".to_string(),
-            interfaces: ["types".to_string(), "preopens".to_string()]
-                .into_iter()
-                .collect(),
-            version: Some(semver::Version::parse("0.2.2").unwrap()),
-            config: HashMap::new(),
+            name: None,
         },
         WitInterface {
             namespace: "wasi".to_string(),
@@ -61,36 +54,27 @@ fn store_file_host_interfaces(http_host_config: &str) -> Vec<WitInterface> {
             interfaces: ["logging".to_string()].into_iter().collect(),
             version: Some(semver::Version::parse("0.1.0-draft").unwrap()),
             config: HashMap::new(),
+            name: None,
         },
     ]
 }
 
 async fn start_host_with_plugins(addr: SocketAddr) -> Result<impl HostApi> {
     let engine = Engine::builder().build()?;
+    let http_server = HttpServer::new(DevRouter::default(), addr).await?;
     let host = HostBuilder::new()
         .with_engine(engine)
-        .with_http_handler(Arc::new(HttpServer::new(DevRouter::default(), addr)))
-        .with_plugin(Arc::new(WasiBlobstore::new(None)))?
-        .with_plugin(Arc::new(WasiKeyvalue::new()))?
-        .with_plugin(Arc::new(WasiLogging {}))?
-        .with_plugin(Arc::new(WasiConfig::default()))?
+        .with_http_handler(Arc::new(http_server))
+        .with_plugin(Arc::new(InMemoryBlobstore::new(None)))?
+        .with_plugin(Arc::new(InMemoryKeyValue::new()))?
+        .with_plugin(Arc::new(TracingLogger::default()))?
+        .with_plugin(Arc::new(DynamicConfig::default()))?
         .build()?;
 
     host.start().await.context("Failed to start host")
 }
 
 fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest {
-    // let tmp_volume = Volume {
-    //     name: "tmp-uploads".to_string(),
-    //     volume_type: VolumeType::EmptyDir(EmptyDirVolume {}),
-    // };
-
-    // let volume_mount = VolumeMount {
-    //     name: "tmp-uploads".to_string(),
-    //     mount_path: "/".to_string(),
-    //     read_only: false,
-    // };
-
     WorkloadStartRequest {
         workload_id: uuid::Uuid::new_v4().to_string(),
         workload: Workload {
@@ -99,8 +83,11 @@ fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest 
             annotations: HashMap::new(),
             service: None,
             components: vec![
+                // 1. Presign post generator (mock data-api-utilities)
                 Component {
+                    name: "presign-post-generator".to_string(),
                     bytes: bytes::Bytes::from_static(PRESIGN_POST_GENERATOR_WASM),
+                    digest: None,
                     local_resources: LocalResources {
                         memory_limit_mb: 256,
                         cpu_limit: 1,
@@ -112,29 +99,18 @@ fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest 
                     pool_size: 1,
                     max_invocations: 100,
                 },
+                // 2. Upload-file (low-level: receives bytes, calls presign, uploads to S3)
                 Component {
-                    bytes: bytes::Bytes::from_static(STORE_FILE_WASM),
-                    local_resources: LocalResources {
-                        memory_limit_mb: 256,
-                        cpu_limit: 1,
-                        config: HashMap::new(),
-                        environment: HashMap::new(),
-                        volume_mounts: vec![],
-                        allowed_hosts: vec![],
-                    },
-                    pool_size: 1,
-                    max_invocations: 100,
-                },
-                Component {
+                    name: "upload-file".to_string(),
                     bytes: bytes::Bytes::from_static(UPLOAD_FILE_WASM),
+                    digest: None,
                     local_resources: LocalResources {
                         memory_limit_mb: 512,
                         cpu_limit: 1,
-                        config: HashMap::from([("test_mode".to_string(), "true".to_string())]),
+                        config: HashMap::new(),
                         environment: HashMap::new(),
                         volume_mounts: vec![],
                         allowed_hosts: vec![
-                            "www.w3.org".to_string(),
                             "*.wasabisys.com".to_string(),
                             "s3.eu-central-1.wasabisys.com".to_string(),
                         ],
@@ -142,8 +118,27 @@ fn file_upload_workload_request(http_host_config: &str) -> WorkloadStartRequest 
                     pool_size: 1,
                     max_invocations: 100,
                 },
+                // 3. Store-file (high-level: downloads from URL, passes bytes to upload-file)
                 Component {
+                    name: "store-file".to_string(),
+                    bytes: bytes::Bytes::from_static(STORE_FILE_WASM),
+                    digest: None,
+                    local_resources: LocalResources {
+                        memory_limit_mb: 512,
+                        cpu_limit: 1,
+                        config: HashMap::new(),
+                        environment: HashMap::new(),
+                        volume_mounts: vec![],
+                        allowed_hosts: vec!["www.w3.org".to_string()],
+                    },
+                    pool_size: 1,
+                    max_invocations: 100,
+                },
+                // 4. HTTP router (receives HTTP requests, calls store-file)
+                Component {
+                    name: "http-router".to_string(),
                     bytes: bytes::Bytes::from_static(HTTP_ROUTER_WASM),
+                    digest: None,
                     local_resources: LocalResources {
                         memory_limit_mb: 256,
                         cpu_limit: 1,

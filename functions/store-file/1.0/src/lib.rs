@@ -10,11 +10,12 @@ use bindings::{
     betty_blocks::data_api::data_api::HelperContext,
     betty_blocks::file::upload_file,
     betty_blocks::types::types::Property,
-    exports::betty_blocks::file::store::{Guest as StoreGuest, Model, SourceContent, StoreFileResult},
+    exports::betty_blocks::file::store::{
+        Guest as StoreGuest, Model, SourceContent, StoreFileResult,
+    },
 };
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use tracing::{debug, info};
 
 use crate::download::{download_to_memory, extract_file_info_from_url, make_unique_filename};
 
@@ -37,32 +38,33 @@ async fn store_file_internal(
     property: Property,
     source: SourceContent,
 ) -> anyhow::Result<StoreFileResult> {
-    let (file_bytes, filename, content_type) = match (source.url_source, source.source) {
+    let (file_bytes, filename, content_type) = match (source.url_source, source.base64_source) {
         (Some(_), Some(_)) => {
             return Err(anyhow::anyhow!(
-                "Only one of 'url-source' or 'source' must be provided, not both"
+                "Only one of 'url-source' or 'base64-source' must be provided, not both"
             ));
         }
-        (None, Some(base64_data)) => {
+        (None, Some(b64_src)) => {
             let file_bytes = BASE64
-                .decode(&base64_data)
+                .decode(&b64_src.data)
                 .map_err(|e| anyhow::anyhow!("Failed to decode base64 source: {e}"))?;
 
-            let filename = make_unique_filename("default-upload");
-            let content_type = "application/octet-stream".to_string();
+            let content_type = mime_guess::from_path(&b64_src.filename)
+                .first_or_octet_stream()
+                .to_string();
+            let filename = make_unique_filename(&b64_src.filename);
             (file_bytes, filename, content_type)
         }
         (Some(url_src), None) => {
             let (base_name, content_type) = extract_file_info_from_url(&url_src.url)
                 .map_err(|e| anyhow::anyhow!("Failed to extract file info from URL: {e}"))?;
             let filename = make_unique_filename(&base_name);
-            let file_bytes =
-                download_to_memory(&url_src.url, url_src.headers.as_deref()).await?;
+            let file_bytes = download_to_memory(&url_src.url, url_src.headers.as_deref()).await?;
             (file_bytes, filename, content_type)
         }
         (None, None) => {
             return Err(anyhow::anyhow!(
-                "Either 'url-source' or 'source' must be provided in source-content"
+                "Either 'url-source' or 'base64-source' must be provided in source-content"
             ));
         }
     };

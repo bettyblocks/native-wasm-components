@@ -35,9 +35,14 @@ interface store {
         headers: download-headers,
     }
 
+    record base64-source {
+        data: string,
+        filename: string,
+    }
+
     record source-content {
         url-source: option<url-source>,
-        source: option<string>, // base64
+        base64-source: option<base64-source>,
     }
 
     store-file: func(helper-context: helper-context, model: model, property: property, source: source-content) -> result<store-file-result, string>;

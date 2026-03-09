@@ -18,7 +18,7 @@ urlencoding = "2.1"
 wstd = "0.5"
 
 [dev-dependencies]
-wash-runtime = { git = "https://github.com/Aditya1404Sal/wash", branch = "mcp-testing-full"}
+wash-runtime = { git = "https://github.com/wasmcloud/wash", branch = "main"}
 anyhow = "1.0.101"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 reqwest = { version = "0.12", features = ["json"] }

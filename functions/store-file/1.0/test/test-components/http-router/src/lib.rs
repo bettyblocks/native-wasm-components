@@ -76,6 +76,7 @@ fn handle_upload_request(request: IncomingRequest) -> Result<String, String> {
         .to_string();
     let download_url = json["url"].as_str().map(|s| s.to_string());
     let source_data = json["source"].as_str().map(|s| s.to_string());
+    let filename = json["filename"].as_str().map(|s| s.to_string());
 
     let helper_context = bindings::betty_blocks::data_api::data_api::HelperContext {
         application_id,
@@ -94,9 +95,14 @@ fn handle_upload_request(request: IncomingRequest) -> Result<String, String> {
         headers: None,
     });
 
+    let base64_source = match (source_data, filename) {
+        (Some(data), Some(filename)) => Some(store::Base64Source { data, filename }),
+        _ => None,
+    };
+
     let source_content = store::SourceContent {
         url_source,
-        source: source_data,
+        base64_source,
     };
 
     let result = store::store_file(
