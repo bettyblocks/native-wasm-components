@@ -1,0 +1,54 @@
+{
+  "description": "Description",
+  "label": "Add Variable To Array",
+  "category": "Array functions",
+  "icon": {
+    "name": "VariableIcon",
+    "color": "Orange"
+  },
+  "options": [
+    {
+      "meta": {
+        "type": "Value",
+        "validations": {
+          "required": true
+        },
+        "allowedKinds": ["ARRAY"]
+      },
+      "name": "collection",
+      "label": "Collection",
+      "info": "The array you want to add an item to."
+    },
+    {
+      "meta": {
+        "type": "Value",
+        "validations": {
+          "required": true
+        },
+        "allowedKinds": [
+          "BOOLEAN",
+          "STRING",
+          "INTEGER",
+          "FILE",
+          "IMAGE",
+          "OBJECT"
+        ]
+      },
+      "name": "item",
+      "label": "Item",
+      "info": "The item you want to add to the array."
+    },
+    {
+      "meta": {
+        "type": "Output",
+        "output": {
+          "type": "Array",
+          "dataType": "STRING"
+        }
+      },
+      "name": "result",
+      "label": "Resulting array"
+    }
+  ],
+  "yields": "NONE"
+}

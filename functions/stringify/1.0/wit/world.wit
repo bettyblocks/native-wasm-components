@@ -1,0 +1,12 @@
+package betty-blocks:stringify@1.0.0;
+
+interface stringify {
+    type json-string = string;
+
+    stringify: func(value: json-string) -> string;
+}
+
+world main {
+    export stringify;
+}
+    

@@ -1,0 +1,12 @@
+package betty-blocks:reassign-variable@1.0.0;
+
+interface reassign-variable {
+    type json-string = string;
+
+    reassign-variable: func(value: json-string) -> json-string;
+}
+
+world main {
+    export reassign-variable;
+}
+    
