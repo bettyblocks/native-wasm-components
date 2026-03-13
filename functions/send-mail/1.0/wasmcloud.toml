@@ -1,0 +1,11 @@
+name = "send-mail"
+version = "0.1.0"
+language = "rust"
+type = "component"
+
+[component]
+wit_world = "email"
+wasm_target = "wasm32-wasip2"
+
+[overrides]
+"betty-blocks:smtp" = { path = "./external/smtp.wit"}

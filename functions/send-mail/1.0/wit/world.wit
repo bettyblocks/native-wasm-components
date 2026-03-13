@@ -1,0 +1,5 @@
+package betty-blocks:send-mail;
+
+world email {
+   import betty-blocks:smtp/client;
+}
