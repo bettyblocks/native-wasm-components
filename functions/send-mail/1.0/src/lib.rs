@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-use wstd::http::{Body, Client, Request, Response, StatusCode};
-
+mod renderer;
 mod types;
-use types::{Input, SendResult};
 
 wit_bindgen::generate!({
     world: "email",
@@ -12,79 +9,65 @@ wit_bindgen::generate!({
 use betty_blocks::smtp::client::{
     self, Attachment, Credentials, Message, Recipient, Sender, TlsMode,
 };
+use exports::betty_blocks::send_mail::send_mail::{Guest, Input, JsonString, KeyValue};
+use tracing::debug;
+use types::{CollectionData, PropertySpec, SendMailOutput, UrlField};
+use wstd::http::{Client, Request};
 
-#[wstd::http_server]
-async fn main(request: Request<Body>) -> Result<Response<Body>, wstd::http::Error> {
-    Ok(handle(request).await)
-}
+struct SendMailComponent;
 
-async fn handle(request: Request<Body>) -> Response<Body> {
-    let input: Input = match request.into_body().json().await {
-        Ok(v) => v,
-        Err(e) => {
-            return error_response(
-                StatusCode::PRECONDITION_FAILED,
-                &format!("Invalid body: {e}"),
-            );
-        }
-    };
+impl Guest for SendMailComponent {
+    fn send_mail(input: Input) -> Result<JsonString, String> {
+        let tls_mode = resolve_tls_mode(input.secure, input.port);
 
-    match send_mail(input).await {
-        Ok(json) => Response::builder()
-            .status(StatusCode::OK)
-            .body(Body::from(json))
-            .unwrap_or_else(|_| Response::new(Body::from("Internal Server Error"))),
-        Err(e) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            &format!("Failed to send email: {e}"),
-        ),
+        let creds = Credentials {
+            host: input.host,
+            port: Some(input.port),
+            username: Some(input.username),
+            password: Some(input.password),
+            tls_mode,
+        };
+
+        let connection_key = client::connect(&creds)?;
+
+        let attachments = build_attachments(
+            &input.attachments,
+            &input.attachments_col,
+            &input.attachments_col_property,
+        )?;
+
+        let variables = input
+            .variables
+            .map(|vars| vars.into_iter().map(|kv| (kv.key, kv.value)).collect());
+
+        let body = renderer::render_body(input.body.unwrap_or_default(), variables)?;
+
+        let message = Message {
+            sender: Sender {
+                from: input.sender_email,
+                reply_to: input.reply_to,
+                display_name: input.sender_name,
+            },
+            recipient: Recipient {
+                to: vec![input.to_email],
+                cc: input.cc.map(|s| vec![s]),
+                bcc: input.bcc.map(|s| vec![s]),
+            },
+            subject: input.subject.unwrap_or_default(),
+            body,
+            attachments,
+        };
+
+        let result = client::send(&connection_key, &message)?;
+
+        client::disconnect(&connection_key)?;
+
+        let output = SendMailOutput {
+            result: result.into(),
+        };
+
+        serde_json::to_string(&output).map_err(|e| format!("Serialization failed: {e}"))
     }
-}
-
-async fn send_mail(input: Input) -> Result<String, String> {
-    let tls_mode = resolve_tls_mode(input.secure, input.port);
-
-    let creds = Credentials {
-        host: input.host,
-        port: Some(input.port),
-        username: input.username,
-        password: input.password,
-        tls_mode,
-    };
-
-    let connection_key = client::connect(&creds).map_err(|e| format!("Connect failed: {e}"))?;
-
-    let attachments = build_attachments(input.attachments).await?;
-
-    let message = Message {
-        sender: Sender {
-            from: input.sender_email,
-            reply_to: input.reply_to,
-            display_name: input.sender_name,
-        },
-        recipient: Recipient {
-            to: vec![input.to_email],
-            cc: input.cc.map(|s| vec![s]),
-            bcc: input.bcc.map(|s| vec![s]),
-        },
-        subject: input.subject.unwrap_or_default(),
-        body: input.body.unwrap_or_default(),
-        attachments,
-    };
-
-    let result =
-        client::send(&connection_key, &message).map_err(|e| format!("Send failed: {e}"))?;
-
-    if let Err(e) = client::disconnect(&connection_key) {
-        eprintln!("Failed to disconnect SMTP connection: {e}");
-    }
-
-    serde_json::to_string(&SendResult {
-        accepted: result.accepted,
-        server: result.server,
-        message_id: result.message_id,
-    })
-    .map_err(|e| format!("Serialization failed: {e}"))
 }
 
 fn resolve_tls_mode(secure: Option<bool>, port: u16) -> TlsMode {
@@ -98,37 +81,110 @@ fn resolve_tls_mode(secure: Option<bool>, port: u16) -> TlsMode {
     }
 }
 
-async fn build_attachments(
-    attachments: Option<HashMap<String, String>>,
-) -> Result<Option<Vec<Attachment>>, String> {
-    let Some(map) = attachments else {
-        return Ok(None);
+fn collect_map_attachments(map_attachments: &Option<Vec<KeyValue>>) -> Vec<(String, String)> {
+    let Some(list) = map_attachments else {
+        return Vec::new();
     };
 
-    if map.is_empty() {
+    list.iter()
+        .filter_map(|kv| {
+            let url = extract_url(&kv.value);
+            match (kv.key.as_str(), url.as_str()) {
+                ("", _) => {
+                    debug!("Skipping map attachment: empty filename");
+                    None
+                }
+                (_, "") => {
+                    debug!("Skipping map attachment: empty url");
+                    None
+                }
+                (key, _) => Some((key.to_string(), url)),
+            }
+        })
+        .collect()
+}
+
+fn collect_col_attachments(
+    col_json: &Option<String>,
+    prop_json: &Option<String>,
+) -> Result<Vec<(String, String)>, String> {
+    let (Some(col), Some(prop)) = (col_json, prop_json) else {
+        return Ok(Vec::new());
+    };
+
+    let col_data: CollectionData =
+        serde_json::from_str(col).map_err(|e| format!("Invalid attachmentsCol: {e}"))?;
+    let prop_name = &serde_json::from_str::<Vec<PropertySpec>>(prop)
+        .map_err(|e| format!("Invalid attachmentsColProperty: {e}"))?
+        .first()
+        .ok_or("attachmentsColProperty is empty")?
+        .name
+        .clone();
+
+    Ok(col_data
+        .data
+        .iter()
+        .filter_map(|item| {
+            let file = item.get(prop_name)?;
+            let url = file.url.as_deref().unwrap_or_default();
+            match (file.name.as_str(), url) {
+                ("", _) | (_, "") => {
+                    debug!("Skipping collection attachment: empty name or url");
+                    None
+                }
+                (name, url) => Some((name.to_string(), url.to_string())),
+            }
+        })
+        .collect())
+}
+
+fn build_attachments(
+    map_attachments: &Option<Vec<KeyValue>>,
+    col_json: &Option<String>,
+    prop_json: &Option<String>,
+) -> Result<Option<Vec<Attachment>>, String> {
+    let mut files = collect_map_attachments(map_attachments);
+    files.extend(collect_col_attachments(col_json, prop_json)?);
+
+    if files.is_empty() {
         return Ok(None);
     }
 
-    let http_client = Client::new();
-    let mut list = Vec::new();
-    for (filename, url) in map {
-        let content = download_url(&http_client, &url).await?;
-        let content_type = mime_guess::from_path(&filename)
-            .first_or_octet_stream()
-            .to_string();
-        list.push(Attachment {
-            filename,
-            content_type,
-            content,
-        });
-    }
+    let attachments = download_files(&Client::new(), files)?;
+    Ok(Some(attachments))
+}
 
-    Ok(Some(list))
+fn extract_url(value: &str) -> String {
+    match serde_json::from_str::<UrlField>(value) {
+        Ok(parsed) => parsed.url,
+        Err(_) => value.to_string(),
+    }
+}
+
+fn download_files(
+    client: &Client,
+    files: Vec<(String, String)>,
+) -> Result<Vec<Attachment>, String> {
+    wstd::runtime::block_on(async {
+        let mut attachments = Vec::new();
+        for (filename, url) in files {
+            let content = download_url(client, &url).await?;
+            let content_type = mime_guess::from_path(&filename)
+                .first_or_octet_stream()
+                .to_string();
+            attachments.push(Attachment {
+                filename,
+                content_type,
+                content,
+            });
+        }
+        Ok(attachments)
+    })
 }
 
 async fn download_url(client: &Client, url: &str) -> Result<Vec<u8>, String> {
     let req = Request::get(url)
-        .body(Body::empty())
+        .body(())
         .map_err(|e| format!("Failed to build request: {e}"))?;
 
     let mut response = client
@@ -141,25 +197,19 @@ async fn download_url(client: &Client, url: &str) -> Result<Vec<u8>, String> {
         return Err(format!("HTTP request failed with status: {status}"));
     }
 
-    let bytes = response
+    response
         .body_mut()
         .contents()
         .await
-        .map_err(|e| format!("Failed to read response body: {e}"))?;
-    Ok(bytes.to_vec())
+        .map(|b| b.to_vec())
+        .map_err(|e| format!("Failed to read response body: {e}"))
 }
 
-fn error_response(status: StatusCode, message: &str) -> Response<Body> {
-    Response::builder()
-        .status(status)
-        .body(Body::from(message.to_string()))
-        .unwrap_or_else(|_| Response::new(Body::from("Internal Server Error")))
-}
+export!(SendMailComponent);
 
 #[cfg(test)]
 mod tests {
     use super::{resolve_tls_mode, TlsMode};
-    use crate::types::Input;
 
     #[test]
     fn tls_secure_true_always_implicit() {
@@ -199,56 +249,32 @@ mod tests {
     }
 
     #[test]
-    fn port_as_integer() {
-        let json =
-            r#"{"host":"smtp.example.com","port":587,"senderEmail":"a@b.com","toEmail":"c@d.com"}"#;
-        let input: Input = serde_json::from_str(json).unwrap();
-        assert_eq!(input.port, 587);
+    fn extract_url_plain_string() {
+        assert_eq!(
+            super::extract_url("https://example.com/file.pdf"),
+            "https://example.com/file.pdf"
+        );
     }
 
     #[test]
-    fn port_as_string() {
-        let json = r#"{"host":"smtp.example.com","port":"465","senderEmail":"a@b.com","toEmail":"c@d.com"}"#;
-        let input: Input = serde_json::from_str(json).unwrap();
-        assert_eq!(input.port, 465);
+    fn extract_url_json_object_with_url() {
+        assert_eq!(
+            super::extract_url(r#"{"url":"https://example.com/file.pdf"}"#),
+            "https://example.com/file.pdf"
+        );
     }
 
     #[test]
-    fn port_invalid_string_fails() {
-        let json = r#"{"host":"smtp.example.com","port":"notaport","senderEmail":"a@b.com","toEmail":"c@d.com"}"#;
-        assert!(serde_json::from_str::<Input>(json).is_err());
+    fn extract_url_json_object_without_url() {
+        assert_eq!(
+            super::extract_url(r#"{"name":"file.pdf"}"#),
+            r#"{"name":"file.pdf"}"#
+        );
     }
 
     #[test]
-    fn port_out_of_range_fails() {
-        let json = r#"{"host":"smtp.example.com","port":99999,"senderEmail":"a@b.com","toEmail":"c@d.com"}"#;
-        assert!(serde_json::from_str::<Input>(json).is_err());
-    }
-
-    #[test]
-    fn input_minimal_fields() {
-        let json = r#"{"host":"smtp.example.com","port":587,"senderEmail":"sender@example.com","toEmail":"to@example.com"}"#;
-        let input: Input = serde_json::from_str(json).unwrap();
-        assert_eq!(input.host, "smtp.example.com");
-        assert_eq!(input.sender_email, "sender@example.com");
-        assert_eq!(input.to_email, "to@example.com");
-        assert!(input.username.is_none());
-        assert!(input.cc.is_none());
-        assert!(input.attachments.is_none());
-    }
-
-    #[test]
-    fn input_camel_case_fields() {
-        let json = r#"{"host":"h","port":25,"senderEmail":"s@s.com","senderName":"Sender","toEmail":"t@t.com","replyTo":"r@r.com"}"#;
-        let input: Input = serde_json::from_str(json).unwrap();
-        assert_eq!(input.sender_name.unwrap(), "Sender");
-        assert_eq!(input.reply_to.unwrap(), "r@r.com");
-    }
-
-    #[test]
-    fn input_unknown_fields_ignored() {
-        let json = r#"{"host":"h","port":25,"senderEmail":"s@s.com","toEmail":"t@t.com","variables":{"key":"val"},"attachmentsCol":null}"#;
-        assert!(serde_json::from_str::<Input>(json).is_ok());
+    fn extract_url_empty() {
+        assert_eq!(super::extract_url(""), "");
     }
 
     #[test]
@@ -257,22 +283,6 @@ mod tests {
             .first_or_octet_stream()
             .to_string();
         assert_eq!(mime, "application/pdf");
-    }
-
-    #[test]
-    fn mime_csv() {
-        let mime = mime_guess::from_path("data.csv")
-            .first_or_octet_stream()
-            .to_string();
-        assert_eq!(mime, "text/csv");
-    }
-
-    #[test]
-    fn mime_png() {
-        let mime = mime_guess::from_path("image.png")
-            .first_or_octet_stream()
-            .to_string();
-        assert_eq!(mime, "image/png");
     }
 
     #[test]
