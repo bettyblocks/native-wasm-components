@@ -6,6 +6,8 @@ wit_bindgen::generate!({
     generate_all,
 });
 
+use std::borrow::Cow;
+
 use betty_blocks::smtp::client::{
     self, Attachment, Credentials, Message, Recipient, Sender, TlsMode,
 };
@@ -28,10 +30,8 @@ impl Guest for SendMailComponent {
             tls_mode,
         };
 
-        let connection_key = client::connect(&creds)?;
-
         let attachments = build_attachments(
-            &input.attachments,
+            input.attachments,
             &input.attachments_col,
             &input.attachments_col_property,
         )?;
@@ -58,38 +58,38 @@ impl Guest for SendMailComponent {
             attachments,
         };
 
+        let connection_key = client::connect(&creds)?;
+
         let result = client::send(&connection_key, &message)?;
 
         client::disconnect(&connection_key)?;
 
-        let output = SendMailOutput {
+        serde_json::to_string(&SendMailOutput {
             result: result.into(),
-        };
-
-        serde_json::to_string(&output).map_err(|e| format!("Serialization failed: {e}"))
+        })
+        .map_err(|e| format!("Serialization failed: {e}"))
     }
 }
 
 fn resolve_tls_mode(secure: Option<bool>, port: u16) -> TlsMode {
-    if let Some(true) = secure {
-        return TlsMode::Implicit;
-    }
     match port {
-        465 => TlsMode::Implicit,
-        25 => TlsMode::None,
-        _ => TlsMode::Starttls,
+        465 => TlsMode::Implicit, // reserve port 465 for TLS
+        _ => match secure {
+            Some(false) => TlsMode::None, // any other port is TLS unless explicitly specified as non-secure
+            _ => TlsMode::Implicit,
+        },
     }
 }
 
-fn collect_map_attachments(map_attachments: &Option<Vec<KeyValue>>) -> Vec<(String, String)> {
+fn collect_map_attachments(map_attachments: Option<Vec<KeyValue>>) -> Vec<(String, String)> {
     let Some(list) = map_attachments else {
         return Vec::new();
     };
 
-    list.iter()
+    list.into_iter()
         .filter_map(|kv| {
             let url = extract_url(&kv.value);
-            match (kv.key.as_str(), url.as_str()) {
+            match (kv.key.as_str(), &*url) {
                 ("", _) => {
                     debug!("Skipping map attachment: empty filename");
                     None
@@ -98,7 +98,7 @@ fn collect_map_attachments(map_attachments: &Option<Vec<KeyValue>>) -> Vec<(Stri
                     debug!("Skipping map attachment: empty url");
                     None
                 }
-                (key, _) => Some((key.to_string(), url)),
+                _ => Some((kv.key, url.into_owned())),
             }
         })
         .collect()
@@ -114,12 +114,9 @@ fn collect_col_attachments(
 
     let col_data: CollectionData =
         serde_json::from_str(col).map_err(|e| format!("Invalid attachmentsCol: {e}"))?;
-    let prop_name = &serde_json::from_str::<Vec<PropertySpec>>(prop)
-        .map_err(|e| format!("Invalid attachmentsColProperty: {e}"))?
-        .first()
-        .ok_or("attachmentsColProperty is empty")?
-        .name
-        .clone();
+    let props: Vec<PropertySpec> =
+        serde_json::from_str(prop).map_err(|e| format!("Invalid attachmentsColProperty: {e}"))?;
+    let prop_name = &props.first().ok_or("attachmentsColProperty is empty")?.name;
 
     Ok(col_data
         .data
@@ -139,7 +136,7 @@ fn collect_col_attachments(
 }
 
 fn build_attachments(
-    map_attachments: &Option<Vec<KeyValue>>,
+    map_attachments: Option<Vec<KeyValue>>,
     col_json: &Option<String>,
     prop_json: &Option<String>,
 ) -> Result<Option<Vec<Attachment>>, String> {
@@ -154,10 +151,10 @@ fn build_attachments(
     Ok(Some(attachments))
 }
 
-fn extract_url(value: &str) -> String {
+fn extract_url(value: &str) -> Cow<'_, str> {
     match serde_json::from_str::<UrlField>(value) {
-        Ok(parsed) => parsed.url,
-        Err(_) => value.to_string(),
+        Ok(parsed) => Cow::Owned(parsed.url),
+        Err(_) => Cow::Borrowed(value),
     }
 }
 
@@ -212,40 +209,33 @@ mod tests {
     use super::{resolve_tls_mode, TlsMode};
 
     #[test]
-    fn tls_secure_true_always_implicit() {
-        assert!(matches!(
-            resolve_tls_mode(Some(true), 25),
-            TlsMode::Implicit
-        ));
-        assert!(matches!(
-            resolve_tls_mode(Some(true), 587),
-            TlsMode::Implicit
-        ));
+    fn tls_port_465_always_implicit() {
         assert!(matches!(
             resolve_tls_mode(Some(true), 465),
             TlsMode::Implicit
         ));
-    }
-
-    #[test]
-    fn tls_secure_false_falls_back_to_port() {
         assert!(matches!(
             resolve_tls_mode(Some(false), 465),
             TlsMode::Implicit
         ));
-        assert!(matches!(resolve_tls_mode(Some(false), 25), TlsMode::None));
-        assert!(matches!(
-            resolve_tls_mode(Some(false), 587),
-            TlsMode::Starttls
-        ));
+        assert!(matches!(resolve_tls_mode(None, 465), TlsMode::Implicit));
     }
 
     #[test]
-    fn tls_secure_none_falls_back_to_port() {
-        assert!(matches!(resolve_tls_mode(None, 465), TlsMode::Implicit));
-        assert!(matches!(resolve_tls_mode(None, 25), TlsMode::None));
-        assert!(matches!(resolve_tls_mode(None, 587), TlsMode::Starttls));
-        assert!(matches!(resolve_tls_mode(None, 2525), TlsMode::Starttls));
+    fn tls_secure_by_default() {
+        assert!(matches!(resolve_tls_mode(None, 25), TlsMode::Implicit));
+        assert!(matches!(
+            resolve_tls_mode(Some(true), 587),
+            TlsMode::Implicit
+        ));
+        assert!(matches!(resolve_tls_mode(None, 2525), TlsMode::Implicit));
+    }
+
+    #[test]
+    fn tls_explicit_false_is_none() {
+        assert!(matches!(resolve_tls_mode(Some(false), 25), TlsMode::None));
+        assert!(matches!(resolve_tls_mode(Some(false), 587), TlsMode::None));
+        assert!(matches!(resolve_tls_mode(Some(false), 2525), TlsMode::None));
     }
 
     #[test]

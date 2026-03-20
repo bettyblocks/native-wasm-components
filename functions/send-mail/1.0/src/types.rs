@@ -39,7 +39,7 @@ pub struct FileInfo {
     pub url: Option<String>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize)]
 pub struct UrlField {
     pub url: String,
 }
