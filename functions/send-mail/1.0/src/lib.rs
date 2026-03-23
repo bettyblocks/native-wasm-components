@@ -6,8 +6,6 @@ wit_bindgen::generate!({
     generate_all,
 });
 
-use std::borrow::Cow;
-
 use betty_blocks::smtp::client::{
     self, Attachment, Credentials, Message, Recipient, Sender, TlsMode,
 };
@@ -89,17 +87,11 @@ fn collect_map_attachments(map_attachments: Option<Vec<KeyValue>>) -> Vec<(Strin
     list.into_iter()
         .filter_map(|kv| {
             let url = extract_url(&kv.value);
-            match (kv.key.as_str(), &*url) {
-                ("", _) => {
-                    debug!("Skipping map attachment: empty filename");
-                    None
-                }
-                (_, "") => {
-                    debug!("Skipping map attachment: empty url");
-                    None
-                }
-                _ => Some((kv.key, url.into_owned())),
+            if kv.key.is_empty() || url.is_empty() {
+                debug!("Skipping map attachment: empty filename or url");
+                return None;
             }
+            Some((kv.key, url))
         })
         .collect()
 }
@@ -120,17 +112,15 @@ fn collect_col_attachments(
 
     Ok(col_data
         .data
-        .iter()
-        .filter_map(|item| {
-            let file = item.get(prop_name)?;
-            let url = file.url.as_deref().unwrap_or_default();
-            match (file.name.as_str(), url) {
-                ("", _) | (_, "") => {
-                    debug!("Skipping collection attachment: empty name or url");
-                    None
-                }
-                (name, url) => Some((name.to_string(), url.to_string())),
+        .into_iter()
+        .filter_map(|mut item| {
+            let file = item.remove(prop_name)?; // `remove` instead of `get` to take ownership, avoiding clones
+            let url = file.url.unwrap_or(file.name.clone());
+            if file.name.is_empty() || url.is_empty() {
+                debug!("Skipping collection attachment: empty name or url");
+                return None;
             }
+            Some((file.name, url))
         })
         .collect())
 }
@@ -151,10 +141,10 @@ fn build_attachments(
     Ok(Some(attachments))
 }
 
-fn extract_url(value: &str) -> Cow<'_, str> {
+fn extract_url(value: &str) -> String {
     match serde_json::from_str::<UrlField>(value) {
-        Ok(parsed) => Cow::Owned(parsed.url),
-        Err(_) => Cow::Borrowed(value),
+        Ok(parsed) => parsed.url,
+        Err(_) => value.to_string(),
     }
 }
 
@@ -206,7 +196,9 @@ export!(SendMailComponent);
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_tls_mode, TlsMode};
+    use super::{
+        collect_col_attachments, collect_map_attachments, resolve_tls_mode, KeyValue, TlsMode,
+    };
 
     #[test]
     fn tls_port_465_always_implicit() {
@@ -281,5 +273,170 @@ mod tests {
             .first_or_octet_stream()
             .to_string();
         assert_eq!(mime, "application/octet-stream");
+    }
+
+    // collect_map_attachments tests
+
+    fn kv(key: &str, value: &str) -> KeyValue {
+        KeyValue {
+            key: key.to_string(),
+            value: value.to_string(),
+        }
+    }
+
+    #[test]
+    fn map_attachments_none() {
+        assert_eq!(
+            collect_map_attachments(None),
+            Vec::<(String, String)>::new()
+        );
+    }
+
+    #[test]
+    fn map_attachments_empty_list() {
+        assert_eq!(
+            collect_map_attachments(Some(vec![])),
+            Vec::<(String, String)>::new()
+        );
+    }
+
+    #[test]
+    fn map_attachments_plain_url() {
+        let result = collect_map_attachments(Some(vec![kv(
+            "report.pdf",
+            "https://example.com/report.pdf",
+        )]));
+        assert_eq!(
+            result,
+            vec![(
+                "report.pdf".to_string(),
+                "https://example.com/report.pdf".to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn map_attachments_json_url() {
+        let result = collect_map_attachments(Some(vec![kv(
+            "file.pdf",
+            r#"{"url":"https://example.com/file.pdf"}"#,
+        )]));
+        assert_eq!(
+            result,
+            vec![(
+                "file.pdf".to_string(),
+                "https://example.com/file.pdf".to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn map_attachments_skips_empty_key() {
+        let result = collect_map_attachments(Some(vec![kv("", "https://example.com/file.pdf")]));
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn map_attachments_skips_empty_value() {
+        let result = collect_map_attachments(Some(vec![kv("file.pdf", "")]));
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn map_attachments_multiple_mixed() {
+        let result = collect_map_attachments(Some(vec![
+            kv("a.pdf", "https://example.com/a.pdf"),
+            kv("", "https://example.com/skip.pdf"),
+            kv("b.pdf", r#"{"url":"https://example.com/b.pdf"}"#),
+            kv("c.pdf", ""),
+        ]));
+        assert_eq!(
+            result,
+            vec![
+                ("a.pdf".to_string(), "https://example.com/a.pdf".to_string()),
+                ("b.pdf".to_string(), "https://example.com/b.pdf".to_string()),
+            ]
+        );
+    }
+
+    // collect_col_attachments tests
+
+    #[test]
+    fn col_attachments_none_inputs() {
+        assert_eq!(collect_col_attachments(&None, &None).unwrap(), vec![]);
+        assert_eq!(
+            collect_col_attachments(&Some("{}".to_string()), &None).unwrap(),
+            vec![]
+        );
+        assert_eq!(
+            collect_col_attachments(&None, &Some("[]".to_string())).unwrap(),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn col_attachments_with_url() {
+        let col = r#"{"data":[{"file":{"name":"doc.pdf","url":"https://example.com/doc.pdf"}}]}"#;
+        let prop = r#"[{"name":"file"}]"#;
+        let result =
+            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
+        assert_eq!(
+            result,
+            vec![(
+                "doc.pdf".to_string(),
+                "https://example.com/doc.pdf".to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn col_attachments_without_url_falls_back_to_name() {
+        let col = r#"{"data":[{"file":{"name":"https://example.com/raw.pdf"}}]}"#;
+        let prop = r#"[{"name":"file"}]"#;
+        let result =
+            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
+        assert_eq!(
+            result,
+            vec![(
+                "https://example.com/raw.pdf".to_string(),
+                "https://example.com/raw.pdf".to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn col_attachments_skips_empty_name() {
+        let col = r#"{"data":[{"file":{"name":"","url":"https://example.com/doc.pdf"}}]}"#;
+        let prop = r#"[{"name":"file"}]"#;
+        let result =
+            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn col_attachments_skips_missing_prop() {
+        let col = r#"{"data":[{"other":{"name":"doc.pdf","url":"https://example.com/doc.pdf"}}]}"#;
+        let prop = r#"[{"name":"file"}]"#;
+        let result =
+            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn col_attachments_invalid_col_json() {
+        let result = collect_col_attachments(
+            &Some("not json".to_string()),
+            &Some(r#"[{"name":"file"}]"#.to_string()),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn col_attachments_empty_prop_list() {
+        let col = r#"{"data":[]}"#;
+        let prop = r#"[]"#;
+        let result = collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string()));
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "attachmentsColProperty is empty");
     }
 }
