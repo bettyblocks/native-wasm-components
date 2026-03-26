@@ -11,7 +11,7 @@ use betty_blocks::smtp::client::{
 };
 use exports::betty_blocks::send_mail::send_mail::{Guest, Input, JsonString, KeyValue};
 use tracing::debug;
-use types::{CollectionData, PropertySpec, SendMailOutput, UrlField};
+use types::{CollectionData, FileInfo, PropertySpec, SendMailOutput, UrlField};
 use wstd::http::{Client, Request};
 
 struct SendMailComponent;
@@ -114,13 +114,24 @@ fn collect_col_attachments(
         .data
         .into_iter()
         .filter_map(|mut item| {
-            let file = item.remove(prop_name)?; // `remove` instead of `get` to take ownership, avoiding clones
-            let url = file.url.unwrap_or(file.name.clone());
-            if file.name.is_empty() || url.is_empty() {
-                debug!("Skipping collection attachment: empty name or url");
-                return None;
+            let file = item.remove(prop_name)?;
+            match file {
+                // both name and url are present
+                FileInfo {
+                    name,
+                    url: Some(url),
+                } if !name.is_empty() && !url.is_empty() => Some((name, url)),
+                // name is missing so we derive filename from the url (unsure about this)
+                FileInfo { url: Some(url), .. } if !url.is_empty() => {
+                    let filename = filename_from_url(&url)?;
+                    Some((filename, url))
+                }
+                // no valid url, skip it
+                _ => {
+                    debug!("Skipping collection attachment: missing or empty url");
+                    None
+                }
             }
-            Some((file.name, url))
         })
         .collect())
 }
@@ -148,28 +159,55 @@ fn extract_url(value: &str) -> String {
     }
 }
 
+fn filename_from_url(url: &str) -> Option<String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return None;
+    }
+    let path = url.split('?').next().unwrap_or(url);
+    let filename = path.rsplit('/').next().unwrap_or(path);
+    if filename.is_empty() {
+        return None;
+    }
+    Some(filename.to_string())
+}
+
 fn download_files(
     client: &Client,
     files: Vec<(String, String)>,
 ) -> Result<Vec<Attachment>, String> {
     wstd::runtime::block_on(async {
-        let mut attachments = Vec::new();
-        for (filename, url) in files {
-            let content = download_url(client, &url).await?;
-            let content_type = mime_guess::from_path(&filename)
-                .first_or_octet_stream()
-                .to_string();
-            attachments.push(Attachment {
-                filename,
-                content_type,
-                content,
-            });
+        let jobs: Vec<_> = files
+            .into_iter()
+            .map(|(filename, url)| {
+                let client = client.clone();
+                wstd::runtime::spawn(async move {
+                    let content = download_url(&client, &url).await?;
+                    let content_type = mime_guess::from_path(&filename)
+                        .first_or_octet_stream()
+                        .to_string();
+                    let attachment = Attachment {
+                        filename,
+                        content_type,
+                        content,
+                    };
+                    Ok::<Attachment, String>(attachment)
+                })
+            })
+            .collect();
+
+        let mut attachments = Vec::with_capacity(jobs.len());
+        for job in jobs {
+            attachments.push(job.await?);
         }
         Ok(attachments)
     })
 }
 
 async fn download_url(client: &Client, url: &str) -> Result<Vec<u8>, String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(format!("Unsupported URL scheme: {url}"));
+    }
+
     let req = Request::get(url)
         .body(())
         .map_err(|e| format!("Failed to build request: {e}"))?;
@@ -184,12 +222,13 @@ async fn download_url(client: &Client, url: &str) -> Result<Vec<u8>, String> {
         return Err(format!("HTTP request failed with status: {status}"));
     }
 
-    response
+    let body = response
         .body_mut()
         .contents()
         .await
-        .map(|b| b.to_vec())
-        .map_err(|e| format!("Failed to read response body: {e}"))
+        .map_err(|e| format!("Failed to read response body: {e}"))?;
+
+    Ok(body.to_vec())
 }
 
 export!(SendMailComponent);
@@ -390,27 +429,27 @@ mod tests {
     }
 
     #[test]
-    fn col_attachments_without_url_falls_back_to_name() {
+    fn col_attachments_without_url_is_skipped() {
         let col = r#"{"data":[{"file":{"name":"https://example.com/raw.pdf"}}]}"#;
+        let prop = r#"[{"name":"file"}]"#;
+        let result =
+            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn col_attachments_empty_name_extracts_from_url() {
+        let col = r#"{"data":[{"file":{"name":"","url":"https://example.com/doc.pdf"}}]}"#;
         let prop = r#"[{"name":"file"}]"#;
         let result =
             collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
         assert_eq!(
             result,
             vec![(
-                "https://example.com/raw.pdf".to_string(),
-                "https://example.com/raw.pdf".to_string()
+                "doc.pdf".to_string(),
+                "https://example.com/doc.pdf".to_string()
             )]
         );
-    }
-
-    #[test]
-    fn col_attachments_skips_empty_name() {
-        let col = r#"{"data":[{"file":{"name":"","url":"https://example.com/doc.pdf"}}]}"#;
-        let prop = r#"[{"name":"file"}]"#;
-        let result =
-            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
-        assert!(result.is_empty());
     }
 
     #[test]
