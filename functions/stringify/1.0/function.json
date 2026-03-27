@@ -1,10 +1,10 @@
 {
-  "description": "Stringify any value to json via JSON.stringify",
-  "label": "Stringify",
-  "category": "Misc",
+  "description": "Stringify any value to JSON via JSON.stringify",
+  "label": "Stringify Json",
+  "category": "String Functions",
   "icon": {
     "name": "TextIcon",
-    "color": "Purple"
+    "color": "Orange"
   },
   "options": [
     {
@@ -30,7 +30,8 @@
         }
       },
       "name": "result",
-      "label": "Result"
+      "label": "Result",
+      "info": "The value as a JSON string"
     }
   ],
   "yields": "NONE"

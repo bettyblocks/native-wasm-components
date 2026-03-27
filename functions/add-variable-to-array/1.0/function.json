@@ -3,7 +3,7 @@
   "label": "Add Variable To Array",
   "category": "Array functions",
   "icon": {
-    "name": "VariableIcon",
+    "name": "ArrayIcon",
     "color": "Orange"
   },
   "options": [
@@ -15,8 +15,8 @@
         },
         "allowedKinds": ["ARRAY"]
       },
-      "name": "collection",
-      "label": "Collection",
+      "name": "array",
+      "label": "Array",
       "info": "The array you want to add an item to."
     },
     {
