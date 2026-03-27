@@ -3,7 +3,7 @@
   "label": "Init Array",
   "category": "Array Functions",
   "icon": {
-    "name": "VariableIcon",
+    "name": "ArrayIcon",
     "color": "Orange"
   },
   "options": [

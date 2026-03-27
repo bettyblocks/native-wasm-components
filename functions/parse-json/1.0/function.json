@@ -3,7 +3,7 @@
   "label": "Parse Json",
   "category": "String Functions",
   "icon": {
-    "name": "ExpressionIcon",
+    "name": "TextIcon",
     "color": "Orange"
   },
   "options": [
@@ -12,7 +12,7 @@
         "type": "Text"
       },
       "name": "input",
-      "label": "JSON value",
+      "label": "JSON string",
       "info": "The stringified JSON value",
       "advanced": false
     },
@@ -40,7 +40,7 @@
         }
       },
       "name": "result",
-      "label": "The JSON object as the result",
+      "label": "Result",
       "info": "The result as the parsed JSON object"
     }
   ],

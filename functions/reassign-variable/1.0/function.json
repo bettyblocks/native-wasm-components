@@ -1,10 +1,10 @@
 {
-  "description": "(Re)assign a object variable",
-  "label": "(Re)assign Object Variable",
-  "category": "Text",
+  "description": "(Re)assign a variable",
+  "label": "(Re)assign Variable",
+  "category": "Misc",
   "icon": {
     "color": "Orange",
-    "name": "ObjectIcon"
+    "name": "VariableIcon"
   },
   "options": [
     {
@@ -16,7 +16,7 @@
         }
       },
       "name": "value",
-      "label": "Object value",
+      "label": "Value",
       "info": "The value you want to assign"
     },
     {
