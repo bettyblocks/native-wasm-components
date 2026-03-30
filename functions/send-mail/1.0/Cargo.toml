@@ -16,3 +16,4 @@ wstd = "0.6.5"
 mime_guess = { version = "2", default-features = false }
 liquid = "0.26"
 tracing = "0.1"
+futures = { version = "0.3", default-features = false, features = ["alloc"] }

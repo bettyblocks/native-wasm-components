@@ -10,6 +10,7 @@ use betty_blocks::smtp::client::{
     self, Attachment, Credentials, Message, Recipient, Sender, TlsMode,
 };
 use exports::betty_blocks::send_mail::send_mail::{Guest, Input, JsonString, KeyValue};
+use futures::future::join_all;
 use tracing::debug;
 use types::{CollectionData, FileInfo, PropertySpec, SendMailOutput, UrlField};
 use wstd::http::{Client, Request};
@@ -176,29 +177,27 @@ fn download_files(
     files: Vec<(String, String)>,
 ) -> Result<Vec<Attachment>, String> {
     wstd::runtime::block_on(async {
-        let jobs: Vec<_> = files
-            .into_iter()
-            .map(|(filename, url)| {
-                let client = client.clone();
-                wstd::runtime::spawn(async move {
-                    let content = download_url(&client, &url).await?;
-                    let content_type = mime_guess::from_path(&filename)
-                        .first_or_octet_stream()
-                        .to_string();
-                    let attachment = Attachment {
-                        filename,
-                        content_type,
-                        content,
-                    };
-                    Ok::<Attachment, String>(attachment)
-                })
-            })
-            .collect();
+        let futures = files.into_iter().map(|(filename, url)| {
+            let client = client.clone();
+            async move {
+                let content = download_url(&client, &url).await?;
+                let content_type = mime_guess::from_path(&filename)
+                    .first_or_octet_stream()
+                    .to_string();
+                let attachment = Attachment {
+                    filename,
+                    content_type,
+                    content,
+                };
+                Ok::<Attachment, String>(attachment)
+            }
+        });
 
-        let mut attachments = Vec::with_capacity(jobs.len());
-        for job in jobs {
-            attachments.push(job.await?);
-        }
+        let attachments = join_all(futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(attachments)
     })
 }
