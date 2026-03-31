@@ -39,7 +39,7 @@ jobs:
             deps
           key: ${{ runner.os }}-elixir-${{ hashFiles('mix.lock') }}
       - name: Install stable Rust toolchain
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: dtolnay/rust-toolchain@1.92.0
         with:
           targets: wasm32-wasip2
 
