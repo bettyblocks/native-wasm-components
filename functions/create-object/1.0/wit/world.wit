@@ -1,0 +1,12 @@
+package betty-blocks:create-object@1.0.0;
+
+interface create-object {
+    type json-string = string;
+
+    create-object: func(key-value-map: json-string) -> json-string;
+}
+
+world main {
+    export create-object;
+}
+    

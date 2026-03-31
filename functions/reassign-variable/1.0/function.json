@@ -1,0 +1,34 @@
+{
+  "description": "(Re)assign a variable",
+  "label": "(Re)assign Variable",
+  "category": "Misc",
+  "icon": {
+    "color": "Orange",
+    "name": "VariableIcon"
+  },
+  "options": [
+    {
+      "meta": {
+        "type": "Value",
+        "allowedKinds": ["ARRAY", "JSON", "OBJECT", "STRING"],
+        "validations": {
+          "required": true
+        }
+      },
+      "name": "value",
+      "label": "Value",
+      "info": "The value you want to assign"
+    },
+    {
+      "meta": {
+        "type": "Output",
+        "output": {
+          "type": "Text"
+        }
+      },
+      "name": "result",
+      "label": "Variable"
+    }
+  ],
+  "yields": "NONE"
+}
