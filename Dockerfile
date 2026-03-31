@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust 1.88.0 with wasm32-wasip2 target
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain  1.88.0 --profile minimal --target wasm32-wasip2
+# Install Rust 1.92.0 with wasm32-wasip2 target
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain  1.92.0 --profile minimal --target wasm32-wasip2
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN wget -qO- https://apt.llvm.org/llvm.sh | bash -s -- 18
 
