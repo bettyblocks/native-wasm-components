@@ -1,0 +1,12 @@
+package betty-blocks:init-array@1.0.0;
+
+interface init-array {
+    type json-string = string;
+
+    init-array: func() -> json-string;
+}
+
+world main {
+    export init-array;
+}
+    

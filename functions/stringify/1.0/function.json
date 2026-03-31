@@ -1,0 +1,38 @@
+{
+  "description": "Stringify any value to JSON via JSON.stringify",
+  "label": "Stringify Json",
+  "category": "String Functions",
+  "icon": {
+    "name": "TextIcon",
+    "color": "Orange"
+  },
+  "options": [
+    {
+      "meta": {
+        "type": "Value",
+        "allowedKinds": [],
+        "validations": {
+          "required": true
+        }
+      },
+      "name": "value",
+      "label": "Value",
+      "advanced": false
+    },
+    {
+      "meta": {
+        "type": "Output",
+        "output": {
+          "type": "Text"
+        },
+        "validations": {
+          "required": true
+        }
+      },
+      "name": "result",
+      "label": "Result",
+      "info": "The value as a JSON string"
+    }
+  ],
+  "yields": "NONE"
+}
