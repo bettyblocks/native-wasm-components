@@ -1,5 +1,5 @@
 {
-  "description": "Description",
+  "description": "Adds a variable to an existing array",
   "label": "Add Variable To Array",
   "category": "Array functions",
   "icon": {
