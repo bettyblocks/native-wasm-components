@@ -29,11 +29,6 @@ pub struct CollectionData {
 }
 
 #[derive(Deserialize)]
-pub struct PropertySpec {
-    pub name: String,
-}
-
-#[derive(Deserialize)]
 pub struct FileInfo {
     pub name: String,
     pub url: Option<String>,
