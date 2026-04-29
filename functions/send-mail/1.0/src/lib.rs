@@ -73,12 +73,12 @@ impl Guest for SendMailComponent {
 }
 
 fn resolve_tls_mode(secure: Option<bool>, port: u16) -> TlsMode {
-    match port {
-        465 => TlsMode::Implicit, // reserve port 465 for TLS
-        _ => match secure {
-            Some(false) => TlsMode::None, // any other port is TLS unless explicitly specified as non-secure
-            _ => TlsMode::Implicit,
-        },
+    if port == 465 {
+        return TlsMode::Implicit;
+    }
+    match secure {
+        Some(false) => TlsMode::None,
+        _ => TlsMode::Starttls,
     }
 }
 
@@ -271,19 +271,28 @@ mod tests {
     }
 
     #[test]
-    fn tls_secure_by_default() {
-        assert!(matches!(resolve_tls_mode(None, 25), TlsMode::Implicit));
+    fn tls_starttls_by_default() {
+        assert!(matches!(resolve_tls_mode(None, 25), TlsMode::Starttls));
+        assert!(matches!(resolve_tls_mode(None, 587), TlsMode::Starttls));
+        assert!(matches!(resolve_tls_mode(None, 2525), TlsMode::Starttls));
         assert!(matches!(
             resolve_tls_mode(Some(true), 587),
-            TlsMode::Implicit
+            TlsMode::Starttls
         ));
-        assert!(matches!(resolve_tls_mode(None, 2525), TlsMode::Implicit));
+        assert!(matches!(
+            resolve_tls_mode(Some(true), 25),
+            TlsMode::Starttls
+        ));
     }
 
     #[test]
     fn tls_explicit_false_is_none() {
         assert!(matches!(resolve_tls_mode(Some(false), 25), TlsMode::None));
         assert!(matches!(resolve_tls_mode(Some(false), 587), TlsMode::None));
+        assert!(matches!(
+            resolve_tls_mode(Some(false), 1025),
+            TlsMode::None
+        ));
         assert!(matches!(resolve_tls_mode(Some(false), 2525), TlsMode::None));
     }
 
