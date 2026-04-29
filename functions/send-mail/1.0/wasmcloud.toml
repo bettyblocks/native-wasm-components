@@ -7,5 +7,10 @@ type = "component"
 wit_world = "email"
 wasm_target = "wasm32-wasip2"
 
-[overrides]
-"betty-blocks:smtp" = { path = "./external/smtp.wit"}
+[[registry.pull.sources]]
+target = "betty-blocks:types"
+source = "file://./external/types.wit"
+
+[[registry.pull.sources]]
+target = "betty-blocks:smtp/client"
+source = "file://./external/smtp.wit"

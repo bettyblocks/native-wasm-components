@@ -9,10 +9,12 @@ wit_bindgen::generate!({
 use betty_blocks::smtp::client::{
     self, Attachment, Credentials, Message, Recipient, Sender, TlsMode,
 };
-use exports::betty_blocks::send_mail::send_mail::{Guest, Input, JsonString, KeyValue};
+use exports::betty_blocks::send_mail::send_mail::{
+    CollectionHandle, Guest, Input, JsonString, KeyValue, PropertyPath,
+};
 use futures::future::join_all;
 use tracing::debug;
-use types::{CollectionData, FileInfo, PropertySpec, SendMailOutput, UrlField};
+use types::{CollectionData, FileInfo, SendMailOutput, UrlField};
 use wstd::http::{Client, Request};
 
 struct SendMailComponent;
@@ -31,8 +33,8 @@ impl Guest for SendMailComponent {
 
         let attachments = build_attachments(
             input.attachments,
-            &input.attachments_col,
-            &input.attachments_col_property,
+            input.attachments_col,
+            input.attachments_col_property,
         )?;
 
         let variables = input
@@ -71,12 +73,12 @@ impl Guest for SendMailComponent {
 }
 
 fn resolve_tls_mode(secure: Option<bool>, port: u16) -> TlsMode {
-    match port {
-        465 => TlsMode::Implicit, // reserve port 465 for TLS
-        _ => match secure {
-            Some(false) => TlsMode::None, // any other port is TLS unless explicitly specified as non-secure
-            _ => TlsMode::Implicit,
-        },
+    if port == 465 {
+        return TlsMode::Implicit;
+    }
+    match secure {
+        Some(false) => TlsMode::None,
+        _ => TlsMode::Starttls,
     }
 }
 
@@ -98,17 +100,19 @@ fn collect_map_attachments(map_attachments: Option<Vec<KeyValue>>) -> Vec<(Strin
 }
 
 fn collect_col_attachments(
-    col_json: &Option<String>,
-    prop_json: &Option<String>,
+    col: Option<CollectionHandle>,
+    props: Option<Vec<PropertyPath>>,
 ) -> Result<Vec<(String, String)>, String> {
-    let (Some(col), Some(prop)) = (col_json, prop_json) else {
+    let (Some(handle), Some(props)) = (col, props) else {
+        return Ok(Vec::new());
+    };
+
+    let Some(col_json) = handle.data else {
         return Ok(Vec::new());
     };
 
     let col_data: CollectionData =
-        serde_json::from_str(col).map_err(|e| format!("Invalid attachmentsCol: {e}"))?;
-    let props: Vec<PropertySpec> =
-        serde_json::from_str(prop).map_err(|e| format!("Invalid attachmentsColProperty: {e}"))?;
+        serde_json::from_str(&col_json).map_err(|e| format!("Invalid attachmentsCol: {e}"))?;
     let prop_name = &props.first().ok_or("attachmentsColProperty is empty")?.name;
 
     Ok(col_data
@@ -139,11 +143,11 @@ fn collect_col_attachments(
 
 fn build_attachments(
     map_attachments: Option<Vec<KeyValue>>,
-    col_json: &Option<String>,
-    prop_json: &Option<String>,
+    col: Option<CollectionHandle>,
+    props: Option<Vec<PropertyPath>>,
 ) -> Result<Option<Vec<Attachment>>, String> {
     let mut files = collect_map_attachments(map_attachments);
-    files.extend(collect_col_attachments(col_json, prop_json)?);
+    files.extend(collect_col_attachments(col, props)?);
 
     if files.is_empty() {
         return Ok(None);
@@ -235,8 +239,23 @@ export!(SendMailComponent);
 #[cfg(test)]
 mod tests {
     use super::{
-        collect_col_attachments, collect_map_attachments, resolve_tls_mode, KeyValue, TlsMode,
+        collect_col_attachments, collect_map_attachments, resolve_tls_mode, CollectionHandle,
+        KeyValue, PropertyPath, TlsMode,
     };
+
+    fn handle(json: &str) -> CollectionHandle {
+        CollectionHandle {
+            data: Some(json.to_string()),
+        }
+    }
+
+    fn prop_path(name: &str) -> PropertyPath {
+        PropertyPath {
+            name: name.to_string(),
+            kind: String::new(),
+            object_fields: None,
+        }
+    }
 
     #[test]
     fn tls_port_465_always_implicit() {
@@ -252,19 +271,28 @@ mod tests {
     }
 
     #[test]
-    fn tls_secure_by_default() {
-        assert!(matches!(resolve_tls_mode(None, 25), TlsMode::Implicit));
+    fn tls_starttls_by_default() {
+        assert!(matches!(resolve_tls_mode(None, 25), TlsMode::Starttls));
+        assert!(matches!(resolve_tls_mode(None, 587), TlsMode::Starttls));
+        assert!(matches!(resolve_tls_mode(None, 2525), TlsMode::Starttls));
         assert!(matches!(
             resolve_tls_mode(Some(true), 587),
-            TlsMode::Implicit
+            TlsMode::Starttls
         ));
-        assert!(matches!(resolve_tls_mode(None, 2525), TlsMode::Implicit));
+        assert!(matches!(
+            resolve_tls_mode(Some(true), 25),
+            TlsMode::Starttls
+        ));
     }
 
     #[test]
     fn tls_explicit_false_is_none() {
         assert!(matches!(resolve_tls_mode(Some(false), 25), TlsMode::None));
         assert!(matches!(resolve_tls_mode(Some(false), 587), TlsMode::None));
+        assert!(matches!(
+            resolve_tls_mode(Some(false), 1025),
+            TlsMode::None
+        ));
         assert!(matches!(resolve_tls_mode(Some(false), 2525), TlsMode::None));
     }
 
@@ -401,23 +429,32 @@ mod tests {
 
     #[test]
     fn col_attachments_none_inputs() {
-        assert_eq!(collect_col_attachments(&None, &None).unwrap(), vec![]);
+        assert_eq!(collect_col_attachments(None, None).unwrap(), vec![]);
         assert_eq!(
-            collect_col_attachments(&Some("{}".to_string()), &None).unwrap(),
+            collect_col_attachments(Some(handle("{}")), None).unwrap(),
             vec![]
         );
         assert_eq!(
-            collect_col_attachments(&None, &Some("[]".to_string())).unwrap(),
+            collect_col_attachments(None, Some(vec![])).unwrap(),
             vec![]
         );
     }
 
     #[test]
+    fn col_attachments_handle_with_no_data() {
+        let result = collect_col_attachments(
+            Some(CollectionHandle { data: None }),
+            Some(vec![prop_path("file")]),
+        )
+        .unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
     fn col_attachments_with_url() {
         let col = r#"{"data":[{"file":{"name":"doc.pdf","url":"https://example.com/doc.pdf"}}]}"#;
-        let prop = r#"[{"name":"file"}]"#;
         let result =
-            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
+            collect_col_attachments(Some(handle(col)), Some(vec![prop_path("file")])).unwrap();
         assert_eq!(
             result,
             vec![(
@@ -430,18 +467,16 @@ mod tests {
     #[test]
     fn col_attachments_without_url_is_skipped() {
         let col = r#"{"data":[{"file":{"name":"https://example.com/raw.pdf"}}]}"#;
-        let prop = r#"[{"name":"file"}]"#;
         let result =
-            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
+            collect_col_attachments(Some(handle(col)), Some(vec![prop_path("file")])).unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
     fn col_attachments_empty_name_extracts_from_url() {
         let col = r#"{"data":[{"file":{"name":"","url":"https://example.com/doc.pdf"}}]}"#;
-        let prop = r#"[{"name":"file"}]"#;
         let result =
-            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
+            collect_col_attachments(Some(handle(col)), Some(vec![prop_path("file")])).unwrap();
         assert_eq!(
             result,
             vec![(
@@ -454,26 +489,21 @@ mod tests {
     #[test]
     fn col_attachments_skips_missing_prop() {
         let col = r#"{"data":[{"other":{"name":"doc.pdf","url":"https://example.com/doc.pdf"}}]}"#;
-        let prop = r#"[{"name":"file"}]"#;
         let result =
-            collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string())).unwrap();
+            collect_col_attachments(Some(handle(col)), Some(vec![prop_path("file")])).unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
     fn col_attachments_invalid_col_json() {
-        let result = collect_col_attachments(
-            &Some("not json".to_string()),
-            &Some(r#"[{"name":"file"}]"#.to_string()),
-        );
+        let result =
+            collect_col_attachments(Some(handle("not json")), Some(vec![prop_path("file")]));
         assert!(result.is_err());
     }
 
     #[test]
     fn col_attachments_empty_prop_list() {
-        let col = r#"{"data":[]}"#;
-        let prop = r#"[]"#;
-        let result = collect_col_attachments(&Some(col.to_string()), &Some(prop.to_string()));
+        let result = collect_col_attachments(Some(handle(r#"{"data":[]}"#)), Some(vec![]));
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "attachmentsColProperty is empty");
     }
