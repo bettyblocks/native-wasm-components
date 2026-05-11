@@ -1,0 +1,18 @@
+
+build:
+    wash build
+
+test:
+    cargo test --lib --bins
+
+integration-test:
+    cargo test --tests '*'
+
+lint:
+    cargo check
+
+formatting *args:
+    cargo fmt --all {{args}}
+
+clippy:
+    cargo clippy --all-targets --all-features -- -D warnings
