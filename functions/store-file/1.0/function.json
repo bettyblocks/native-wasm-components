@@ -1,0 +1,71 @@
+{
+  "description": "Uploads a file to the asset store and returns a reference which can be used in a create or update",
+  "label": "Store File",
+  "category": "Misc",
+  "icon": {
+    "name": "UploadIcon",
+    "color": "Orange"
+  },
+  "options": [
+    {
+      "meta": {
+        "type": "Model",
+        "validations": {
+          "required": true
+        }
+      },
+      "name": "model",
+      "label": "Model"
+    },
+    {
+      "meta": {
+        "allowedKinds": ["FILE", "IMAGE"],
+        "type": "Property",
+        "model": "model",
+        "validations": {
+          "required": true
+        }
+      },
+      "configuration": {
+        "dependsOn": [
+          {
+            "option": "model",
+            "action": "CLEAR"
+          }
+        ]
+      },
+      "name": "property",
+      "label": "Property"
+    },
+    {
+      "meta": {
+        "type": "Text",
+        "validations": {
+          "required": true
+        }
+      },
+      "name": "url",
+      "label": "URL"
+    },
+    {
+      "info": "Sometimes you may need to pass some additional information in your request, this is possible by adding variables in your header.",
+      "label": "Headers",
+      "meta": {
+        "type": "Map"
+      },
+      "name": "headers"
+    },
+    {
+      "meta": {
+        "type": "Output",
+        "output": {
+          "type": "Text"
+        }
+      },
+      "name": "reference",
+      "label": "As",
+      "info": "The file reference"
+    }
+  ],
+  "yields": "NONE"
+}
