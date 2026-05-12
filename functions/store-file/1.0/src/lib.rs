@@ -38,7 +38,13 @@ async fn store_file_internal(
     let (base_name, content_type) = extract_file_info_from_url(&source.url)
         .map_err(|e| anyhow::anyhow!("Failed to extract file info from URL: {e}"))?;
     let filename = make_unique_filename(&base_name);
-    let file_bytes = download_to_memory(&source.url, source.headers.as_deref()).await?;
+
+    let headers_as_tuple: Option<Vec<(String, String)>> = match source.headers {
+        None => None,
+        Some(headers) => Some(headers.into_iter().map(|header| (header.key, header.value)).collect())
+    };
+
+    let file_bytes = download_to_memory(&source.url, headers_as_tuple.as_deref()).await?;
 
     let upload_result =
         upload_file::upload(&helper_context, &model, &property, &file_bytes, &filename, &content_type)

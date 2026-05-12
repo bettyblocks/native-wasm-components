@@ -24,7 +24,12 @@ interface store {
     use betty-blocks:data-api/data-api.{helper-context};
     use betty-blocks:types/types.{model, property};
 
-    type download-headers = option<list<tuple<string, string>>>;
+    record download-header {
+        key: string,
+        value: string,
+    }
+
+    type download-headers = option<list<download-header>>;
 
     record url-source {
         url: string,
