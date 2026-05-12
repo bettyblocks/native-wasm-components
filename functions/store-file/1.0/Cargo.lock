@@ -3402,7 +3402,6 @@ name = "store-file"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
  "bytes",
  "mime_guess",
  "percent-encoding",

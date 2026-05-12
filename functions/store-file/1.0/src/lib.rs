@@ -10,12 +10,10 @@ use bindings::{
     betty_blocks::data_api::data_api::HelperContext,
     betty_blocks::file::upload_file,
     betty_blocks::types::types::Property,
-    exports::betty_blocks::file::store::{Base64Source, Guest as StoreGuest, Model},
+    exports::betty_blocks::file::store::{UrlSource, Guest as StoreGuest, Model},
 };
 
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-
-use crate::download::{make_unique_filename};
+use crate::download::{download_to_memory, extract_file_info_from_url, make_unique_filename};
 
 struct Component;
 
@@ -24,9 +22,9 @@ impl StoreGuest for Component {
         helper_context: HelperContext,
         model: Model,
         property: Property,
-        base64_source: Base64Source,
+        source: UrlSource,
     ) -> Result<String, String> {
-        wstd::runtime::block_on(store_file_internal(helper_context, model, property, base64_source))
+        wstd::runtime::block_on(store_file_internal(helper_context, model, property, source))
             .map_err(|e| e.to_string())
     }
 }
@@ -35,16 +33,12 @@ async fn store_file_internal(
     helper_context: HelperContext,
     model: Model,
     property: Property,
-    base64_source: Base64Source,
+    source: UrlSource,
 ) -> anyhow::Result<String> {
-    let file_bytes = BASE64
-        .decode(&base64_source.data)
-        .map_err(|e| anyhow::anyhow!("Failed to decode base64 source: {e}"))?;
-
-    let content_type = mime_guess::from_path(&base64_source.filename)
-        .first_or_octet_stream()
-        .to_string();
-    let filename = make_unique_filename(&base64_source.filename);
+    let (base_name, content_type) = extract_file_info_from_url(&source.url)
+        .map_err(|e| anyhow::anyhow!("Failed to extract file info from URL: {e}"))?;
+    let filename = make_unique_filename(&base_name);
+    let file_bytes = download_to_memory(&source.url, source.headers.as_deref()).await?;
 
     let upload_result =
         upload_file::upload(&helper_context, &model, &property, &file_bytes, &filename, &content_type)

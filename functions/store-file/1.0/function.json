@@ -4,7 +4,7 @@
 	"category": "Misc",
 	"icon": {
 		"name": "UploadIcon",
-		"color": "Purple"
+		"color": "Orange"
 	},
 	"options": [
 		{
@@ -40,10 +40,8 @@
 		{
 			"label": "Source",
 			"meta": {
-				"allowedKinds": [
-					"OBJECT"
-				],
-				"schemaModel": "schemaModelBase64Source",
+				"allowedKinds": ["OBJECT"],
+				"schemaModel": "schemaModelUrlSource",
 				"type": "Value",
 				"validations": {
 					"required": true
@@ -52,25 +50,23 @@
 			"name": "source"
 		},
 		{
-			"label": "Schema Model store-file-result",
+			"label": "Schema Model URL Source",
 			"meta": {
 				"type": "SchemaModel",
 				"visibility": "hidden"
 			},
-			"name": "schemaModelStoreFileResult"
+			"name": "schemaModelUrlSource"
 		},
 		{
-			"label": "Result",
 			"meta": {
+				"type": "Output",
 				"output": {
 					"type": "Text"
-				},
-				"type": "Output",
-				"validations": {
-					"required": true
 				}
 			},
-			"name": "result"
+			"name": "reference",
+			"label": "As",
+			"info": "The file reference"
 		}
 	],
 	"yields": "NONE"
