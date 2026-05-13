@@ -1,5 +1,0 @@
-package wasmcloud:hello;
-
-world hello {
-   export betty-blocks:data-api/data-api-utilities;
-}
