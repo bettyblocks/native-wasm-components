@@ -1,0 +1,75 @@
+{
+	"description": "Uploads a file to the asset store and returns a reference which can be used in a create or update",
+	"label": "Store File",
+	"category": "Misc",
+	"icon": {
+		"name": "UploadIcon",
+		"color": "Orange"
+	},
+	"options": [
+		{
+			"meta": {
+				"type": "Model",
+				"validations": {
+					"required": true
+				}
+			},
+			"name": "model",
+			"label": "Model"
+		},
+		{
+			"meta": {
+				"allowedKinds": ["FILE", "IMAGE"],
+				"type": "Property",
+				"model": "model",
+				"validations": {
+					"required": true
+				}
+			},
+			"configuration": {
+				"dependsOn": [
+					{
+						"option": "model",
+						"action": "CLEAR"
+					}
+				]
+			},
+			"name": "property",
+			"label": "Property"
+		},
+		{
+			"label": "Source",
+			"meta": {
+				"allowedKinds": ["OBJECT"],
+				"schemaModel": "schemaModelUrlSource",
+				"type": "Value",
+				"validations": {
+					"required": true
+				}
+			},
+			"name": "source"
+		},
+		{
+			"label": "Schema Model URL Source",
+			"meta": {
+				"type": "SchemaModel",
+				"visibility": "hidden"
+			},
+			"name": "schemaModelUrlSource"
+		},
+		{
+			"label": "Result",
+			"meta": {
+				"output": {
+					"type": "Text"
+				},
+				"type": "Output",
+				"validations": {
+					"required": true
+				}
+			},
+			"name": "result"
+		}
+	],
+	"yields": "NONE"
+}

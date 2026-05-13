@@ -1,0 +1,52 @@
+package betty-blocks:file;
+
+interface upload-file {
+    use betty-blocks:data-api/data-api.{helper-context};
+    use betty-blocks:types/types.{model, property};
+
+    record upload-result {
+        reference: string,
+        file-size: u64,
+        message: option<string>,
+    }
+
+    upload: func(
+	helper-context: helper-context,
+        model: model,
+        property: property,
+        file-bytes: list<u8>,
+        filename: string,
+        content-type: string,
+    ) -> result<upload-result, string>;
+}
+
+interface store {
+    use betty-blocks:data-api/data-api.{helper-context};
+    use betty-blocks:types/types.{model, property};
+
+    record download-header {
+        key: string,
+        value: string,
+    }
+
+    type download-headers = option<list<download-header>>;
+
+    record url-source {
+        url: string,
+        headers: download-headers,
+    }
+
+    store-file: func(helper-context: helper-context, model: model, property: property, source: url-source) -> result<string, string>;
+}
+
+interface store-base64 {
+    use betty-blocks:data-api/data-api.{helper-context};
+    use betty-blocks:types/types.{model, property};
+
+    record base64-source {
+        data: string,
+        filename: string,
+    }
+
+    store-file: func(helper-context: helper-context, model: model, property: property, source: base64-source) -> result<string, string>;
+}

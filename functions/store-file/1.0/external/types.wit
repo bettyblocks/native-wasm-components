@@ -1,0 +1,26 @@
+package betty-blocks:types;
+
+interface types {
+   type json-string = string;
+
+   record model {
+      name: string
+   }
+
+   record property {
+      name: string,
+   }
+
+   record property-key {
+      name: string,
+      kind: string,
+      object-fields: option<list<property>>
+  }
+
+   record property-map {
+      key: list<property-key>,
+      value: option<json-string>
+   }
+
+   type property-mapping = list<property-map>;
+}
