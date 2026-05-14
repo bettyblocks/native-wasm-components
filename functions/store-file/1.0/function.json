@@ -58,18 +58,17 @@
 			"name": "schemaModelUrlSource"
 		},
 		{
-			"label": "Result",
 			"meta": {
+				"type": "Output",
 				"output": {
 					"type": "Text"
-				},
-				"type": "Output",
-				"validations": {
-					"required": true
 				}
 			},
-			"name": "result"
+			"name": "reference",
+			"label": "As",
+			"info": "The file reference"
 		}
+
 	],
 	"yields": "NONE"
 }
