@@ -18,10 +18,10 @@ use crate::download::{download_to_memory, extract_file_info_from_url, make_uniqu
 struct Component;
 
 impl StoreGuest for Component {
-    fn store_file(
+        fn store_file(
         helper_context: HelperContext,
         model: Model,
-        property: Property,
+        property: Vec<Property>,
         source: UrlSource,
     ) -> Result<String, String> {
         wstd::runtime::block_on(store_file_internal(helper_context, model, property, source))
@@ -32,9 +32,11 @@ impl StoreGuest for Component {
 async fn store_file_internal(
     helper_context: HelperContext,
     model: Model,
-    property: Property,
+    property: Vec<Property>,
     source: UrlSource,
 ) -> anyhow::Result<String> {
+    let property = property.first().unwrap();
+
     let (base_name, content_type) = extract_file_info_from_url(&source.url)
         .map_err(|e| anyhow::anyhow!("Failed to extract file info from URL: {e}"))?;
     let filename = make_unique_filename(&base_name);

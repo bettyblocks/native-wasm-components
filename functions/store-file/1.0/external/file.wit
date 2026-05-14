@@ -1,5 +1,7 @@
 package betty-blocks:file;
 
+// Our platform passes the property as [{ kind: "FILE", name: "<propertyName>" }], we have to accommodate that in the store interfaces.
+
 interface upload-file {
     use betty-blocks:data-api/data-api.{helper-context};
     use betty-blocks:types/types.{model, property};
@@ -36,17 +38,12 @@ interface store {
         headers: download-headers,
     }
 
-    store-file: func(helper-context: helper-context, model: model, property: property, source: url-source) -> result<string, string>;
+    store-file: func(helper-context: helper-context, model: model, property: list<property>, source: url-source) -> result<string, string>;
 }
 
 interface store-base64 {
     use betty-blocks:data-api/data-api.{helper-context};
     use betty-blocks:types/types.{model, property};
 
-    record base64-source {
-        data: string,
-        filename: string,
-    }
-
-    store-file: func(helper-context: helper-context, model: model, property: property, source: base64-source) -> result<string, string>;
+    store-file: func(helper-context: helper-context, model: model, property: list<property>, filename: string, data: string) -> result<string, string>;
 }
