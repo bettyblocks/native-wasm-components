@@ -9,4 +9,3 @@ interface stringify {
 world main {
     export stringify;
 }
-    

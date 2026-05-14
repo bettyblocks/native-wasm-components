@@ -13,7 +13,7 @@ interface upload-file {
     }
 
     upload: func(
-	helper-context: helper-context,
+        helper-context: helper-context,
         model: model,
         property: property,
         file-bytes: list<u8>,

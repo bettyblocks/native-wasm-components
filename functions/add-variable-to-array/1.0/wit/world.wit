@@ -9,4 +9,3 @@ interface add-variable-to-array {
 world main {
     export add-variable-to-array;
 }
-    

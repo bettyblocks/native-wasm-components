@@ -9,4 +9,3 @@ interface parse-json {
 world main {
     export parse-json;
 }
-    
