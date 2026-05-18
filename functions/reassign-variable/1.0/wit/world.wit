@@ -9,4 +9,3 @@ interface reassign-variable {
 world main {
     export reassign-variable;
 }
-    

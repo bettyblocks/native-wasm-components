@@ -58,18 +58,17 @@
 			"name": "schemaModelUrlSource"
 		},
 		{
-			"label": "Result",
 			"meta": {
+				"type": "Output",
 				"output": {
 					"type": "Text"
-				},
-				"type": "Output",
-				"validations": {
-					"required": true
 				}
 			},
-			"name": "result"
+			"name": "reference",
+			"label": "File reference",
+			"info": "Used to refer to a stored file"
 		}
+
 	],
 	"yields": "NONE"
 }

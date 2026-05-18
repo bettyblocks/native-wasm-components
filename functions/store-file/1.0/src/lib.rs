@@ -10,7 +10,7 @@ use bindings::{
     betty_blocks::data_api::data_api::HelperContext,
     betty_blocks::file::upload_file,
     betty_blocks::types::types::Property,
-    exports::betty_blocks::file::store::{UrlSource, Guest as StoreGuest, Model},
+    exports::betty_blocks::file::store::{Guest as StoreGuest, Model, UrlSource},
 };
 
 use crate::download::{download_to_memory, extract_file_info_from_url, make_unique_filename};
@@ -21,7 +21,7 @@ impl StoreGuest for Component {
     fn store_file(
         helper_context: HelperContext,
         model: Model,
-        property: Property,
+        property: Vec<Property>,
         source: UrlSource,
     ) -> Result<String, String> {
         wstd::runtime::block_on(store_file_internal(helper_context, model, property, source))
@@ -32,23 +32,38 @@ impl StoreGuest for Component {
 async fn store_file_internal(
     helper_context: HelperContext,
     model: Model,
-    property: Property,
+    property: Vec<Property>,
     source: UrlSource,
 ) -> anyhow::Result<String> {
+    let property = property
+        .first()
+        .ok_or(anyhow::anyhow!("Failed to fetch file property"))?;
+
     let (base_name, content_type) = extract_file_info_from_url(&source.url)
         .map_err(|e| anyhow::anyhow!("Failed to extract file info from URL: {e}"))?;
     let filename = make_unique_filename(&base_name);
 
     let headers_as_tuple: Option<Vec<(String, String)>> = match source.headers {
         None => None,
-        Some(headers) => Some(headers.into_iter().map(|header| (header.key, header.value)).collect())
+        Some(headers) => Some(
+            headers
+                .into_iter()
+                .map(|header| (header.key, header.value))
+                .collect(),
+        ),
     };
 
     let file_bytes = download_to_memory(&source.url, headers_as_tuple.as_deref()).await?;
 
-    let upload_result =
-        upload_file::upload(&helper_context, &model, &property, &file_bytes, &filename, &content_type)
-            .map_err(|e| anyhow::anyhow!("Upload failed: {e}"))?;
+    let upload_result = upload_file::upload(
+        &helper_context,
+        &model,
+        &property,
+        &file_bytes,
+        &filename,
+        &content_type,
+    )
+    .map_err(|e| anyhow::anyhow!("Upload failed: {e}"))?;
 
     Ok(upload_result.reference)
 }
