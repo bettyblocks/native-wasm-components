@@ -1,0 +1,65 @@
+{
+  "description": "Create or update a record for a given model identified by its unique by",
+  "label": "Upsert Record",
+  "category": "CRUD",
+  "icon": {
+    "name": "DataJumpUpIcon",
+    "color": "Green"
+  },
+  "options": [
+    {
+      "meta": {
+        "type": "Model",
+        "validations": {
+          "required": true
+        }
+      },
+      "name": "model",
+      "label": "Model",
+      "info": "The model you want to upsert a record for."
+    },
+    {
+      "meta": {
+        "type": "PropertyMap",
+        "model": "model"
+      },
+      "configuration": {
+        "dependsOn": [
+          {
+            "option": "model",
+            "action": "CLEAR"
+          }
+        ]
+      },
+      "name": "mapping",
+      "label": "Value Mapping",
+      "info": "Mapping of values to properties for the upserted record. The properties are based on the model from the selected record."
+    },
+    {
+      "meta": {
+        "type": "Output",
+        "output": {
+          "type": "Record",
+          "model": "model"
+        },
+        "validations": {
+          "required": true
+        }
+      },
+      "name": "as",
+      "label": "As",
+      "info": "The name of the variable you want for the upserted record."
+    },
+    {
+      "meta": {
+        "type": "Boolean",
+        "default": true
+      },
+      "advanced": true,
+      "name": "validates",
+      "label": "Validates",
+      "info": "Apply validations when upserting the record."
+    }
+  ],
+  "yields": "NONE"
+}
