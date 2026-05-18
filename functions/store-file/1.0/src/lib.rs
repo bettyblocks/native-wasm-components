@@ -37,7 +37,7 @@ async fn store_file_internal(
 ) -> anyhow::Result<String> {
     let property = property
         .first()
-        .ok_or(String::from("Failed to fetch file property"))?;
+        .ok_or(anyhow::anyhow!("Failed to fetch file property"))?;
 
     let (base_name, content_type) = extract_file_info_from_url(&source.url)
         .map_err(|e| anyhow::anyhow!("Failed to extract file info from URL: {e}"))?;
