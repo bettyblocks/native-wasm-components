@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use tracing::debug;
-use wstd::http::{body::BoundedBody, Client, IntoBody, Request};
+use wstd::http::{Client, IntoBody, Request, body::BoundedBody};
 use wstd::io::AsyncRead;
 
 const NETWORK_BUF_SIZE: usize = 64 * 1024; // 64kb
