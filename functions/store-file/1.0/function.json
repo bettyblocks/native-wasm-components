@@ -65,8 +65,8 @@
 				}
 			},
 			"name": "reference",
-			"label": "As",
-			"info": "The file reference"
+			"label": "File reference",
+			"info": "Used to refer to a stored file"
 		}
 
 	],
