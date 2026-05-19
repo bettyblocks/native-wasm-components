@@ -39,6 +39,7 @@
 		},
 		{
 			"label": "URL",
+			"name": "url",
 			"meta": {
 				"type": "Text"
 			}
