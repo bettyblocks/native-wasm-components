@@ -41,7 +41,6 @@ async fn store_file_internal(
 
     let (base_name, content_type) = extract_file_info_from_url(&url)
         .map_err(|e| anyhow::anyhow!("Failed to extract file info from URL: {e}"))?;
-    let filename = make_unique_filename(&base_name);
 
     let file_bytes = download_to_memory(&url).await?;
 
@@ -50,7 +49,7 @@ async fn store_file_internal(
         &model,
         property,
         &file_bytes,
-        &filename,
+        &base_name,
         &content_type,
     )
     .map_err(|e| anyhow::anyhow!("Upload failed: {e}"))?;

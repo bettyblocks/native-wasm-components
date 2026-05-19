@@ -45,16 +45,6 @@ pub async fn download_to_memory(
     Ok(file_bytes)
 }
 
-pub fn make_unique_filename(filename: &str) -> String {
-    let random_bytes = crate::bindings::wasi::random::random::get_random_bytes(8);
-    let hex: String = random_bytes.iter().map(|b| format!("{b:02x}")).collect();
-
-    match filename.rsplit_once('.') {
-        Some((stem, ext)) => format!("{stem}_{hex}.{ext}"),
-        None => format!("{filename}_{hex}"),
-    }
-}
-
 fn build_request(
     url: &str,
 ) -> Result<Request<BoundedBody<Vec<u8>>>> {
