@@ -42,7 +42,8 @@
 			"name": "url",
 			"meta": {
 				"type": "Text"
-			}
+			},
+			"info": "The URL to fetch from, it is expected that this file is publically available. For private files get them using a separate data source and store them using Store File Base64."
 		},
 		{
 			"meta": {
