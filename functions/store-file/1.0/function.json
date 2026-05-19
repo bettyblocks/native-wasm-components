@@ -38,24 +38,10 @@
 			"label": "Property"
 		},
 		{
-			"label": "Source",
+			"label": "URL",
 			"meta": {
-				"allowedKinds": ["OBJECT"],
-				"schemaModel": "schemaModelUrlSource",
-				"type": "Value",
-				"validations": {
-					"required": true
-				}
-			},
-			"name": "source"
-		},
-		{
-			"label": "Schema Model URL Source",
-			"meta": {
-				"type": "SchemaModel",
-				"visibility": "hidden"
-			},
-			"name": "schemaModelUrlSource"
+				"type": "Text"
+			}
 		},
 		{
 			"meta": {

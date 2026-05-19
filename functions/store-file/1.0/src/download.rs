@@ -7,12 +7,11 @@ const NETWORK_BUF_SIZE: usize = 64 * 1024; // 64kb
 
 pub async fn download_to_memory(
     url: &str,
-    headers: Option<&[(String, String)]>,
 ) -> Result<Vec<u8>> {
     debug!("Downloading from: {}", url);
 
     let client = Client::new();
-    let request = build_request(url, headers)?;
+    let request = build_request(url)?;
 
     let response = client
         .send(request)
@@ -58,14 +57,8 @@ pub fn make_unique_filename(filename: &str) -> String {
 
 fn build_request(
     url: &str,
-    headers: Option<&[(String, String)]>,
 ) -> Result<Request<BoundedBody<Vec<u8>>>> {
-    let mut builder = Request::get(url);
-    if let Some(custom_headers) = headers {
-        for (key, value) in custom_headers {
-            builder = builder.header(key.to_lowercase().as_str(), value.as_str());
-        }
-    }
+    let builder = Request::get(url);
     builder
         .body(Vec::new().into_body())
         .context("Failed to build HTTP request")
@@ -76,7 +69,7 @@ pub fn extract_file_info_from_url(raw_url: &str) -> Result<(String, String)> {
 
     let filename = parsed
         .path_segments()
-        .and_then(|segments| segments.filter(|s| !s.is_empty()).last())
+        .and_then(|mut segments| segments.rfind(|segment| !segment.is_empty()))
         .ok_or_else(|| anyhow::anyhow!("Could not extract filename from URL"))?;
 
     let filename = percent_encoding::percent_decode_str(filename)
