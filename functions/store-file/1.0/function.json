@@ -15,7 +15,8 @@
 				}
 			},
 			"name": "model",
-			"label": "Model"
+			"label": "Model",
+			"info": "The data model to put the file in."
 		},
 		{
 			"meta": {
