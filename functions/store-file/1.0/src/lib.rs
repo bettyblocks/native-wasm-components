@@ -13,7 +13,7 @@ use bindings::{
     exports::betty_blocks::file::store::{Guest as StoreGuest, Model},
 };
 
-use crate::download::{download_to_memory, extract_file_info_from_url, make_unique_filename};
+use crate::download::{download_to_memory, extract_file_info_from_url};
 
 struct Component;
 
@@ -25,7 +25,7 @@ impl StoreGuest for Component {
         url: String,
     ) -> Result<String, String> {
         wstd::runtime::block_on(store_file_internal(helper_context, model, property, url))
-            .map_err(|e| e.to_string())
+            .map_err(|error| error.to_string())
     }
 }
 
@@ -40,7 +40,7 @@ async fn store_file_internal(
         .ok_or(anyhow::anyhow!("Failed to fetch file property"))?;
 
     let (base_name, content_type) = extract_file_info_from_url(&url)
-        .map_err(|e| anyhow::anyhow!("Failed to extract file info from URL: {e}"))?;
+        .map_err(|error| anyhow::anyhow!("Failed to extract file info from URL: {error}"))?;
 
     let file_bytes = download_to_memory(&url).await?;
 
@@ -52,7 +52,7 @@ async fn store_file_internal(
         &base_name,
         &content_type,
     )
-    .map_err(|e| anyhow::anyhow!("Upload failed: {e}"))?;
+    .map_err(|error| anyhow::anyhow!("Upload failed: {error}"))?;
 
     Ok(upload_result.reference)
 }
