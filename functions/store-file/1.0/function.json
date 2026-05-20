@@ -15,7 +15,8 @@
 				}
 			},
 			"name": "model",
-			"label": "Model"
+			"label": "Model",
+			"info": "The data model to put the file in."
 		},
 		{
 			"meta": {
@@ -38,24 +39,12 @@
 			"label": "Property"
 		},
 		{
-			"label": "Source",
+			"label": "URL",
+			"name": "url",
 			"meta": {
-				"allowedKinds": ["OBJECT"],
-				"schemaModel": "schemaModelUrlSource",
-				"type": "Value",
-				"validations": {
-					"required": true
-				}
+				"type": "Text"
 			},
-			"name": "source"
-		},
-		{
-			"label": "Schema Model URL Source",
-			"meta": {
-				"type": "SchemaModel",
-				"visibility": "hidden"
-			},
-			"name": "schemaModelUrlSource"
+			"info": "The URL to fetch from, it is expected that this file is publically available. For private files get them using a separate data source and store them using Store File Base64."
 		},
 		{
 			"meta": {

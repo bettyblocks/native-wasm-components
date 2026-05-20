@@ -10,10 +10,10 @@ use bindings::{
     betty_blocks::data_api::data_api::HelperContext,
     betty_blocks::file::upload_file,
     betty_blocks::types::types::Property,
-    exports::betty_blocks::file::store::{Guest as StoreGuest, Model, UrlSource},
+    exports::betty_blocks::file::store::{Guest as StoreGuest, Model},
 };
 
-use crate::download::{download_to_memory, extract_file_info_from_url, make_unique_filename};
+use crate::download::{download_to_memory, extract_file_info_from_url};
 
 struct Component;
 
@@ -22,10 +22,10 @@ impl StoreGuest for Component {
         helper_context: HelperContext,
         model: Model,
         property: Vec<Property>,
-        source: UrlSource,
+        url: String,
     ) -> Result<String, String> {
-        wstd::runtime::block_on(store_file_internal(helper_context, model, property, source))
-            .map_err(|e| e.to_string())
+        wstd::runtime::block_on(store_file_internal(helper_context, model, property, url))
+            .map_err(|error| error.to_string())
     }
 }
 
@@ -33,37 +33,26 @@ async fn store_file_internal(
     helper_context: HelperContext,
     model: Model,
     property: Vec<Property>,
-    source: UrlSource,
+    url: String,
 ) -> anyhow::Result<String> {
     let property = property
         .first()
         .ok_or(anyhow::anyhow!("Failed to fetch file property"))?;
 
-    let (base_name, content_type) = extract_file_info_from_url(&source.url)
-        .map_err(|e| anyhow::anyhow!("Failed to extract file info from URL: {e}"))?;
-    let filename = make_unique_filename(&base_name);
+    let (base_name, content_type) = extract_file_info_from_url(&url)
+        .map_err(|error| anyhow::anyhow!("Failed to extract file info from URL: {error}"))?;
 
-    let headers_as_tuple: Option<Vec<(String, String)>> = match source.headers {
-        None => None,
-        Some(headers) => Some(
-            headers
-                .into_iter()
-                .map(|header| (header.key, header.value))
-                .collect(),
-        ),
-    };
-
-    let file_bytes = download_to_memory(&source.url, headers_as_tuple.as_deref()).await?;
+    let file_bytes = download_to_memory(&url).await?;
 
     let upload_result = upload_file::upload(
         &helper_context,
         &model,
-        &property,
+        property,
         &file_bytes,
-        &filename,
+        &base_name,
         &content_type,
     )
-    .map_err(|e| anyhow::anyhow!("Upload failed: {e}"))?;
+    .map_err(|error| anyhow::anyhow!("Upload failed: {error}"))?;
 
     Ok(upload_result.reference)
 }
