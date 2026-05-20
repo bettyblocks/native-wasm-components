@@ -39,7 +39,7 @@ async fn store_file_internal(
         .first()
         .ok_or(anyhow::anyhow!("Failed to fetch file property"))?;
 
-    let (base_name, content_type) = extract_file_info_from_url(&url)
+    let full_base_name = extract_file_info_from_url(&url)
         .map_err(|error| anyhow::anyhow!("Failed to extract file info from URL: {error}"))?;
 
     let file_bytes = download_to_memory(&url).await?;
@@ -49,8 +49,7 @@ async fn store_file_internal(
         &model,
         property,
         &file_bytes,
-        &base_name,
-        &content_type,
+        &full_base_name ,
     )
     .map_err(|error| anyhow::anyhow!("Upload failed: {error}"))?;
 

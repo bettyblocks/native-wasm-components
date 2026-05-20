@@ -54,7 +54,7 @@ fn build_request(
         .context("Failed to build HTTP request")
 }
 
-pub fn extract_file_info_from_url(raw_url: &str) -> Result<(String, String)> {
+pub fn extract_file_info_from_url(raw_url: &str) -> Result<String> {
     let parsed = url::Url::parse(raw_url).context("Invalid URL")?;
 
     let filename = parsed
@@ -66,11 +66,7 @@ pub fn extract_file_info_from_url(raw_url: &str) -> Result<(String, String)> {
         .decode_utf8_lossy()
         .to_string();
 
-    let content_type = mime_guess::from_path(&filename)
-        .first_or_octet_stream()
-        .to_string();
-
-    Ok((filename, content_type))
+    Ok(filename)
 }
 
 #[cfg(test)]
@@ -79,41 +75,36 @@ mod tests {
 
     #[test]
     fn test_extract_file_info_from_url_simple() {
-        let (filename, content_type) =
+        let filename =
             extract_file_info_from_url("https://example.com/files/document.pdf").unwrap();
         assert_eq!(filename, "document.pdf");
-        assert_eq!(content_type, "application/pdf");
     }
 
     #[test]
     fn test_extract_file_info_from_url_with_query() {
-        let (filename, content_type) =
+        let filename =
             extract_file_info_from_url("https://example.com/files/image.png?token=abc123").unwrap();
         assert_eq!(filename, "image.png");
-        assert_eq!(content_type, "image/png");
     }
 
     #[test]
     fn test_extract_file_info_from_url_encoded() {
-        let (filename, content_type) =
+        let filename =
             extract_file_info_from_url("https://example.com/files/my%20file.txt").unwrap();
         assert_eq!(filename, "my file.txt");
-        assert_eq!(content_type, "text/plain");
     }
 
     #[test]
     fn test_extract_file_info_from_url_unknown_extension() {
-        let (filename, content_type) =
+        let filename =
             extract_file_info_from_url("https://example.com/files/data.unknownext123").unwrap();
         assert_eq!(filename, "data.unknownext123");
-        assert_eq!(content_type, "application/octet-stream");
     }
 
     #[test]
     fn test_extract_filename_from_trailing_slash_link() {
-        let (filename, content_type) =
+        let filename =
             extract_file_info_from_url("https://example.com/files/data/somedir/test.pdf/").unwrap();
         assert_eq!(filename, "test.pdf");
-        assert_eq!(content_type, "application/pdf");
     }
 }

@@ -17,8 +17,7 @@ interface upload-file {
         model: model,
         property: property,
         file-bytes: list<u8>,
-        filename: string,
-        content-type: string,
+        full-filename: string,
     ) -> result<upload-result, string>;
 }
 
@@ -33,5 +32,5 @@ interface store-base64 {
     use betty-blocks:data-api/data-api.{helper-context};
     use betty-blocks:types/types.{model, property};
 
-    store-file: func(helper-context: helper-context, model: model, property: list<property>, filename: string, data: string) -> result<string, string>;
+    store-file: func(helper-context: helper-context, model: model, property: list<property>, data: string, filename: string, file-extension: string) -> result<string, string>;
 }
