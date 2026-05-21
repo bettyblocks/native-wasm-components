@@ -48,6 +48,18 @@
 		},
 		{
 			"meta": {
+				"type": "Text",
+				"validations": {
+					"required": false
+				}
+			},
+			"name": "file-extension",
+			"label": "File extension",
+			"info": "The extension of the file is for example JPG. This can be used if the URL doesn't contain a file extension at the end, otherwise this value is ignored. You can use both .jpg or JPG to specify the file extension. Do not use .JPG, as this will make the file extension capitalized."
+		},
+
+		{
+			"meta": {
 				"type": "Output",
 				"output": {
 					"type": "Text"
