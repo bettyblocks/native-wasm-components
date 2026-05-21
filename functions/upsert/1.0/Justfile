@@ -9,3 +9,4 @@ build: fetch_wit_deps
   just move_wasm_to_root
 
 test:
+  cargo test

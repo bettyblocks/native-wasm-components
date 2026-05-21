@@ -1,8 +1,15 @@
-struct Upsert;
+use crate::bindings::betty_blocks::crud::crud::{upsert as crud_upsert, HelperContext};
+use crate::bindings::exports::betty_blocks::upsert::upsert::{Guest, Input, JsonString};
 
-wit_bindgen::generate!({ generate_all });
-use crate::betty_blocks::crud::crud::{upsert as crud_upsert, HelperContext};
-use crate::exports::betty_blocks::upsert::upsert::{Guest, Input, JsonString};
+mod bindings {
+    use super::Upsert;
+
+    wit_bindgen::generate!({ generate_all });
+
+    export! {Upsert}
+}
+
+struct Upsert;
 
 impl Guest for Upsert {
     fn upsert(helper_context: HelperContext, input: Input) -> Result<JsonString, String> {
@@ -20,5 +27,3 @@ impl Guest for Upsert {
         )
     }
 }
-
-export! {Upsert}
