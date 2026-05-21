@@ -22,3 +22,5 @@ erl_crash.dump
 /node_modules/
 
 *.wasm
+
+!/functions/upload-file/1.0/test/fixtures/*.wasm

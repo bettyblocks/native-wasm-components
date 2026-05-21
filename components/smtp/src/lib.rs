@@ -136,7 +136,7 @@ impl http::Server for SmtpSendMailComponent {
         match serde_json::to_string(&SendResultDef::from(result)) {
             Ok(json) => Ok(http::Response::new(json)),
             Err(e) => {
-                eprintln!("Error serializing result: {}", e);
+                debug!("Error serializing result: {}", e);
                 Err(http::ErrorCode::InternalError(Some(
                     "Invalid output".to_string(),
                 )))

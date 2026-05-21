@@ -1,0 +1,42 @@
+package betty-blocks:send-mail;
+
+interface send-mail {
+    use betty-blocks:types/types.{json-string, property-path};
+
+    record key-value {
+        key: string,
+        value: string,
+    }
+
+    record collection-handle {
+        data: option<json-string>,
+    }
+
+    record input {
+        host: string,
+        port: u16,
+        username: string,
+        password: string,
+        secure: option<bool>,
+        sender-email: string,
+        sender-name: option<string>,
+        to-email: string,
+        to-name: option<string>,
+        cc: option<string>,
+        bcc: option<string>,
+        reply-to: option<string>,
+        subject: option<string>,
+        body: option<string>,
+        variables: option<list<key-value>>,
+        attachments: option<list<key-value>>,
+        attachments-col: option<collection-handle>,
+        attachments-col-property: option<list<property-path>>,
+    }
+
+    send-mail: func(input: input) -> result<json-string, string>;
+}
+
+world email {
+    import betty-blocks:smtp/client;
+    export send-mail;
+}
