@@ -37,6 +37,34 @@
     },
     {
       "meta": {
+        "allowedKinds": [
+          "INTEGER",
+          "EMAIL_ADDRESS",
+          "TEXT",
+          "STRING",
+          "DATE",
+          "LIST"
+        ],
+        "type": "Property",
+        "model": "model",
+        "validations": {
+          "required": true
+        }
+      },
+      "configuration": {
+        "dependsOn": [
+          {
+            "option": "model",
+            "action": "CLEAR"
+          }
+        ]
+      },
+      "info": "Select a property where you want to match the record to check if it already exists. If the record exists, it will be updated. If it doesn't exist, it will be created.",
+      "name": "uniqueBy",
+      "label": "Unique By property to check for existing record"
+    },
+    {
+      "meta": {
         "type": "Output",
         "output": {
           "type": "Record",
