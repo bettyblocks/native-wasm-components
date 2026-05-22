@@ -23,8 +23,9 @@ impl StoreGuest for Component {
         model: Model,
         property: Vec<Property>,
         url: String,
+        file_extension: Option<String>,
     ) -> Result<String, String> {
-        wstd::runtime::block_on(store_file_internal(helper_context, model, property, url))
+        wstd::runtime::block_on(store_file_internal(helper_context, model, property, url, file_extension))
             .map_err(|error| error.to_string())
     }
 }
@@ -34,13 +35,27 @@ async fn store_file_internal(
     model: Model,
     property: Vec<Property>,
     url: String,
+    file_extension: Option<String>,
 ) -> anyhow::Result<String> {
     let property = property
         .first()
         .ok_or(anyhow::anyhow!("Failed to fetch file property"))?;
 
-    let full_base_name = extract_file_info_from_url(&url)
+    let filename = extract_file_info_from_url(&url)
         .map_err(|error| anyhow::anyhow!("Failed to extract file info from URL: {error}"))?;
+
+    let full_filename = if filename.contains('.') {
+        Ok(filename)
+    } else {
+        match file_extension {
+            Some(file_extension) if file_extension.starts_with('.') => Ok(format!("{filename}{file_extension}")),
+            Some(file_extension) => {
+                let file_extension = file_extension.to_lowercase();
+                Ok(format!("{filename}.{file_extension}"))
+            },
+            None => Err(anyhow::anyhow!(format!("No file extension found and no file extension set for {}", url)))
+        }
+    }?;
 
     let file_bytes = download_to_memory(&url).await?;
 
@@ -49,7 +64,7 @@ async fn store_file_internal(
         &model,
         property,
         &file_bytes,
-        &full_base_name ,
+        &full_filename,
     )
     .map_err(|error| anyhow::anyhow!("Upload failed: {error}"))?;
 
