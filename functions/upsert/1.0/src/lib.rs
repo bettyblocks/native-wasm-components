@@ -1,4 +1,4 @@
-use crate::bindings::betty_blocks::crud::crud::{upsert as crud_upsert, HelperContext};
+use crate::bindings::betty_blocks::crud::crud::{upsert as crud_upsert, HelperContext, Property};
 use crate::bindings::exports::betty_blocks::upsert::upsert::{Guest, Input, JsonString};
 
 mod bindings {
@@ -12,17 +12,18 @@ mod bindings {
 struct Upsert;
 
 impl Guest for Upsert {
-    fn upsert(helper_context: HelperContext, input: Input) -> Result<JsonString, String> {
-        let validates = match input.validates {
+    fn upsert(helper_context: HelperContext, Input{validates, model, mapping, mut unique_by, ..}: Input) -> Result<JsonString, String> {
+        let validates = match validates {
             true => vec!["default".to_string()],
             false => vec!["empty".to_string()],
         };
 
         crud_upsert(
             &helper_context,
-            &input.model,
-            &input.mapping,
-            &input.unique_by,
+            &model,
+            &mapping,
+            // There can only ever be one unique by, but it's still passed as a list, so we just pop the only value out here.
+            &Property{name: unique_by.pop().ok_or_else(|| String::from("No unique by provided"))?.name},
             Some(&validates),
         )
     }
