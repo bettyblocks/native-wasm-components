@@ -62,10 +62,10 @@ async fn store_file_internal(
     let upload_result = upload_file::upload(
         &helper_context,
         &upload_file::Input {
-            model: model,
+            model,
             property: property.clone(),
-            file_bytes: file_bytes,
-            full_filename: full_filename,
+            file_bytes,
+            full_filename,
         }
     )
     .map_err(|error| anyhow::anyhow!("Upload failed: {error}"))?;
