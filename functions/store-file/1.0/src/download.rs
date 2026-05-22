@@ -5,9 +5,7 @@ use wstd::io::AsyncRead;
 
 const NETWORK_BUF_SIZE: usize = 64 * 1024; // 64kb
 
-pub async fn download_to_memory(
-    url: &str,
-) -> Result<Vec<u8>> {
+pub async fn download_to_memory(url: &str) -> Result<Vec<u8>> {
     debug!("Downloading from: {}", url);
 
     let client = Client::new();
@@ -45,9 +43,7 @@ pub async fn download_to_memory(
     Ok(file_bytes)
 }
 
-fn build_request(
-    url: &str,
-) -> Result<Request<BoundedBody<Vec<u8>>>> {
+fn build_request(url: &str) -> Result<Request<BoundedBody<Vec<u8>>>> {
     let builder = Request::get(url);
     builder
         .body(Vec::new().into_body())
