@@ -10,7 +10,7 @@ use bindings::{
     betty_blocks::data_api::data_api::HelperContext,
     betty_blocks::file::upload_file,
     betty_blocks::types::types::Property,
-    exports::betty_blocks::file::store::{Guest as StoreGuest, Model},
+    exports::betty_blocks::store_file::store::{Guest as StoreGuest, Model},
 };
 
 use crate::download::{download_to_memory, extract_file_info_from_url};
@@ -61,10 +61,12 @@ async fn store_file_internal(
 
     let upload_result = upload_file::upload(
         &helper_context,
-        &model,
-        property,
-        &file_bytes,
-        &full_filename,
+        &upload_file::Input {
+            model: model,
+            property: property.clone(),
+            file_bytes: file_bytes,
+            full_filename: full_filename,
+        }
     )
     .map_err(|error| anyhow::anyhow!("Upload failed: {error}"))?;
 

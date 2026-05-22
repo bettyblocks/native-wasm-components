@@ -12,38 +12,15 @@ interface upload-file {
         message: option<string>,
     }
 
-    upload: func(
-        helper-context: helper-context,
+    record input {
         model: model,
         property: property,
         file-bytes: list<u8>,
         full-filename: string,
+    }
+
+    upload: func(
+        helper-context: helper-context,
+        input: input,
     ) -> result<upload-result, string>;
-}
-
-interface store {
-    use betty-blocks:data-api/data-api.{helper-context};
-    use betty-blocks:types/types.{model, property};
-
-    store-file: func(
-        helper-context: helper-context,
-	model: model,
-	property: list<property>,
-	url: string,
-	file-extension: option<string>,
-    ) -> result<string, string>;
-}
-
-interface store-base64 {
-    use betty-blocks:data-api/data-api.{helper-context};
-    use betty-blocks:types/types.{model, property};
-
-    store-file: func(
-        helper-context: helper-context,
-	model: model,
-	property: list<property>,
-	data: string,
-	filename: string,
-	file-extension: string,
-    ) -> result<string, string>;
 }
