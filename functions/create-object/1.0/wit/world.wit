@@ -9,4 +9,3 @@ interface create-object {
 world main {
     export create-object;
 }
-    

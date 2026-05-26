@@ -1,0 +1,75 @@
+{
+	"description": "Uploads a file to the asset store and returns a reference which can be used in a create or update",
+	"label": "Store File",
+	"category": "Misc",
+	"icon": {
+		"name": "UploadIcon",
+		"color": "Orange"
+	},
+	"options": [
+		{
+			"meta": {
+				"type": "Model",
+				"validations": {
+					"required": true
+				}
+			},
+			"name": "model",
+			"label": "Model",
+			"info": "The data model to put the file in."
+		},
+		{
+			"meta": {
+				"allowedKinds": ["FILE", "IMAGE"],
+				"type": "Property",
+				"model": "model",
+				"validations": {
+					"required": true
+				}
+			},
+			"configuration": {
+				"dependsOn": [
+					{
+						"option": "model",
+						"action": "CLEAR"
+					}
+				]
+			},
+			"name": "property",
+			"label": "Property"
+		},
+		{
+			"label": "URL",
+			"name": "url",
+			"meta": {
+				"type": "Text"
+			},
+			"info": "The URL to fetch from, it is expected that this file is publically available. For private files get them using a separate data source and store them using Store File Base64."
+		},
+		{
+			"meta": {
+				"type": "Text",
+				"validations": {
+					"required": false
+				}
+			},
+			"name": "file-extension",
+			"label": "File extension",
+			"info": "The extension of the file is for example JPG. This can be used if the URL doesn't contain a file extension at the end, otherwise this value is ignored. You can use both .jpg or JPG to specify the file extension. Do not use .JPG, as this will make the file extension capitalized."
+		},
+
+		{
+			"meta": {
+				"type": "Output",
+				"output": {
+					"type": "Text"
+				}
+			},
+			"name": "reference",
+			"label": "File reference",
+			"info": "Used to refer to a stored file"
+		}
+
+	],
+	"yields": "NONE"
+}

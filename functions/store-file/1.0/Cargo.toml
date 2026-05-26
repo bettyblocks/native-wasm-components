@@ -1,0 +1,15 @@
+[package]
+name = "store-file"
+edition = "2024"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1"
+tracing = "0.1.44"
+wit-bindgen = "0.47.0"
+percent-encoding = "2"
+url = "2"
+wstd = "0.5"

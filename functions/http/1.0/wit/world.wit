@@ -1,46 +1,46 @@
 package betty-blocks:http@0.1.0;
 
 interface http {
-  enum scheme {
-    http,
-    https,
-  }
+    enum scheme {
+        http,
+        https,
+    }
 
-  enum method {
-    get,
-    head,
-    post,
-    put,
-    delete,
-    connect,
-    options,
-    trace,
-    patch,
-  }
+    enum method {
+        get,
+        head,
+        post,
+        put,
+        delete,
+        connect,
+        options,
+        trace,
+        patch,
+    }
 
-  type json-string = string;
+    type json-string = string;
 
-  record output {
-    response-code: u16,
-    %as: json-string
-  }
+    record output {
+        response-code: u16,
+        %as: json-string
+    }
 
-  record input {
-    method: method,
-    protocol: scheme,
-    headers: json-string,
-    url: string,
-    url-parameters: json-string,
-    query-parameters: json-string,
-    body: option<string>,
-    body-parameters: json-string,
-  }
+    record input {
+        method: method,
+        protocol: scheme,
+        headers: json-string,
+        url: string,
+        url-parameters: json-string,
+        query-parameters: json-string,
+        body: option<string>,
+        body-parameters: json-string,
+    }
 
-  http: func(input: input) -> result<output, string>;
+    http: func(input: input) -> result<output, string>;
 }
 
 world main {
-  import wasi:http/outgoing-handler@0.2.6;
+    import wasi:http/outgoing-handler@0.2.6;
 
-  export http;
+    export http;
 }
