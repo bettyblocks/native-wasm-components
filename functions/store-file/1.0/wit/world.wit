@@ -1,4 +1,17 @@
-package betty-blocks:store-file;
+package betty-blocks:store-file@1.0.0;
+
+interface store {
+    use betty-blocks:data-api/data-api.{helper-context};
+    use betty-blocks:types/types.{model, property};
+
+    store-file: func(
+        helper-context: helper-context,
+	model: model,
+	property: list<property>,
+	url: string,
+	file-extension: option<string>,
+    ) -> result<string, string>;
+}
 
 world store-file {
     import wasi:http/outgoing-handler@0.2.0;
@@ -7,5 +20,5 @@ world store-file {
     import betty-blocks:types/types;
     import betty-blocks:file/upload-file;
 
-    export betty-blocks:file/store;
+    export store;
 }

@@ -9,4 +9,3 @@ interface init-array {
 world main {
     export init-array;
 }
-    
