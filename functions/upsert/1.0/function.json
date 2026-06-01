@@ -38,6 +38,7 @@
     {
       "meta": {
         "allowedKinds": [
+          "SERIAL",
           "INTEGER",
           "EMAIL_ADDRESS",
           "TEXT",
