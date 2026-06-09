@@ -1,6 +1,6 @@
 {
   "description": "Create or update a record for a given model identified by its unique by",
-  "label": "Upsert Record",
+  "label": "Create or Update Record",
   "category": "CRUD",
   "icon": {
     "name": "DataJumpUpIcon",
