@@ -1,0 +1,22 @@
+package betty-blocks:upsert@0.1.0;
+
+interface upsert {
+    use betty-blocks:data-api/data-api.{helper-context};
+    use betty-blocks:crud/crud.{property-mapping, model, property};
+    use betty-blocks:types/types.{property-path};
+    type json-string = string;
+
+    record input {
+      model: model,
+      mapping: property-mapping,
+      unique-by: list<property-path>,
+      validates: bool
+    }
+
+    upsert: func(helper-context: helper-context, input: input) -> result<json-string, string>;
+}
+
+world main {
+    import betty-blocks:crud/crud;
+    export upsert;
+}
