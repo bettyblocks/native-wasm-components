@@ -1,4 +1,4 @@
-package betty-blocks:logging@0.1.0;
+package betty-blocks:logging@1.0.0;
 
 interface logger {
     use wasi:logging/logging@0.1.0-draft.{level};
