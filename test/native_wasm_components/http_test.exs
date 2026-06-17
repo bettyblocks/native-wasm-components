@@ -15,7 +15,7 @@ defmodule NativeWasmComponents.HttpTest do
        ) do
     case TestHelper.run_component(
            @component_path,
-           {"betty-blocks:http/http@0.1.0", "http"},
+           {"betty-blocks:http/http@1.0.0", "http"},
            %{
              "method" => method,
              "protocol" => protocol,
