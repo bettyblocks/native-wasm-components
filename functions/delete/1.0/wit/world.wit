@@ -1,4 +1,4 @@
-package betty-blocks:delete@0.1.0;
+package betty-blocks:delete@1.0.0;
 
 interface delete {
     use betty-blocks:data-api/data-api.{helper-context};

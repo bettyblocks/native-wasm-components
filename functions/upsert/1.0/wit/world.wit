@@ -1,4 +1,4 @@
-package betty-blocks:upsert@0.1.0;
+package betty-blocks:upsert@1.0.0;
 
 interface upsert {
     use betty-blocks:data-api/data-api.{helper-context};
