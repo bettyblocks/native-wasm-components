@@ -85,6 +85,6 @@ jobs:
         run: |
           for MANIFEST in functions/*/*/Cargo.toml; do
             COMPONENT_DIRECTORY=$(dirname "$MANIFEST")
-            PACKAGE_REGISTRY_PATH="${AZURE_REGISTRY}/$(sed -nE '1s/package betty-blocks:([a-z0-9-]+)@([0-9]+\.[0-9]+\.[0-9]+);/betty-blocks\/\1:\2/p' "$COMPONENT_DIRECTORY/wit/world.wit")"
+            PACKAGE_REGISTRY_PATH="${{ secrets.AZURE_REGISTRY }}/$(sed -nE '1s/package betty-blocks:([a-z0-9-]+)@([0-9]+\.[0-9]+\.[0-9]+);/betty-blocks\/\1:\2/p' "$COMPONENT_DIRECTORY/wit/world.wit")"
             wkg oci push "$PACKAGE_REGISTRY_PATH" "$COMPONENT_DIRECTORY/"*.wasm
           done
