@@ -81,6 +81,8 @@ jobs:
     needs: [build]
     runs-on: ubuntu-24.04
     environment: ${{ github.ref_name }}
+    env:
+      npm_token: ${{ secrets.NPM_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
