@@ -13,7 +13,7 @@ defmodule NativeWasmComponents.LoggerTest do
   defp run_component(component, imports, severity, variables) do
     TestHelper.run_component(
       component,
-      {"betty-blocks:logging/logger@0.1.0", "log"},
+      {"betty-blocks:logging/logger@1.0.0", "log"},
       [
         %{
           severity: severity,
