@@ -8,13 +8,13 @@ wit_world = "main"
 wasm_target = "wasm32-wasip2"
 
 [[registry.pull.sources]]
-target = "betty-blocks:types/types"
+target = "betty-blocks-utilities:types/types"
 source = "file://./external/types.wit"
 
 [[registry.pull.sources]]
-target = "betty-blocks:crud/crud"
+target = "betty-blocks-utilities:crud/crud"
 source = "file://./external/crud.wit"
 
 [[registry.pull.sources]]
-target = "betty-blocks:data-api/data-api"
+target = "betty-blocks-utilities:data-api/data-api"
 source = "file://./external/data-api.wit"

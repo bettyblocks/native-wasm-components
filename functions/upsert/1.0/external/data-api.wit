@@ -1,4 +1,4 @@
-package betty-blocks:data-api;
+package betty-blocks-utilities:data-api;
 
 interface data-api {
 

@@ -1,7 +1,7 @@
 struct Delete;
 
 wit_bindgen::generate!({ generate_all });
-use crate::betty_blocks::crud::crud::{delete as crud_delete, HelperContext};
+use crate::betty_blocks_utilities::crud::crud::{delete as crud_delete, HelperContext};
 use crate::exports::betty_blocks::delete::delete::{Guest, Input, JsonString};
 
 impl Guest for Delete {
