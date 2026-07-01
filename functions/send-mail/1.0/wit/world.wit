@@ -1,7 +1,7 @@
 package betty-blocks:send-mail@1.0.0;
 
 interface send-mail {
-    use betty-blocks:types/types.{json-string, property-path};
+    use betty-blocks-utilities:types/types.{json-string, property-path};
 
     record key-value {
         key: string,
