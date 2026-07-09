@@ -3,24 +3,24 @@ package betty-blocks-utilities:types;
 interface types {
     type json-string = string;
 
-    record model {
+    record betty-model {
         name: string
     }
 
-    record property {
+    record betty-property {
         name: string,
     }
 
-    record property-path {
+    record betty-property-path {
         name: string,
         kind: string,
-        object-fields: option<list<property>>
+        object-fields: option<list<betty-property>>
     }
 
-    record property-map {
-        key: list<property-path>,
+    record betty-property-map {
+        key: list<betty-property-path>,
         value: option<json-string>
     }
 
-    type property-mapping = list<property-map>;
+    type betty-property-mapping = list<betty-property-map>;
 }

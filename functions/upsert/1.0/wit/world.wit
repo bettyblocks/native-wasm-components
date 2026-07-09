@@ -2,14 +2,14 @@ package betty-blocks:upsert@1.0.0;
 
 interface upsert {
     use betty-blocks-utilities:data-api/data-api.{helper-context};
-    use betty-blocks-utilities:crud/crud.{property-mapping, model, property};
-    use betty-blocks-utilities:types/types.{property-path};
+    use betty-blocks-utilities:crud/crud.{betty-property-mapping, betty-model, betty-property};
+    use betty-blocks-utilities:types/types.{betty-property-path};
     type json-string = string;
 
     record input {
-      model: model,
-      mapping: property-mapping,
-      unique-by: list<property-path>,
+      model: betty-model,
+      mapping: betty-property-mapping,
+      unique-by: list<betty-property-path>,
       validates: bool
     }
 

@@ -4,7 +4,7 @@ package betty-blocks-utilities:upload-file;
 
 interface upload-file {
     use betty-blocks-utilities:data-api/data-api.{helper-context};
-    use betty-blocks-utilities:types/types.{model, property};
+    use betty-blocks-utilities:types/types.{betty-model, betty-property};
 
     record upload-result {
         reference: string,
@@ -13,8 +13,8 @@ interface upload-file {
     }
 
     record input {
-        model: model,
-        property: property,
+        model: betty-model,
+        property: betty-property,
         file-bytes: list<u8>,
         full-filename: string,
     }

@@ -2,12 +2,12 @@ package betty-blocks:store-file@1.0.0;
 
 interface store {
     use betty-blocks-utilities:data-api/data-api.{helper-context};
-    use betty-blocks-utilities:types/types.{model, property};
+    use betty-blocks-utilities:types/types.{betty-model, betty-property};
 
     store-file: func(
         helper-context: helper-context,
-	model: model,
-	property: list<property>,
+	model: betty-model,
+	property: list<betty-property>,
 	url: string,
 	file-extension: option<string>,
     ) -> result<string, string>;

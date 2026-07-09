@@ -2,12 +2,12 @@ package betty-blocks-utilities:crud;
 
 interface crud {
     use betty-blocks-utilities:data-api/data-api.{helper-context};
-    use betty-blocks-utilities:types/types.{json-string, model, property-mapping, property};
+    use betty-blocks-utilities:types/types.{json-string, betty-model, betty-property-mapping, betty-property};
 
-    create: func(helper-context: helper-context, model: model, mapping: property-mapping, validation-sets: option<list<string>>) -> result<json-string, string>;
-    update: func(helper-context: helper-context, model: model, record-id: string, mapping: property-mapping, validation-sets: option<list<string>>) -> result<json-string, string>;
-    upsert: func(helper-context: helper-context, model: model, mapping: property-mapping, unique-by: property, validation-sets: option<list<string>>) -> result<json-string, string>;
-    delete: func(helper-context: helper-context, model: model, record-id: string) -> result<json-string, string>;
+    create: func(helper-context: helper-context, model: betty-model, mapping: betty-property-mapping, validation-sets: option<list<string>>) -> result<json-string, string>;
+    update: func(helper-context: helper-context, model: betty-model, record-id: string, mapping: betty-property-mapping, validation-sets: option<list<string>>) -> result<json-string, string>;
+    upsert: func(helper-context: helper-context, model: betty-model, mapping: betty-property-mapping, unique-by: betty-property, validation-sets: option<list<string>>) -> result<json-string, string>;
+    delete: func(helper-context: helper-context, model: betty-model, record-id: string) -> result<json-string, string>;
 }
 
 

@@ -1,4 +1,4 @@
-use crate::bindings::betty_blocks_utilities::crud::crud::{upsert as crud_upsert, HelperContext, Property};
+use crate::bindings::betty_blocks_utilities::crud::crud::{upsert as crud_upsert, HelperContext, BettyProperty};
 use crate::bindings::exports::betty_blocks::upsert::upsert::{Guest, Input, JsonString};
 
 mod bindings {
@@ -23,7 +23,7 @@ impl Guest for Upsert {
             &model,
             &mapping,
             // There can only ever be one unique by, but it's still passed as a list, so we just pop the only value out here.
-            &Property{name: unique_by.pop().ok_or_else(|| String::from("No unique by provided"))?.name},
+            &BettyProperty{name: unique_by.pop().ok_or_else(|| String::from("No unique by provided"))?.name},
             Some(&validates),
         )
     }

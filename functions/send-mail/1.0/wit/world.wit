@@ -1,7 +1,7 @@
 package betty-blocks:send-mail@1.0.0;
 
 interface send-mail {
-    use betty-blocks-utilities:types/types.{json-string, property-path};
+    use betty-blocks-utilities:types/types.{json-string, betty-property-path};
 
     record key-value {
         key: string,
@@ -30,7 +30,7 @@ interface send-mail {
         variables: option<list<key-value>>,
         attachments: option<list<key-value>>,
         attachments-col: option<collection-handle>,
-        attachments-col-property: option<list<property-path>>,
+        attachments-col-property: option<list<betty-property-path>>,
     }
 
     send-mail: func(input: input) -> result<json-string, string>;
