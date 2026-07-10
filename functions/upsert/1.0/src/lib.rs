@@ -1,5 +1,6 @@
-use crate::bindings::betty_blocks_utilities::crud::crud::{upsert as crud_upsert, HelperContext, BettyProperty};
-use crate::bindings::exports::betty_blocks::upsert::upsert::{Guest, Input, JsonString};
+use crate::bindings::betty_blocks_utilities::crud::crud::{upsert as crud_upsert, HelperContext, BettyProperty, BettyModel, BettyPropertyMapping};
+use crate::bindings::betty_blocks_utilities::types::types::BettyPropertyPath;
+use crate::bindings::exports::betty_blocks::upsert::upsert::{Guest, JsonString};
 
 mod bindings {
     use super::Upsert;
@@ -12,7 +13,13 @@ mod bindings {
 struct Upsert;
 
 impl Guest for Upsert {
-    fn upsert(helper_context: HelperContext, Input{validates, model, mapping, mut unique_by, ..}: Input) -> Result<JsonString, String> {
+    fn upsert(
+        helper_context: HelperContext,
+        model: BettyModel,
+        mapping: BettyPropertyMapping,
+        mut unique_by: Vec<BettyPropertyPath>,
+        validates: bool,
+    ) -> Result<JsonString, String> {
         let validates = match validates {
             true => vec!["default".to_string()],
             false => vec!["empty".to_string()],
