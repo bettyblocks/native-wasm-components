@@ -3,7 +3,7 @@ package betty-blocks:upsert@1.0.0;
 interface upsert {
     use betty-blocks-utilities:data-api/data-api.{helper-context};
     use betty-blocks-utilities:crud/crud.{betty-property-mapping, betty-model, betty-property};
-    use betty-blocks-utilities:types/types.{betty-property-path};
+    use betty-blocks-utilities:types/types@0.1.0.{betty-property-path};
     type json-string = string;
 
     upsert: func(helper-context: helper-context, model: betty-model, mapping: betty-property-mapping, unique-by: list<betty-property-path>, validates: bool) -> result<json-string, string>;

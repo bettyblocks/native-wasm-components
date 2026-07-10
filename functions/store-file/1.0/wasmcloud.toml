@@ -7,7 +7,14 @@ type = "component"
 wit_world = "store-file"
 wasm_target = "wasm32-wasip2"
 
-[overrides]
-"betty-blocks-utilities:data-api" = { path = "./external/data-api.wit" }
-"betty-blocks-utilities:upload-file" = { path = "./external/upload-file.wit" }
-"betty-blocks-utilities:types" = { path = "./external/types.wit" }
+[[registry.pull.sources]]
+target = "betty-blocks-utilities:types@0.1.0"
+source = "file://./external/types.wit"
+
+[[registry.pull.sources]]
+target = "betty-blocks-utilities:data-api/data-api"
+source = "file://./external/data-api.wit"
+
+[[registry.pull.sources]]
+target = "betty-blocks-utilities:upload-file/upload-file"
+source = "file://./external/upload-file.wit"
