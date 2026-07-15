@@ -2,6 +2,7 @@ package betty-blocks-utilities:types@0.1.0;
 
 interface types {
     type json-string = string;
+    type betty-record-json = string;
 
     record betty-model {
         name: string
