@@ -1,0 +1,13 @@
+# Project-local WIT registry config for `wash wit fetch` / `wkg`.
+# Point the tooling at this file with WKG_CONFIG_FILE (the per-function
+# Justfile `fetch_wit_deps` recipe does this) so registry resolution travels
+# with the repo instead of depending on each developer's global
+# ~/.config/wasm-pkg/config.toml.
+[namespace_registries]
+wasmcloud = "wasmcloud.com"
+betty-blocks-utilities = "bettyblocksdev.azurecr.io"
+
+# NOTE: the `betty-blocks` namespace (e.g. betty-blocks:smtp, used by
+# send-mail) is intentionally not mapped yet — add it here once its registry
+# is confirmed, otherwise send-mail's `wash wit fetch` will report
+# "no registry configured for namespace betty-blocks".

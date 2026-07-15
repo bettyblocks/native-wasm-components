@@ -1,5 +1,5 @@
 fetch_wit_deps:
-  wash wit deps
+  WKG_CONFIG_FILE={{justfile_directory()}}/../../../wkg.toml wash wit fetch
 
 move_wasm_to_root: 
   mv ./build/*.wasm .
