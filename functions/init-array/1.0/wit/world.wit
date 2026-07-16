@@ -1,4 +1,4 @@
-package betty-blocks:init-array@1.0.0;
+package betty-blocks:init-array@2.0.0;
 
 interface init-array {
     type json-string = string;
