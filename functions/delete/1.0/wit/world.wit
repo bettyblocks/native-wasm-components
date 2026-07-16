@@ -1,8 +1,8 @@
-package betty-blocks:delete@1.0.0;
+package betty-blocks:delete@2.0.0;
 
 interface delete {
-    use betty-blocks-utilities:data-api/data-api.{helper-context};
-    use betty-blocks-utilities:crud/crud.{model};
+    use betty-blocks-types:data-api/data-api@2.0.0.{helper-context};
+    use betty-blocks-types:types/types@2.0.0.{betty-model};
     type json-string = string;
 
     record betty-record {
@@ -10,7 +10,7 @@ interface delete {
     }
 
     record selected-record {
-        model: model,
+        model: betty-model,
         data: option<betty-record>
     }
 
@@ -22,6 +22,6 @@ interface delete {
 }
 
 world main {
-    import betty-blocks-utilities:crud/crud;
+    import betty-blocks-types:crud/crud@2.0.0;
     export delete;
 }
