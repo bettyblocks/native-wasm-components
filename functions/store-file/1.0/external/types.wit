@@ -1,4 +1,4 @@
-package betty-blocks:types;
+package betty-blocks-utilities:types;
 
 interface types {
     type json-string = string;
@@ -11,14 +11,14 @@ interface types {
         name: string,
     }
 
-    record property-key {
+    record property-path {
         name: string,
         kind: string,
         object-fields: option<list<property>>
     }
 
     record property-map {
-        key: list<property-key>,
+        key: list<property-path>,
         value: option<json-string>
     }
 

@@ -1,4 +1,4 @@
-use crate::bindings::betty_blocks::crud::crud::{upsert as crud_upsert, HelperContext, Property};
+use crate::bindings::betty_blocks_utilities::crud::crud::{upsert as crud_upsert, HelperContext, Property};
 use crate::bindings::exports::betty_blocks::upsert::upsert::{Guest, Input, JsonString};
 
 mod bindings {

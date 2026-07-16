@@ -1,8 +1,8 @@
-package betty-blocks:crud;
+package betty-blocks-utilities:crud;
 
 interface crud {
-    use betty-blocks:data-api/data-api.{helper-context};
-    use betty-blocks:types/types.{json-string, model, property-mapping, property};
+    use betty-blocks-utilities:data-api/data-api.{helper-context};
+    use betty-blocks-utilities:types/types.{json-string, model, property-mapping, property};
 
     create: func(helper-context: helper-context, model: model, mapping: property-mapping, validation-sets: option<list<string>>) -> result<json-string, string>;
     update: func(helper-context: helper-context, model: model, record-id: string, mapping: property-mapping, validation-sets: option<list<string>>) -> result<json-string, string>;
@@ -13,7 +13,7 @@ interface crud {
 
 world component {
     import wasi:logging/logging@0.1.0-draft;
-    import betty-blocks:types/types;
-    import betty-blocks:data-api/data-api;
+    import betty-blocks-utilities:types/types;
+    import betty-blocks-utilities:data-api/data-api;
     export crud;
 }

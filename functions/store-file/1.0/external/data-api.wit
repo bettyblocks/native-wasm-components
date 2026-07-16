@@ -1,7 +1,6 @@
 package betty-blocks-utilities:data-api;
 
 interface data-api {
-
     record helper-context {
         application-id: string,
         action-id: string,
@@ -11,8 +10,4 @@ interface data-api {
     }
 
     request: func(helper-context: helper-context, query: string, variables: string) -> result<string, string>;
-}
-
-world provider {
-    export data-api;
 }
