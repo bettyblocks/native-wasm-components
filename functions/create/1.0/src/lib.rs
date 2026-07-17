@@ -1,9 +1,10 @@
 struct Create;
 
 wit_bindgen::generate!({ generate_all });
-use crate::betty_blocks_utilities::crud::crud::{create as crud_create, HelperContext};
+use crate::betty_blocks_types::crud::crud::create as crud_create;
+use crate::betty_blocks_types::data_api::data_api::HelperContext;
+use crate::betty_blocks_types::types::types::{BettyModel, BettyPropertyMapping};
 use crate::exports::betty_blocks::create::create::{Guest, JsonString};
-use crate::betty_blocks_utilities::crud::crud::{BettyModel, BettyPropertyMapping};
 
 impl Guest for Create {
     fn create(

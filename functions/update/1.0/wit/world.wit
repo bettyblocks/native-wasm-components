@@ -1,8 +1,8 @@
-package betty-blocks:update@1.0.0;
+package betty-blocks:update@2.0.0;
 
 interface update {
-    use betty-blocks-utilities:data-api/data-api.{helper-context};
-    use betty-blocks-utilities:crud/crud.{betty-property-mapping, betty-model};
+    use betty-blocks-types:data-api/data-api@2.0.0.{helper-context};
+    use betty-blocks-types:types/types@2.0.0.{betty-property-mapping, betty-model};
     type json-string = string;
 
     record betty-record {
@@ -18,6 +18,6 @@ interface update {
 }
 
 world main {
-    import betty-blocks-utilities:crud/crud;
+    import betty-blocks-types:crud/crud@2.0.0;
     export update;
 }

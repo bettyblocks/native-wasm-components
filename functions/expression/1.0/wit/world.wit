@@ -1,4 +1,4 @@
-package betty-blocks:expression@1.0.0;
+package betty-blocks:expression@2.0.0;
 
 interface expression {
     type json-string = string;

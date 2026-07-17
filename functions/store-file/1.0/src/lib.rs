@@ -7,9 +7,9 @@ pub mod bindings {
 }
 
 use bindings::{
-    betty_blocks_utilities::data_api::data_api::HelperContext,
-    betty_blocks_utilities::upload_file::upload_file,
-    betty_blocks_utilities::types::types::BettyProperty,
+    betty_blocks_types::data_api::data_api::HelperContext,
+    betty_blocks_types::upload_file::upload_file,
+    betty_blocks_types::types::types::BettyProperty,
     exports::betty_blocks::store_file::store::{Guest as StoreGuest, BettyModel},
 };
 

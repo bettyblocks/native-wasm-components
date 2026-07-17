@@ -1,7 +1,0 @@
-fetch_wit_deps:
-  wash wit deps
-
-build: fetch_wit_deps
-  wash build
-
-test:

@@ -53,7 +53,13 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,wkg,wash
+          tool: just,wkg
+
+      - name: Install wash
+        shell: bash
+        run: |
+          curl -fsSL https://wasmcloud.com/sh | INSTALL_DIR=/usr/local/bin bash
+          wash --version
 
       - uses: erlef/setup-beam@v1
         with:
@@ -67,6 +73,15 @@ jobs:
 
       - name: Install npm dependencies
         run: bun install --frozen-lockfile
+
+      # The committed wkg.toml points at the dev registry (bettyblocksdev) for
+      # local dev and PR CI. On release we fetch WIT deps from the environment's
+      # registry: secrets.AZURE_REGISTRY is scoped per GitHub environment
+      # (main -> bettyblocksprod, edge/acceptance -> bettyblocksdev).
+      - name: Point wkg.toml at the environment registry
+        run: |
+          sed -i -E 's|^(betty-blocks-types = ).*|\1"${{ secrets.AZURE_REGISTRY }}"|' wkg.toml
+          cat wkg.toml
 
       - name: Build wasm components
         run: mix build
