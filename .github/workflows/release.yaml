@@ -53,7 +53,13 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,wkg,wash
+          tool: just,wkg
+
+      - name: Install wash
+        shell: bash
+        run: |
+          curl -fsSL https://wasmcloud.com/sh | INSTALL_DIR=/usr/local/bin bash
+          wash --version
 
       - uses: erlef/setup-beam@v1
         with:
