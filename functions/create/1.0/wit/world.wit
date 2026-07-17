@@ -5,13 +5,7 @@ interface create {
     use betty-blocks-types:types/types@2.0.0.{betty-model, betty-property-mapping};
     type json-string = string;
 
-    record input {
-        model: betty-model,
-        mapping: betty-property-mapping,
-        validates: bool
-    }
-
-    create: func(helper-context: helper-context, input: input) -> result<json-string, string>;
+    create: func(helper-context: helper-context, model: betty-model, mapping: betty-property-mapping, validates: bool) -> result<json-string, string>;
 }
 
 world main {

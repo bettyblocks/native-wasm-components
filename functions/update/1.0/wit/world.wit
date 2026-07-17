@@ -9,18 +9,12 @@ interface update {
         id: u64
     }
 
-    record selected-record {
+    record betty-selected-record {
         model: betty-model,
         data: option<betty-record>
     }
 
-    record input {
-        mapping: betty-property-mapping,
-        selected-record: selected-record,
-        validates: bool
-    }
-
-    update: func(helper-context: helper-context, input: input) -> result<json-string, string>;
+    update: func(helper-context: helper-context, mapping: betty-property-mapping, selected-record: betty-selected-record, validates: bool) -> result<json-string, string>;
 }
 
 world main {
