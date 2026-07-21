@@ -2,10 +2,9 @@ package betty-blocks:create@2.0.0;
 
 interface create {
     use betty-blocks-types:data-api/data-api@2.0.0.{helper-context};
-    use betty-blocks-types:types/types@2.0.0.{betty-model, betty-property-mapping};
-    type json-string = string;
+    use betty-blocks-types:types/types@2.0.0.{betty-model, betty-property-mapping, betty-record-json};
 
-    create: func(helper-context: helper-context, model: betty-model, mapping: betty-property-mapping, validates: bool) -> result<json-string, string>;
+    create: func(helper-context: helper-context, model: betty-model, mapping: betty-property-mapping, validates: bool) -> result<betty-record-json, string>;
 }
 
 world main {

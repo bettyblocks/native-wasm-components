@@ -2,19 +2,9 @@ package betty-blocks:update@2.0.0;
 
 interface update {
     use betty-blocks-types:data-api/data-api@2.0.0.{helper-context};
-    use betty-blocks-types:types/types@2.0.0.{betty-property-mapping, betty-model};
-    type json-string = string;
+    use betty-blocks-types:types/types@2.0.0.{betty-property-mapping, betty-model, betty-selected-record, betty-record-json};
 
-    record betty-record {
-        id: u64
-    }
-
-    record betty-selected-record {
-        model: betty-model,
-        data: option<betty-record>
-    }
-
-    update: func(helper-context: helper-context, mapping: betty-property-mapping, selected-record: betty-selected-record, validates: bool) -> result<json-string, string>;
+    update: func(helper-context: helper-context, mapping: betty-property-mapping, selected-record: betty-selected-record, validates: bool) -> result<betty-record-json, string>;
 }
 
 world main {

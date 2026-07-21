@@ -2,19 +2,9 @@ package betty-blocks:delete@2.0.0;
 
 interface delete {
     use betty-blocks-types:data-api/data-api@2.0.0.{helper-context};
-    use betty-blocks-types:types/types@2.0.0.{betty-model};
-    type json-string = string;
+    use betty-blocks-types:types/types@2.0.0.{betty-selected-record};
 
-    record betty-record {
-        id: u64
-    }
-
-    record betty-selected-record {
-        model: betty-model,
-        data: option<betty-record>
-    }
-
-    delete: func(helper-context: helper-context, %record: betty-selected-record) -> result<json-string, string>;
+    delete: func(helper-context: helper-context, %record: betty-selected-record) -> result<string, string>;
 }
 
 world main {
