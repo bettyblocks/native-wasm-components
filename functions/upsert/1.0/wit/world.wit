@@ -2,10 +2,9 @@ package betty-blocks:upsert@2.0.0;
 
 interface upsert {
     use betty-blocks-types:data-api/data-api@2.0.0.{helper-context};
-    use betty-blocks-types:types/types@2.0.0.{betty-property-mapping, betty-model, betty-property-path};
-    type json-string = string;
+    use betty-blocks-types:types/types@2.0.0.{betty-property-mapping, betty-model, betty-property-path, betty-record-json};
 
-    upsert: func(helper-context: helper-context, model: betty-model, mapping: betty-property-mapping, unique-by: list<betty-property-path>, validates: bool) -> result<json-string, string>;
+    upsert: func(helper-context: helper-context, model: betty-model, mapping: betty-property-mapping, unique-by: list<betty-property-path>, validates: bool) -> result<betty-record-json, string>;
 }
 
 world main {
