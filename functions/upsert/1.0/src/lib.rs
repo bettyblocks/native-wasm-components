@@ -3,7 +3,7 @@ use crate::bindings::betty_blocks_types::data_api::data_api::HelperContext;
 use crate::bindings::betty_blocks_types::types::types::{
     BettyModel, BettyProperty, BettyPropertyMapping, BettyPropertyPath,
 };
-use crate::bindings::exports::betty_blocks::upsert::upsert::{Guest, JsonString};
+use crate::bindings::exports::betty_blocks::upsert::upsert::{BettyRecordJson, Guest};
 
 mod bindings {
     use super::Upsert;
@@ -22,7 +22,7 @@ impl Guest for Upsert {
         mapping: BettyPropertyMapping,
         mut unique_by: Vec<BettyPropertyPath>,
         validates: bool,
-    ) -> Result<JsonString, String> {
+    ) -> Result<BettyRecordJson, String> {
         let validates = match validates {
             true => vec!["default".to_string()],
             false => vec!["empty".to_string()],

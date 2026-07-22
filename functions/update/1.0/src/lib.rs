@@ -4,7 +4,7 @@ wit_bindgen::generate!({ generate_all });
 use crate::betty_blocks_types::crud::crud::update as crud_update;
 use crate::betty_blocks_types::data_api::data_api::HelperContext;
 use crate::betty_blocks_types::types::types::BettyPropertyMapping;
-use crate::exports::betty_blocks::update::update::{BettySelectedRecord, Guest, JsonString};
+use crate::exports::betty_blocks::update::update::{BettyRecordJson, BettySelectedRecord, Guest};
 
 impl Guest for Update {
     fn update(
@@ -12,7 +12,7 @@ impl Guest for Update {
         mapping: BettyPropertyMapping,
         selected_record: BettySelectedRecord,
         validates: bool,
-    ) -> Result<JsonString, String> {
+    ) -> Result<BettyRecordJson, String> {
         if let Some(data) = &selected_record.data {
             let validates = match validates {
                 true => vec!["default".to_string()],
