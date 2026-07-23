@@ -1,17 +1,17 @@
 struct Delete;
 
 wit_bindgen::generate!({ generate_all });
-use crate::betty_blocks_utilities::crud::crud::{delete as crud_delete, HelperContext};
-use crate::exports::betty_blocks::delete::delete::{Guest, Input, JsonString};
+use crate::betty_blocks_types::crud::crud::delete as crud_delete;
+use crate::betty_blocks_types::data_api::data_api::HelperContext;
+use crate::exports::betty_blocks::delete::delete::{BettySelectedRecord, Guest};
 
 impl Guest for Delete {
-    fn delete(helper_context: HelperContext, input: Input) -> Result<JsonString, String> {
-        if let Some(data) = &input.record.data {
-            Ok(crud_delete(
-                &helper_context,
-                &input.record.model,
-                &data.id.to_string(),
-            )?)
+    fn delete(
+        helper_context: HelperContext,
+        record: BettySelectedRecord,
+    ) -> Result<String, String> {
+        if let Some(data) = &record.data {
+            Ok(crud_delete(&helper_context, &record.model, &data.id.to_string())?)
         } else {
             Err("Record does not exist".to_string())
         }

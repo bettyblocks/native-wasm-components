@@ -1,11 +1,12 @@
-fetch_wit_deps: 
-  wash wit deps
+fetch-wit-deps:
+  WKG_CONFIG_FILE={{justfile_directory()}}/../../../wkg.toml wash wit fetch
 
-move_wasm_to_root: 
-  mv ./build/*.wasm .
+move_wasm_to_root:
+  mv ./target/wasm32-wasip2/release/*.wasm .
 
-build: fetch_wit_deps
-  wash build --build-only
+build: fetch-wit-deps
+  wash build --skip-fetch
   just move_wasm_to_root
 
 test:
+  cargo test

@@ -1,4 +1,4 @@
-package betty-blocks:parse-json@1.0.0;
+package betty-blocks:parse-json@2.0.0;
 
 interface parse-json {
     type json-string = string;

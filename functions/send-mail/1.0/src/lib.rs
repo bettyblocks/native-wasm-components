@@ -10,7 +10,7 @@ use betty_blocks::smtp::client::{
     self, Attachment, Credentials, Message, Recipient, Sender, TlsMode,
 };
 use exports::betty_blocks::send_mail::send_mail::{
-    CollectionHandle, Guest, Input, JsonString, KeyValue, PropertyPath,
+    CollectionHandle, Guest, Input, JsonString, KeyValue, BettyPropertyPath,
 };
 use futures::future::join_all;
 use tracing::debug;
@@ -101,7 +101,7 @@ fn collect_map_attachments(map_attachments: Option<Vec<KeyValue>>) -> Vec<(Strin
 
 fn collect_col_attachments(
     col: Option<CollectionHandle>,
-    props: Option<Vec<PropertyPath>>,
+    props: Option<Vec<BettyPropertyPath>>,
 ) -> Result<Vec<(String, String)>, String> {
     let (Some(handle), Some(props)) = (col, props) else {
         return Ok(Vec::new());
@@ -144,7 +144,7 @@ fn collect_col_attachments(
 fn build_attachments(
     map_attachments: Option<Vec<KeyValue>>,
     col: Option<CollectionHandle>,
-    props: Option<Vec<PropertyPath>>,
+    props: Option<Vec<BettyPropertyPath>>,
 ) -> Result<Option<Vec<Attachment>>, String> {
     let mut files = collect_map_attachments(map_attachments);
     files.extend(collect_col_attachments(col, props)?);
@@ -240,7 +240,7 @@ export!(SendMailComponent);
 mod tests {
     use super::{
         collect_col_attachments, collect_map_attachments, resolve_tls_mode, CollectionHandle,
-        KeyValue, PropertyPath, TlsMode,
+        KeyValue, BettyPropertyPath, TlsMode,
     };
 
     fn handle(json: &str) -> CollectionHandle {
@@ -249,8 +249,8 @@ mod tests {
         }
     }
 
-    fn prop_path(name: &str) -> PropertyPath {
-        PropertyPath {
+    fn prop_path(name: &str) -> BettyPropertyPath {
+        BettyPropertyPath {
             name: name.to_string(),
             kind: String::new(),
             object_fields: None,
