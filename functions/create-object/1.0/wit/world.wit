@@ -1,4 +1,4 @@
-package betty-blocks:create-object@1.0.0;
+package betty-blocks:create-object@2.0.0;
 
 interface create-object {
     type json-string = string;

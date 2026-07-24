@@ -7,10 +7,10 @@ pub mod bindings {
 }
 
 use bindings::{
-    betty_blocks::data_api::data_api::HelperContext,
-    betty_blocks::file::upload_file,
-    betty_blocks::types::types::Property,
-    exports::betty_blocks::store_file::store::{Guest as StoreGuest, Model},
+    betty_blocks_types::data_api::data_api::HelperContext,
+    betty_blocks_types::upload_file::upload_file,
+    betty_blocks_types::types::types::BettyProperty,
+    exports::betty_blocks::store_file::store::{Guest as StoreGuest, BettyModel},
 };
 
 use crate::download::{download_to_memory, extract_file_info_from_url};
@@ -20,8 +20,8 @@ struct Component;
 impl StoreGuest for Component {
     fn store_file(
         helper_context: HelperContext,
-        model: Model,
-        property: Vec<Property>,
+        model: BettyModel,
+        property: Vec<BettyProperty>,
         url: String,
         file_extension: Option<String>,
     ) -> Result<String, String> {
@@ -38,8 +38,8 @@ impl StoreGuest for Component {
 
 async fn store_file_internal(
     helper_context: HelperContext,
-    model: Model,
-    property: Vec<Property>,
+    model: BettyModel,
+    property: Vec<BettyProperty>,
     url: String,
     file_extension: Option<String>,
 ) -> anyhow::Result<String> {

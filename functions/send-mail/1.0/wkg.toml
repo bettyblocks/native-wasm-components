@@ -1,0 +1,2 @@
+[overrides]
+"betty-blocks:smtp" = { path = "external/smtp.wit" }
