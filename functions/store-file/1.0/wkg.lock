@@ -25,9 +25,9 @@ name = "betty-blocks-types:upload-file"
 registry = "bettyblocksdev.azurecr.io"
 
 [[packages.versions]]
-requirement = "=2.0.0"
-version = "2.0.0"
-digest = "sha256:4fa756a1913130587147d7c2f6ac37f1e7b73e6396d36574180ef96da2461d04"
+requirement = "=3.0.0"
+version = "3.0.0"
+digest = "sha256:8385360ff6e0d7405ccaad04e1b4e1a2e5080b1be2bc545cbc8e2cfa79e3cf85"
 
 [[packages]]
 name = "wasi:http"
