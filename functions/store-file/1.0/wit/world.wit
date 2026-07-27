@@ -1,4 +1,4 @@
-package betty-blocks:store-file@2.0.0;
+package betty-blocks:store-file@2.1.0;
 
 interface store {
     use betty-blocks-types:data-api/data-api@2.0.0.{helper-context};
@@ -18,7 +18,7 @@ world store-file {
     import wasi:random/random@0.2.0;
     import betty-blocks-types:data-api/data-api@2.0.0;
     import betty-blocks-types:types/types@2.0.0;
-    import betty-blocks-types:upload-file/upload-file@2.0.0;
+    import betty-blocks-types:upload-file/upload-file@3.0.0;
 
     export store;
 }

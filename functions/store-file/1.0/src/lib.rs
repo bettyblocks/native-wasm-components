@@ -6,6 +6,8 @@ pub mod bindings {
     });
 }
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+
 use bindings::{
     betty_blocks_types::data_api::data_api::HelperContext,
     betty_blocks_types::upload_file::upload_file,
@@ -71,12 +73,18 @@ async fn store_file_internal(
 
     let file_bytes = download_to_memory(&url).await?;
 
+    // upload-file takes base64 rather than list<u8>: wasmCloud lifts cross-component args as
+    // dynamic `Val`, costing 48 host bytes per file byte, which exhausts the 128 MiB hostcall
+    // fuel at ~2.67 MiB. A string costs 1 byte/char, so base64's 1.33x expansion still lifts
+    // the ceiling to ~96 MiB.
+    let file_base64 = STANDARD.encode(&file_bytes);
+
     let upload_result = upload_file::upload(
         &helper_context,
         &upload_file::Input {
             model,
             property,
-            file_bytes,
+            file_base64,
             full_filename,
         },
     )
