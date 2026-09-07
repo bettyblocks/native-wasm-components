@@ -1,0 +1,28 @@
+package betty-blocks:ai-agent@2.0.0;
+
+interface ai-agent {
+    record ai-provider {
+        provider: string,
+        model: string,
+        api-key: string,
+    }
+
+    record input {
+        provider: ai-provider,
+        instructions: string,
+        message: string,
+        max-tokens: option<u32>,
+    }
+
+    record output {
+        %as: string,
+    }
+
+    ai-agent: func(input: input) -> result<output, string>;
+}
+
+world main {
+    import wasi:http/outgoing-handler@0.2.6;
+
+    export ai-agent;
+}
