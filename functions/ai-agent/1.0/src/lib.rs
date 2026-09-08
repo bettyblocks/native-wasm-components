@@ -1,24 +1,30 @@
-use crate::exports::betty_blocks::ai_agent::ai_agent::{self, Input, Output};
+mod anthropic;
+mod config;
+mod http;
+mod provider;
 
-wit_bindgen::generate!({ with: {
-    "wasi:io/streams@0.2.6": ::wasi::io::streams,
-    "wasi:io/error@0.2.6": ::wasi::io::error,
-    "wasi:clocks/monotonic-clock@0.2.6": ::wasi::clocks::monotonic_clock,
-    "wasi:io/poll@0.2.6": ::wasi::io::poll,
-    "wasi:http/types@0.2.6": ::wasi::http::types,
-    "wasi:http/outgoing-handler@0.2.6": ::wasi::http::outgoing_handler,
-    }
-});
+use wstd::http::Client;
+
+use crate::exports::betty_blocks::ai_agent::ai_agent::{self, Input, Output};
+use crate::provider::Provider;
+
+wit_bindgen::generate!({ generate_all });
 
 struct Component;
 
 impl ai_agent::Guest for Component {
     fn ai_agent(input: Input) -> Result<Output, String> {
-        Err(format!(
-            "Unsupported provider: {}",
-            input.provider.provider
-        ))
+        wstd::runtime::block_on(run(input))
     }
+}
+
+async fn run(input: Input) -> Result<Output, String> {
+    let text = match input.provider.provider.as_str() {
+        "anthropic" => anthropic::Anthropic.complete(&Client::new(), &input).await?,
+        other => return Err(format!("Unsupported provider: {other}")),
+    };
+
+    Ok(Output { as_: text })
 }
 
 export! {Component}

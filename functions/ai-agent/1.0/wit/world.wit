@@ -22,7 +22,5 @@ interface ai-agent {
 }
 
 world main {
-    import wasi:http/outgoing-handler@0.2.6;
-
     export ai-agent;
 }
