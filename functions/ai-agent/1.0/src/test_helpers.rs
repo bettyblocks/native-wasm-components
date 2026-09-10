@@ -65,6 +65,10 @@ impl HttpClient for MockHttpClient {
     }
 }
 
+pub(crate) fn anthropic_text_response(text: &str) -> String {
+    serde_json::json!({ "content": [{ "type": "text", "text": text }] }).to_string()
+}
+
 pub(crate) fn test_input(message: &str) -> Input {
     Input {
         provider: AiProvider {

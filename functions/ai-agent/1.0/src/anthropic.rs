@@ -77,11 +77,7 @@ fn extract_text(response: &[u8]) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{MockHttpClient, test_input};
-
-    fn text_response(text: &str) -> String {
-        serde_json::json!({ "content": [{ "type": "text", "text": text }] }).to_string()
-    }
+    use crate::test_helpers::{MockHttpClient, anthropic_text_response, test_input};
 
     #[test]
     fn request_body_carries_model_prompts_and_default_max_tokens() {
@@ -145,7 +141,7 @@ mod tests {
 
     #[tokio::test]
     async fn complete_returns_the_assistant_text() {
-        let client = MockHttpClient::new(vec![(200, text_response("42"))]);
+        let client = MockHttpClient::new(vec![(200, anthropic_text_response("42"))]);
 
         let text = Anthropic
             .complete(&client, &test_input("meaning?"))
@@ -157,7 +153,7 @@ mod tests {
 
     #[tokio::test]
     async fn complete_sends_the_anthropic_headers() {
-        let client = MockHttpClient::new(vec![(200, text_response("ok"))]);
+        let client = MockHttpClient::new(vec![(200, anthropic_text_response("ok"))]);
 
         Anthropic
             .complete(&client, &test_input("hi"))
@@ -174,7 +170,7 @@ mod tests {
 
     #[tokio::test]
     async fn complete_rejects_an_empty_api_key_without_calling_out() {
-        let client = MockHttpClient::new(vec![(200, text_response("unused"))]);
+        let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
         let mut input = test_input("hi");
         input.provider.api_key = String::new();
 
