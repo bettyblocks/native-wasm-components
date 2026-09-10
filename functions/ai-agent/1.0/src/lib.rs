@@ -2,6 +2,8 @@ mod anthropic;
 mod config;
 mod http;
 mod provider;
+#[cfg(test)]
+mod test_helpers;
 
 use wstd::http::Client;
 
