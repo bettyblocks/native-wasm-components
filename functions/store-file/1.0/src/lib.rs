@@ -8,10 +8,12 @@ pub mod bindings {
 
 use bindings::{
     betty_blocks_types::data_api::data_api::HelperContext,
-    betty_blocks_types::upload_file::upload_file,
     betty_blocks_types::types::types::BettyProperty,
-    exports::betty_blocks::store_file::store::{Guest as StoreGuest, BettyModel},
+    betty_blocks_types::upload_file::upload_file,
+    exports::betty_blocks::store_file::store::{BettyModel, Guest as StoreGuest},
 };
+
+use base64::prelude::{BASE64_STANDARD, Engine as _};
 
 use crate::download::{download_to_memory, extract_file_info_from_url};
 
@@ -69,14 +71,14 @@ async fn store_file_internal(
         }
     }?;
 
-    let file_bytes = download_to_memory(&url).await?;
+    let file_base64 = BASE64_STANDARD.encode(download_to_memory(&url).await?);
 
     let upload_result = upload_file::upload(
         &helper_context,
         &upload_file::Input {
             model,
             property,
-            file_bytes,
+            file_base64,
             full_filename,
         },
     )
