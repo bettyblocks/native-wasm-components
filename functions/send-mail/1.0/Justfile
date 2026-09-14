@@ -1,5 +1,5 @@
 fetch-wit-deps:
-  WKG_CONFIG_FILE={{justfile_directory()}}/../../../wkg.toml wkg wit fetch
+  WKG_CONFIG_FILE={{justfile_directory()}}/../../../wkg.toml wash wit fetch
 
 move_wasm_to_root:
   mv ./target/wasm32-wasip2/release/*.wasm .
