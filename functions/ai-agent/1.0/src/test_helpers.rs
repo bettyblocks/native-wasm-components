@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 
-use crate::exports::betty_blocks::ai_agent::ai_agent::{AiProvider, Input};
+use crate::exports::betty_blocks::ai_agent::ai_agent::AiProvider;
 use crate::http::HttpClient;
+use crate::provider::Prompt;
 
 #[derive(Clone)]
 pub(crate) struct RecordedRequest {
@@ -69,13 +70,18 @@ pub(crate) fn anthropic_text_response(text: &str) -> String {
     serde_json::json!({ "content": [{ "type": "text", "text": text }] }).to_string()
 }
 
-pub(crate) fn test_input(message: &str) -> Input {
-    Input {
-        provider: AiProvider {
-            provider: "anthropic".to_string(),
-            model: "claude-sonnet-5".to_string(),
-            api_key: "test-key".to_string(),
-        },
+pub(crate) fn test_provider() -> AiProvider {
+    AiProvider {
+        name: "anthropic".to_string(),
+        ai_model_name: "claude-sonnet-5".to_string(),
+        url: "https://api.anthropic.com/v1/messages".to_string(),
+        tools: None,
+        api_key: "test-key".to_string(),
+    }
+}
+
+pub(crate) fn test_prompt(message: &str) -> Prompt {
+    Prompt {
         instructions: "You are helpful.".to_string(),
         message: message.to_string(),
         max_tokens: None,

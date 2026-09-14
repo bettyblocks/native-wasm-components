@@ -1,11 +1,11 @@
 defmodule TestHelper do
   @moduledoc false
 
-  def run_component(wasm, function, args, imports \\ %{}, env \\ %{}) do
+  def run_component(wasm, function, args, imports \\ %{}) do
     {:ok, pid} =
       Wasmex.Components.start_link(%{
         path: wasm,
-        wasi: %Wasmex.Wasi.WasiP2Options{allow_http: true, env: env},
+        wasi: %Wasmex.Wasi.WasiP2Options{allow_http: true},
         imports: imports
       })
 
