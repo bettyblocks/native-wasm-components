@@ -4,10 +4,12 @@ find-wasms:
 build:
   #!/usr/bin/env sh
   for path in functions/*/*; do
+    [ -f "$path/Justfile" ] || continue
     (cd "$path" && just build)
   done
 clean:
   #!/usr/bin/env sh
   for path in functions/*/*; do
+    [ -f "$path/Justfile" ] || continue
     (cd "$path" && rm -rf target)
   done
