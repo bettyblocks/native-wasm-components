@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 
-use crate::exports::betty_blocks::ai_agent::ai_agent::AiProvider;
+use crate::betty_blocks_types::types::types::BettyAiProvider;
 use crate::http::HttpClient;
 use crate::provider::Prompt;
 
@@ -70,11 +70,12 @@ pub(crate) fn anthropic_text_response(text: &str) -> String {
     serde_json::json!({ "content": [{ "type": "text", "text": text }] }).to_string()
 }
 
-pub(crate) fn test_provider() -> AiProvider {
-    AiProvider {
+pub(crate) fn test_provider() -> BettyAiProvider {
+    BettyAiProvider {
         name: "anthropic".to_string(),
         ai_model_name: "claude-sonnet-5".to_string(),
         url: "https://api.anthropic.com/v1/messages".to_string(),
+        tools: None,
     }
 }
 

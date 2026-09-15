@@ -27,7 +27,8 @@ defmodule NativeWasmComponents.AiAgentTest do
         %{
           "name" => "anthropic",
           "ai-model-name" => "claude-sonnet-5",
-          "url" => url
+          "url" => url,
+          "tools" => :none
         },
         Map.get(overrides, :provider, %{})
       )

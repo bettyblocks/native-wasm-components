@@ -1,14 +1,10 @@
 package betty-blocks:ai-agent@2.0.0;
 
 interface ai-agent {
-    record ai-provider {
-        name: string,
-        ai-model-name: string,
-        url: string,
-    }
+    use betty-blocks-types:types/types@2.3.0.{betty-ai-provider};
 
     ai-agent: func(
-        provider: ai-provider,
+        provider: betty-ai-provider,
         instructions: string,
         message: string,
         max-tokens: option<u32>,

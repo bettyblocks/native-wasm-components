@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 use crate::config;
-use crate::exports::betty_blocks::ai_agent::ai_agent::AiProvider;
+use crate::betty_blocks_types::types::types::BettyAiProvider;
 use crate::http::HttpClient;
 use crate::provider::{Prompt, Provider};
 
@@ -25,7 +25,7 @@ impl Provider for Anthropic {
     async fn complete(
         &self,
         client: &impl HttpClient,
-        provider: &AiProvider,
+        provider: &BettyAiProvider,
         prompt: &Prompt,
         api_key: &str,
     ) -> Result<String, String> {
@@ -55,7 +55,7 @@ impl Provider for Anthropic {
     }
 }
 
-fn request_body(provider: &AiProvider, prompt: &Prompt) -> Vec<u8> {
+fn request_body(provider: &BettyAiProvider, prompt: &Prompt) -> Vec<u8> {
     serde_json::json!({
         "model": provider.ai_model_name,
         "max_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),

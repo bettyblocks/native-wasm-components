@@ -1,4 +1,4 @@
-use crate::exports::betty_blocks::ai_agent::ai_agent::AiProvider;
+use crate::betty_blocks_types::types::types::BettyAiProvider;
 use crate::http::HttpClient;
 
 pub(crate) struct Prompt {
@@ -11,7 +11,7 @@ pub(crate) trait Provider {
     async fn complete(
         &self,
         client: &impl HttpClient,
-        provider: &AiProvider,
+        provider: &BettyAiProvider,
         prompt: &Prompt,
         api_key: &str,
     ) -> Result<String, String>;

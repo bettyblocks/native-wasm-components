@@ -7,7 +7,8 @@ mod test_helpers;
 
 use wstd::http::Client;
 
-use crate::exports::betty_blocks::ai_agent::ai_agent::{self, AiProvider};
+use crate::betty_blocks_types::types::types::BettyAiProvider;
+use crate::exports::betty_blocks::ai_agent::ai_agent;
 use crate::http::HttpClient;
 use crate::provider::{Prompt, Provider};
 
@@ -17,7 +18,7 @@ struct Component;
 
 impl ai_agent::Guest for Component {
     fn ai_agent(
-        provider: AiProvider,
+        provider: BettyAiProvider,
         instructions: String,
         message: String,
         max_tokens: Option<u32>,
@@ -34,7 +35,7 @@ impl ai_agent::Guest for Component {
 
 async fn run(
     client: &impl HttpClient,
-    provider: &AiProvider,
+    provider: &BettyAiProvider,
     prompt: &Prompt,
 ) -> Result<String, String> {
     match provider.name.as_str() {
