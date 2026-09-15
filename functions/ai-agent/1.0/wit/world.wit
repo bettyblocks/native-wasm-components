@@ -5,8 +5,8 @@ interface ai-agent {
 
     ai-agent: func(
         provider: betty-ai-provider,
-        instructions: string,
-        message: string,
+        system-prompt: string,
+        prompt: string,
         max-tokens: option<u32>,
     ) -> result<string, string>;
 }

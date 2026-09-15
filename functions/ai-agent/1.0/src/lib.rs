@@ -19,13 +19,13 @@ struct Component;
 impl ai_agent::Guest for Component {
     fn ai_agent(
         provider: BettyAiProvider,
-        instructions: String,
-        message: String,
+        system_prompt: String,
+        prompt: String,
         max_tokens: Option<u32>,
     ) -> Result<String, String> {
         let prompt = Prompt {
-            instructions,
-            message,
+            instructions: system_prompt,
+            message: prompt,
             max_tokens,
         };
 

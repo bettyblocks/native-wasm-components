@@ -1,8 +1,7 @@
 # AI Agent
 
-Calls an AI model from an AI Agent action. Takes a provider configuration,
-instructions (the system prompt) and a message (the user prompt), and returns the
-model's text.
+Calls an AI model from an AI Agent action. Takes a provider configuration, a
+system prompt and a prompt, and returns the model's text.
 
 Only Anthropic is supported. Providers are dispatched on `provider.name`, so
 adding one is a module implementing the `Provider` trait plus a match arm in
