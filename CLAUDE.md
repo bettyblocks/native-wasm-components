@@ -122,6 +122,22 @@ Flow 3's pipeline: an Azure webhook fires on push → Block Store asks **wit-dis
 functions in the registry → Block Store sends the WIT to the **wit-ui-generator** service →
 generated function.json comes back and is stored as a block.
 
+#### Pushing a component to the edge Block Store by hand (Flow 3)
+
+To get a locally built component into the Block Store on edge for testing:
+
+```sh
+docker login -u <user> -p <token> wascodevdev.azurecr.io
+wkg oci push wascodevdev.azurecr.io/wasco-dev/<function-name>:<version> <file>.wasm
+```
+
+e.g. `wkg oci push wascodevdev.azurecr.io/wasco-dev/ai-agent:1.0.0 ai_agent.wasm`.
+
+Credentials are shared by the platform team — ask, don't commit them. This is the **dev**
+registry (`wascodevdev`), which is separate from the one `wkg.toml` maps for WIT dependency
+resolution (`bettyblocksdev`). Pushing here only makes the component available in the edge Block
+Store; it is not a production release.
+
 WIT carries no Betty metadata (icon, colour, description, category, allowed kinds) — OCI is an
 open standard with nowhere to put it — so wit-ui-generator hardcodes defaults (default action
 icon, orange, category `WASM`) and custom Betty types are matched **by name**. Overriding metadata
