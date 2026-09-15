@@ -27,8 +27,9 @@ impl Provider for Anthropic {
         client: &impl HttpClient,
         provider: &AiProvider,
         prompt: &Prompt,
+        api_key: &str,
     ) -> Result<String, String> {
-        if provider.api_key.is_empty() {
+        if api_key.is_empty() {
             return Err("No API key configured for provider: anthropic".to_string());
         }
 
@@ -37,7 +38,7 @@ impl Provider for Anthropic {
         }
 
         let headers = vec![
-            ("x-api-key", provider.api_key.clone()),
+            ("x-api-key", api_key.to_string()),
             ("anthropic-version", config::api_version()),
             ("content-type", "application/json".to_string()),
         ];
@@ -154,12 +155,14 @@ mod tests {
         assert!(extract_text(b"not json").is_err());
     }
 
+    const TEST_KEY: &str = "test-key";
+
     #[tokio::test]
     async fn complete_returns_the_assistant_text() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("42"))]);
 
         let text = Anthropic
-            .complete(&client, &test_provider(), &test_prompt("meaning?"))
+            .complete(&client, &test_provider(), &test_prompt("meaning?"), TEST_KEY)
             .await
             .unwrap();
 
@@ -173,7 +176,7 @@ mod tests {
         provider.url = "http://localhost:4010/v1/messages".to_string();
 
         Anthropic
-            .complete(&client, &provider, &test_prompt("hi"))
+            .complete(&client, &provider, &test_prompt("hi"), TEST_KEY)
             .await
             .unwrap();
 
@@ -185,12 +188,12 @@ mod tests {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("ok"))]);
 
         Anthropic
-            .complete(&client, &test_provider(), &test_prompt("hi"))
+            .complete(&client, &test_provider(), &test_prompt("hi"), TEST_KEY)
             .await
             .unwrap();
 
         let request = &client.requests()[0];
-        assert_eq!(request.header("x-api-key"), Some("test-key"));
+        assert_eq!(request.header("x-api-key"), Some(TEST_KEY));
         assert_eq!(request.header("anthropic-version"), Some("2023-06-01"));
         assert_eq!(request.header("content-type"), Some("application/json"));
         assert_eq!(request.json()["model"], "claude-sonnet-5");
@@ -199,12 +202,10 @@ mod tests {
     #[tokio::test]
     async fn complete_rejects_an_empty_api_key_without_calling_out() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
-        let mut provider = test_provider();
-        provider.api_key = String::new();
 
         assert!(
             Anthropic
-                .complete(&client, &provider, &test_prompt("hi"))
+                .complete(&client, &test_provider(), &test_prompt("hi"), "")
                 .await
                 .is_err()
         );
@@ -219,7 +220,7 @@ mod tests {
 
         assert!(
             Anthropic
-                .complete(&client, &provider, &test_prompt("hi"))
+                .complete(&client, &provider, &test_prompt("hi"), TEST_KEY)
                 .await
                 .is_err()
         );
@@ -231,7 +232,7 @@ mod tests {
         let client = MockHttpClient::new(vec![(429, "rate limited".to_string())]);
 
         let error = Anthropic
-            .complete(&client, &test_provider(), &test_prompt("hi"))
+            .complete(&client, &test_provider(), &test_prompt("hi"), TEST_KEY)
             .await
             .unwrap_err();
 

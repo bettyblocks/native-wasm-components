@@ -10,12 +10,17 @@ adding one is a module implementing the `Provider` trait plus a match arm in
 modules testable without a wasm runtime.
 
 The `ai-provider` record mirrors `betty-blocks-types:types.betty-ai-provider`,
-with `api-key` added. Once that type is published the local record is replaced by
-a `use`, and the key moves to a secret read from the environment.
+with `tools` omitted — the generator does not support `option<list<json-string>>`
+yet. Once that type is published the local record is replaced by a `use`.
 
 ## Configuration
 
 The endpoint comes from `provider.url`, not the environment.
+
+The API key is never an input. It is read from `wasi:config/store` under
+`ai_provider:<provider name>` — `ai_provider:anthropic` — so it stays out of the
+compiled action artifact. The compiler writes that secret; the component only
+reads it.
 
 | Variable | Default |
 | --- | --- |
@@ -41,7 +46,8 @@ just test
 
 Unit tests run on the host against a mock HTTP client. The component itself is
 exercised from Elixir in `test/native_wasm_components/ai_agent_test.exs`, which
-passes a local server's URL as the provider's `url`:
+passes a local server's URL as the provider's `url` and stubs
+`wasi:config/store` as a host import:
 
 ```sh
 mix test

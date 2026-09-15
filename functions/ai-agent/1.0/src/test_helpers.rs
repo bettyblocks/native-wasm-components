@@ -75,8 +75,6 @@ pub(crate) fn test_provider() -> AiProvider {
         name: "anthropic".to_string(),
         ai_model_name: "claude-sonnet-5".to_string(),
         url: "https://api.anthropic.com/v1/messages".to_string(),
-        tools: None,
-        api_key: "test-key".to_string(),
     }
 }
 

@@ -38,7 +38,13 @@ async fn run(
     prompt: &Prompt,
 ) -> Result<String, String> {
     match provider.name.as_str() {
-        "anthropic" => anthropic::Anthropic.complete(client, provider, prompt).await,
+        "anthropic" => {
+            let api_key = config::api_key(&provider.name)?;
+
+            anthropic::Anthropic
+                .complete(client, provider, prompt, &api_key)
+                .await
+        }
         other => Err(format!("Unsupported provider: {other}")),
     }
 }

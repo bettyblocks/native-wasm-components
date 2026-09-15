@@ -13,5 +13,6 @@ pub(crate) trait Provider {
         client: &impl HttpClient,
         provider: &AiProvider,
         prompt: &Prompt,
+        api_key: &str,
     ) -> Result<String, String>;
 }
