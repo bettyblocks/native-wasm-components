@@ -57,10 +57,11 @@ every PR. A component whose `src/`, `build.rs`, `Cargo.toml` or `wit/` (excludin
 `wit/deps/`) changed vs the base branch must show exactly one major step. A component with no
 version on the base branch is new and may start at any major.
 
-Unlike `wasm-base-components`, which allows a changed package to reuse the version it already
-has on its `dev` integration branch, this repository allows no reuse anywhere: `release.yaml`
-publishes to the Block Store on every push to `edge`, `acceptance` and `main`, so each of those
-branches is a place something is already deployed from.
+There is one exception, mirroring the `dev` exception in `wasm-base-components`: a PR targeting
+**`edge`** may reuse the version a changed component already has there. `edge` is an integration
+environment rather than a production one, so overwriting a version that is still in development
+is safe. Promotion PRs into `acceptance` and `main` get no such allowance — those compare against
+a branch real apps run from, so every changed component must show exactly one major step.
 
 ## Consequences
 

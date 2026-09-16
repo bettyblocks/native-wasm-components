@@ -23,11 +23,11 @@ shopt -s nullglob
 
 BASE_REF="${1:-${GITHUB_BASE_REF:-main}}"
 
-# Unlike wasm-base-components, this repo has no integration-only branch that may
-# reuse a version: release.yaml publishes to the Block Store on every push to
-# edge, acceptance and main, so a reused version would overwrite something that
-# is already out there. Every changed component takes a fresh major everywhere.
-REUSE_ALLOWED_ON=""
+# edge is an integration environment, not a production one, so overwriting a version that is
+# still in development is safe: a changed component may keep the major it already took there.
+# PRs promoting to acceptance and main compare against a branch real apps run from, and there
+# every changed component still has to show exactly one major step.
+REUSE_ALLOWED_ON="edge"
 
 main() {
   # Make the base ref available (no-op if already fetched, e.g. local dev).
@@ -44,7 +44,7 @@ main() {
 
   echo "Comparing against base: ${BASE}"
 
-  if [ -n "$REUSE_ALLOWED_ON" ] && [ "$BASE_REF" = "$REUSE_ALLOWED_ON" ]; then
+  if [ "$BASE_REF" = "$REUSE_ALLOWED_ON" ]; then
     allow_reuse=true
     echo "Base is ${REUSE_ALLOWED_ON}: a changed component may reuse the version it already has there."
   else
@@ -75,7 +75,7 @@ main() {
     for e in "${errors[@]}"; do echo "  • ${e}"; done
     exit 1
   fi
-  echo "All changed components have a major version bump. ✅"
+  echo "All changed components satisfy the major-only version policy. ✅"
 }
 
 # Extract the version that follows '@' in the first `package ...;` line (reads stdin).
