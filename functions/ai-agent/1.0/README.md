@@ -4,26 +4,25 @@ Calls an AI model from an AI Agent action. Takes a provider configuration, a
 system prompt and a prompt, and returns the model's text.
 
 Only Anthropic is supported. Providers are dispatched on `provider.name`, so
-adding one is a module implementing the `Provider` trait plus a match arm in
-`lib.rs`. Outbound HTTP goes through the `HttpClient` trait, which keeps provider
+adding one is a module in `src/providers/` implementing the `Provider` trait,
+plus a match arm in `lib.rs`. Outbound HTTP goes through the `HttpClient` trait, which keeps provider
 modules testable without a wasm runtime.
 
-The `ai-provider` record mirrors `betty-blocks-types:types.betty-ai-provider`,
-with `tools` omitted — the generator does not support `option<list<json-string>>`
-yet. Once that type is published the local record is replaced by a `use`.
+The provider argument is `betty-blocks-types:types.betty-ai-provider`.
 
 ## Configuration
 
-The endpoint comes from `provider.url`, not the environment.
+Everything about the provider — endpoint, model, and API key — comes from the
+`betty-ai-provider` record the runtime passes in, not from the environment. The
+component reads `provider.api-key` and never looks the secret up itself.
 
-The API key is never an input. It is read from `wasi:config/store` under
-`ai_provider:<provider name>` — `ai_provider:anthropic` — so it stays out of the
-compiled action artifact. The compiler writes that secret; the component only
-reads it.
+`provider.url` is a **base** url — `https://api.anthropic.com/v1` — and the
+component appends the endpoint it needs (`/messages`), with or without a
+trailing slash on the base.
 
-| Variable | Default |
-| --- | --- |
-| `ANTHROPIC_API_VERSION` | `2023-06-01` |
+Nothing is read from the environment — a component is never granted one. The
+Anthropic API version is the `API_VERSION` constant in
+`src/providers/anthropic.rs`.
 
 `max-tokens` is optional and defaults to 4096. Anthropic requires the field, and
 it truncates silently when the limit is reached.
@@ -45,8 +44,7 @@ just test
 
 Unit tests run on the host against a mock HTTP client. The component itself is
 exercised from Elixir in `test/native_wasm_components/ai_agent_test.exs`, which
-passes a local server's URL as the provider's `url` and stubs
-`wasi:config/store` as a host import:
+passes a local server's base url as the provider's `url`:
 
 ```sh
 mix test

@@ -1,11 +1,12 @@
 use serde::Deserialize;
 
-use crate::config;
 use crate::betty_blocks_types::types::types::BettyAiProvider;
 use crate::http::HttpClient;
-use crate::provider::{Prompt, Provider};
+use crate::providers::{Prompt, Provider};
 
 const DEFAULT_MAX_TOKENS: u32 = 4096;
+const API_VERSION: &str = "2023-06-01";
+const MESSAGES_PATH: &str = "messages";
 
 pub(crate) struct Anthropic;
 
@@ -27,9 +28,8 @@ impl Provider for Anthropic {
         client: &impl HttpClient,
         provider: &BettyAiProvider,
         prompt: &Prompt,
-        api_key: &str,
     ) -> Result<String, String> {
-        if api_key.is_empty() {
+        if provider.api_key.is_empty() {
             return Err("No API key configured for provider: anthropic".to_string());
         }
 
@@ -38,13 +38,17 @@ impl Provider for Anthropic {
         }
 
         let headers = vec![
-            ("x-api-key", api_key.to_string()),
-            ("anthropic-version", config::api_version()),
+            ("x-api-key", provider.api_key.clone()),
+            ("anthropic-version", API_VERSION.to_string()),
             ("content-type", "application/json".to_string()),
         ];
 
         let (status, response) = client
-            .post_json(&provider.url, headers, request_body(provider, prompt))
+            .post_json(
+                &messages_url(&provider.url),
+                headers,
+                request_body(provider, prompt),
+            )
             .await?;
 
         if status != 200 {
@@ -53,6 +57,10 @@ impl Provider for Anthropic {
 
         extract_text(&response)
     }
+}
+
+fn messages_url(base_url: &str) -> String {
+    format!("{}/{MESSAGES_PATH}", base_url.trim_end_matches('/'))
 }
 
 fn request_body(provider: &BettyAiProvider, prompt: &Prompt) -> Vec<u8> {
@@ -90,6 +98,22 @@ mod tests {
     use crate::test_helpers::{
         MockHttpClient, anthropic_text_response, test_prompt, test_provider,
     };
+
+    #[test]
+    fn messages_url_appends_the_endpoint_to_the_base_url() {
+        assert_eq!(
+            messages_url("https://api.anthropic.com/v1"),
+            "https://api.anthropic.com/v1/messages"
+        );
+    }
+
+    #[test]
+    fn messages_url_does_not_double_the_separator() {
+        assert_eq!(
+            messages_url("https://api.anthropic.com/v1/"),
+            "https://api.anthropic.com/v1/messages"
+        );
+    }
 
     #[test]
     fn request_body_carries_model_prompts_and_default_max_tokens() {
@@ -155,14 +179,12 @@ mod tests {
         assert!(extract_text(b"not json").is_err());
     }
 
-    const TEST_KEY: &str = "test-key";
-
     #[tokio::test]
     async fn complete_returns_the_assistant_text() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("42"))]);
 
         let text = Anthropic
-            .complete(&client, &test_provider(), &test_prompt("meaning?"), TEST_KEY)
+            .complete(&client, &test_provider(), &test_prompt("meaning?"))
             .await
             .unwrap();
 
@@ -170,13 +192,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn complete_posts_to_the_configured_provider_url() {
+    async fn complete_posts_to_the_messages_endpoint_of_the_provider_url() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("ok"))]);
         let mut provider = test_provider();
-        provider.url = "http://localhost:4010/v1/messages".to_string();
+        provider.url = "http://localhost:4010/v1".to_string();
 
         Anthropic
-            .complete(&client, &provider, &test_prompt("hi"), TEST_KEY)
+            .complete(&client, &provider, &test_prompt("hi"))
             .await
             .unwrap();
 
@@ -188,13 +210,13 @@ mod tests {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("ok"))]);
 
         Anthropic
-            .complete(&client, &test_provider(), &test_prompt("hi"), TEST_KEY)
+            .complete(&client, &test_provider(), &test_prompt("hi"))
             .await
             .unwrap();
 
         let request = &client.requests()[0];
-        assert_eq!(request.header("x-api-key"), Some(TEST_KEY));
-        assert_eq!(request.header("anthropic-version"), Some("2023-06-01"));
+        assert_eq!(request.header("x-api-key"), Some("test-key"));
+        assert_eq!(request.header("anthropic-version"), Some(API_VERSION));
         assert_eq!(request.header("content-type"), Some("application/json"));
         assert_eq!(request.json()["model"], "claude-sonnet-5");
     }
@@ -202,10 +224,12 @@ mod tests {
     #[tokio::test]
     async fn complete_rejects_an_empty_api_key_without_calling_out() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
+        let mut provider = test_provider();
+        provider.api_key = String::new();
 
         assert!(
             Anthropic
-                .complete(&client, &test_provider(), &test_prompt("hi"), "")
+                .complete(&client, &provider, &test_prompt("hi"))
                 .await
                 .is_err()
         );
@@ -220,7 +244,7 @@ mod tests {
 
         assert!(
             Anthropic
-                .complete(&client, &provider, &test_prompt("hi"), TEST_KEY)
+                .complete(&client, &provider, &test_prompt("hi"))
                 .await
                 .is_err()
         );
@@ -232,7 +256,7 @@ mod tests {
         let client = MockHttpClient::new(vec![(429, "rate limited".to_string())]);
 
         let error = Anthropic
-            .complete(&client, &test_provider(), &test_prompt("hi"), TEST_KEY)
+            .complete(&client, &test_provider(), &test_prompt("hi"))
             .await
             .unwrap_err();
 

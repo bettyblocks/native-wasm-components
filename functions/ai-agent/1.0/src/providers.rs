@@ -1,3 +1,5 @@
+pub(crate) mod anthropic;
+
 use crate::betty_blocks_types::types::types::BettyAiProvider;
 use crate::http::HttpClient;
 
@@ -13,6 +15,5 @@ pub(crate) trait Provider {
         client: &impl HttpClient,
         provider: &BettyAiProvider,
         prompt: &Prompt,
-        api_key: &str,
     ) -> Result<String, String>;
 }

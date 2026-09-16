@@ -3,23 +3,10 @@ defmodule NativeWasmComponents.AiAgentTest do
 
   @component_path "functions/ai-agent/1.0/ai_agent.wasm"
   @interface {"betty-blocks:ai-agent/ai-agent@2.0.0", "ai-agent"}
-  @api_key_name "ai_provider:anthropic"
 
-  defp run_component(args, config \\ %{@api_key_name => "test-key"}) do
-    TestHelper.run_component(@component_path, @interface, args, config_imports(config))
+  defp run_component(args) do
+    TestHelper.run_component(@component_path, @interface, args)
   end
-
-  defp config_imports(config) do
-    %{
-      "wasi:config/store@0.2.0-rc.1" => %{
-        "get" => {:fn, fn key -> {:ok, to_option(Map.get(config, key))} end},
-        "get-all" => {:fn, fn -> {:ok, Map.to_list(config)} end}
-      }
-    }
-  end
-
-  defp to_option(nil), do: :none
-  defp to_option(value), do: {:some, value}
 
   defp build_args(url, overrides \\ %{}) do
     provider =
@@ -28,7 +15,8 @@ defmodule NativeWasmComponents.AiAgentTest do
           "name" => "anthropic",
           "ai-model-name" => "claude-sonnet-5",
           "url" => url,
-          "tools" => :none
+          "tools" => :none,
+          "api-key" => "test-key"
         },
         Map.get(overrides, :provider, %{})
       )
@@ -49,7 +37,7 @@ defmodule NativeWasmComponents.AiAgentTest do
     setup do
       sham = Sham.start()
 
-      {:ok, %{sham: sham, url: "http://localhost:#{sham.port}/v1/messages"}}
+      {:ok, %{sham: sham, url: "http://localhost:#{sham.port}/v1"}}
     end
 
     test "returns the assistant text", %{sham: sham, url: url} do
@@ -60,7 +48,7 @@ defmodule NativeWasmComponents.AiAgentTest do
       assert {:ok, "4"} == run_component(build_args(url))
     end
 
-    test "sends the messages request anthropic expects", %{sham: sham, url: url} do
+    test "appends the messages endpoint to the provider base url", %{sham: sham, url: url} do
       Sham.expect(sham, fn conn ->
         assert conn.path_info == ["v1", "messages"]
         assert {"x-api-key", "test-key"} in conn.req_headers
@@ -115,11 +103,10 @@ defmodule NativeWasmComponents.AiAgentTest do
       assert {:error, "Unsupported provider: openai"} == run_component(args)
     end
 
-    test "reports a missing api key naming the provider-scoped config key", %{url: url} do
-      args = build_args(url)
+    test "rejects a provider without an api key", %{url: url} do
+      args = build_args(url, %{provider: %{"api-key" => ""}})
 
-      assert {:error, "No '#{@api_key_name}' found in runtime configuration"} ==
-               run_component(args, %{})
+      assert {:error, "No API key configured for provider: anthropic"} == run_component(args)
     end
 
     test "rejects an empty url" do
@@ -137,12 +124,13 @@ defmodule NativeWasmComponents.AiAgentTest do
           flunk("set ANTHROPIC_API_KEY to run the live test")
 
       args =
-        build_args("https://api.anthropic.com/v1/messages", %{
+        build_args("https://api.anthropic.com/v1", %{
+          provider: %{"api-key" => key},
           instructions: "Reply with a single word and no punctuation.",
           message: "Reply with the word pong"
         })
 
-      assert {:ok, text} = run_component(args, %{@api_key_name => key})
+      assert {:ok, text} = run_component(args)
       assert text =~ "pong"
     end
   end

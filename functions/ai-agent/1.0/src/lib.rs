@@ -1,7 +1,5 @@
-mod anthropic;
-mod config;
 mod http;
-mod provider;
+mod providers;
 #[cfg(test)]
 mod test_helpers;
 
@@ -10,7 +8,8 @@ use wstd::http::Client;
 use crate::betty_blocks_types::types::types::BettyAiProvider;
 use crate::exports::betty_blocks::ai_agent::ai_agent;
 use crate::http::HttpClient;
-use crate::provider::{Prompt, Provider};
+use crate::providers::anthropic::Anthropic;
+use crate::providers::{Prompt, Provider};
 
 wit_bindgen::generate!({ generate_all });
 
@@ -39,13 +38,7 @@ async fn run(
     prompt: &Prompt,
 ) -> Result<String, String> {
     match provider.name.as_str() {
-        "anthropic" => {
-            let api_key = config::api_key(&provider.name)?;
-
-            anthropic::Anthropic
-                .complete(client, provider, prompt, &api_key)
-                .await
-        }
+        "anthropic" => Anthropic.complete(client, provider, prompt).await,
         other => Err(format!("Unsupported provider: {other}")),
     }
 }
