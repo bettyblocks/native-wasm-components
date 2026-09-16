@@ -58,7 +58,11 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,wkg
+          tool: just
+
+      # Shared pinned + checksum-verified wkg install, reused from wasm-base-components
+      # so both repos build against exactly one wkg version.
+      - uses: bettyblocks/wasm-base-components/.github/actions/install-wkg@main
 
       - name: Install wash
         shell: bash
