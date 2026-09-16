@@ -13,6 +13,8 @@ use bindings::{
     exports::betty_blocks::store_file::store::{Guest as StoreGuest, BettyModel},
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+
 use crate::download::{download_to_memory, extract_file_info_from_url};
 
 struct Component;
@@ -71,12 +73,16 @@ async fn store_file_internal(
 
     let file_bytes = download_to_memory(&url).await?;
 
+    // upload-file takes standard base64, not list<u8>: the byte list costs 48 host
+    // bytes per file byte and traps at ~2.67 MiB.
+    let file_base64 = STANDARD.encode(&file_bytes);
+
     let upload_result = upload_file::upload(
         &helper_context,
         &upload_file::Input {
             model,
             property,
-            file_bytes,
+            file_base64,
             full_filename,
         },
     )
