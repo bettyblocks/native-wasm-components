@@ -7,27 +7,27 @@ name = "betty-blocks-types:data-api"
 registry = "bettyblocksdev.azurecr.io"
 
 [[packages.versions]]
-requirement = "=2.0.0"
-version = "2.0.0"
-digest = "sha256:5feead72a07fd94c3c8022c588bdd8e189246e42175bc7e0006495132d65fb4d"
+requirement = "=3.0.0"
+version = "3.0.0"
+digest = "sha256:61f38311044e9d5e0912baa9fffbe3f74d2f9c7000fb4f986cde62bf0ab4c8b0"
 
 [[packages]]
 name = "betty-blocks-types:types"
 registry = "bettyblocksdev.azurecr.io"
 
 [[packages.versions]]
-requirement = "=2.0.0"
-version = "2.0.0"
-digest = "sha256:0deb3c29a7d1eab2e15ed10d849055ebddf7ab638d3bd61fce9f2901d1a999d5"
+requirement = "=3.0.0"
+version = "3.0.0"
+digest = "sha256:71075a02b5784186434bcec2220867cef1d46c4fde6e92032a4b04b7a452d456"
 
 [[packages]]
 name = "betty-blocks-types:upload-file"
 registry = "bettyblocksdev.azurecr.io"
 
 [[packages.versions]]
-requirement = "=2.0.0"
-version = "2.0.0"
-digest = "sha256:4fa756a1913130587147d7c2f6ac37f1e7b73e6396d36574180ef96da2461d04"
+requirement = "=4.0.0"
+version = "4.0.0"
+digest = "sha256:fe30f7ec01fe8bfad3939004399745a3a58e75ccd0b774af222316120b84f675"
 
 [[packages]]
 name = "wasi:http"

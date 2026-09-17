@@ -24,7 +24,7 @@ RUN wget -qO- https://apt.llvm.org/llvm.sh | bash -s -- 18
 
 # Install just and wkg using cargo-binstall for faster installation
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-RUN cargo binstall -y just wkg
+RUN cargo binstall -y just wkg@0.15.1
 
 # Install wash 2.x from the official script. cargo binstall resolves an older
 # wash that still requires a wasmcloud.toml for `wash wit fetch`; the new build
