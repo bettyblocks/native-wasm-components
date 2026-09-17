@@ -24,11 +24,6 @@ RUN wget -qO- https://apt.llvm.org/llvm.sh | bash -s -- 18
 
 # Install just and wkg using cargo-binstall for faster installation
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-# wkg is pinned to the version the shared install-wkg action uses
-# (bettyblocks/wasm-base-components/.github/actions/install-wkg). A Dockerfile cannot
-# reuse a composite action, so keep this version in step with it. Unpinned, binstall
-# resolves 0.16.x, which walks up the tree for a wkg.toml *manifest* and fails on the
-# root wkg.toml -- that file is a wash registry config ([namespace_registries]).
 RUN cargo binstall -y just wkg@0.15.1
 
 # Install wash 2.x from the official script. cargo binstall resolves an older
