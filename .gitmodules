@@ -1,0 +1,3 @@
+[submodule ".claude/standards"]
+	path = .claude/standards
+	url = git@gitlab.betty.services:code/coding-standards-and-guidelines.git

@@ -39,6 +39,7 @@ jobs:
             ./functions/logging/1.0/target
             ./functions/http/1.0/target
             ./functions/store-file/1.0/target
+            ./functions/ai-agent/1.0/target
       - name: Cache Elixir
         uses: actions/cache@v4
         with:

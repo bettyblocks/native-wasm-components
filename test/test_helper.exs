@@ -14,4 +14,4 @@ defmodule TestHelper do
   end
 end
 
-ExUnit.start()
+ExUnit.start(exclude: [:live])
