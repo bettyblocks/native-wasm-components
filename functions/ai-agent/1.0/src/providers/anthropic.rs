@@ -1,12 +1,14 @@
 use serde::Deserialize;
 
-use crate::betty_blocks_types::types::types::BettyAiProvider;
+use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
 use crate::http::HttpClient;
 use crate::providers::{Prompt, Provider};
 
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const API_VERSION: &str = "2023-06-01";
 const MESSAGES_PATH: &str = "messages";
+const WEB_SEARCH_TOOL_TYPE: &str = "web_search_20250305";
+const MCP_SERVER_NAME_MAX_LEN: usize = 64;
 
 pub(crate) struct Anthropic;
 
@@ -26,7 +28,7 @@ impl Provider for Anthropic {
     async fn complete(
         &self,
         client: &impl HttpClient,
-        provider: &BettyAiProvider,
+        provider: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<String, String> {
         if provider.api_key.is_empty() {
@@ -63,15 +65,92 @@ fn messages_url(base_url: &str) -> String {
     format!("{}/{MESSAGES_PATH}", base_url.trim_end_matches('/'))
 }
 
-fn request_body(provider: &BettyAiProvider, prompt: &Prompt) -> Vec<u8> {
-    serde_json::json!({
+fn request_body(provider: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
+    let mut body = serde_json::json!({
         "model": provider.ai_model_name,
         "max_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
         "system": prompt.instructions,
         "messages": [{ "role": "user", "content": prompt.message }],
-    })
-    .to_string()
-    .into_bytes()
+    });
+
+    let tools = provider.tools.as_deref().unwrap_or(&[]);
+    if tools.is_empty() {
+        return body.to_string().into_bytes();
+    }
+
+    let mut web_search_tools = Vec::new();
+    let mut mcp_servers = Vec::new();
+
+    for tool in tools {
+        match tool {
+            BettyAiTool::HttpSearch(_) => web_search_tools.push(serde_json::json!({
+                "type": WEB_SEARCH_TOOL_TYPE,
+                "name": "web_search",
+            })),
+            BettyAiTool::Mcp(options) => mcp_servers.push(mcp_server(options)),
+        }
+    }
+
+    if !web_search_tools.is_empty() {
+        body["tools"] = web_search_tools.into();
+    }
+    if !mcp_servers.is_empty() {
+        body["mcp_servers"] = mcp_servers.into();
+    }
+
+    body.to_string().into_bytes()
+}
+
+fn mcp_server(options: &McpOptions) -> serde_json::Value {
+    let mut server = serde_json::json!({
+        "type": "mcp",
+        "url": options.url,
+        "name": mcp_server_name(&options.url),
+    });
+
+    if let Some(token) = options
+        .authentication
+        .value
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        server["authorization_token"] = token.into();
+    }
+
+    server
+}
+
+fn mcp_server_name(url: &str) -> String {
+    let without_scheme = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or(url);
+    let host = without_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(without_scheme);
+    let sanitized: String = host
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+
+    let name: String = sanitized
+        .trim_matches('-')
+        .chars()
+        .take(MCP_SERVER_NAME_MAX_LEN)
+        .collect();
+
+    if name.is_empty() {
+        "mcp-server".to_string()
+    } else {
+        name
+    }
 }
 
 fn extract_text(response: &[u8]) -> Result<String, String> {
@@ -96,7 +175,8 @@ fn extract_text(response: &[u8]) -> Result<String, String> {
 mod tests {
     use super::*;
     use crate::test_helpers::{
-        MockHttpClient, anthropic_text_response, test_prompt, test_provider,
+        MockHttpClient, anthropic_text_response, http_search_tool, mcp_tool, test_agent_with_tools,
+        test_prompt, test_provider,
     };
 
     #[test]
@@ -139,6 +219,81 @@ mod tests {
             serde_json::from_slice(&request_body(&test_provider(), &prompt)).unwrap();
 
         assert_eq!(body["max_tokens"], 256);
+    }
+
+    #[test]
+    fn request_body_omits_the_tool_fields_without_tools() {
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&test_provider(), &test_prompt("hi"))).unwrap();
+
+        assert!(body.get("tools").is_none());
+        assert!(body.get("mcp_servers").is_none());
+    }
+
+    #[test]
+    fn request_body_enables_web_search_for_an_http_search_tool() {
+        let agent = test_agent_with_tools(vec![http_search_tool()]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("latest news"))).unwrap();
+
+        assert_eq!(body["tools"].as_array().unwrap().len(), 1);
+        assert_eq!(body["tools"][0]["type"], WEB_SEARCH_TOOL_TYPE);
+        assert_eq!(body["tools"][0]["name"], "web_search");
+        assert!(body.get("mcp_servers").is_none());
+    }
+
+    #[test]
+    fn request_body_registers_an_mcp_server_with_its_auth_token() {
+        let agent = test_agent_with_tools(vec![mcp_tool(
+            "https://mcp.example.com/sse",
+            Some("secret-token"),
+        )]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert_eq!(body["mcp_servers"].as_array().unwrap().len(), 1);
+        assert_eq!(body["mcp_servers"][0]["type"], "mcp");
+        assert_eq!(body["mcp_servers"][0]["url"], "https://mcp.example.com/sse");
+        assert_eq!(body["mcp_servers"][0]["name"], "mcp-example-com");
+        assert_eq!(body["mcp_servers"][0]["authorization_token"], "secret-token");
+        assert!(body.get("tools").is_none());
+    }
+
+    #[test]
+    fn request_body_omits_the_token_when_the_mcp_server_has_no_authentication_value() {
+        let agent = test_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert!(body["mcp_servers"][0].get("authorization_token").is_none());
+    }
+
+    #[test]
+    fn request_body_separates_http_search_and_mcp_tools() {
+        let agent = test_agent_with_tools(vec![
+            http_search_tool(),
+            mcp_tool("https://mcp.example.com/sse", Some("secret-token")),
+        ]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert_eq!(body["tools"].as_array().unwrap().len(), 1);
+        assert_eq!(body["mcp_servers"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn mcp_server_name_sanitizes_the_url_host() {
+        assert_eq!(
+            mcp_server_name("https://MCP.Example.com:8080/sse"),
+            "MCP-Example-com-8080"
+        );
+        assert_eq!(mcp_server_name("http://localhost:3000"), "localhost-3000");
+        assert_eq!(mcp_server_name("not a url"), "not-a-url");
+        assert_eq!(mcp_server_name("///"), "mcp-server");
     }
 
     #[test]

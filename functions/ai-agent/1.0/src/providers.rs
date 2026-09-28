@@ -1,6 +1,6 @@
 pub(crate) mod anthropic;
 
-use crate::betty_blocks_types::types::types::BettyAiProvider;
+use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 
 pub(crate) struct Prompt {
@@ -13,7 +13,7 @@ pub(crate) trait Provider {
     async fn complete(
         &self,
         client: &impl HttpClient,
-        provider: &BettyAiProvider,
+        provider: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<String, String>;
 }

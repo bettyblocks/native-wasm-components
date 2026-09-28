@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 
-use crate::betty_blocks_types::types::types::BettyAiProvider;
+use crate::betty_blocks_types::types::types::{
+    AuthenticationConfig, BettyAiAgent, BettyAiTool, HttpSearchOptions, McpOptions,
+};
 use crate::http::HttpClient;
 use crate::providers::Prompt;
 
@@ -70,14 +72,35 @@ pub(crate) fn anthropic_text_response(text: &str) -> String {
     serde_json::json!({ "content": [{ "type": "text", "text": text }] }).to_string()
 }
 
-pub(crate) fn test_provider() -> BettyAiProvider {
-    BettyAiProvider {
+pub(crate) fn test_provider() -> BettyAiAgent {
+    BettyAiAgent {
         name: "anthropic".to_string(),
         ai_model_name: "claude-sonnet-5".to_string(),
         url: "https://api.anthropic.com/v1".to_string(),
         tools: None,
         api_key: "test-key".to_string(),
     }
+}
+
+pub(crate) fn test_agent_with_tools(tools: Vec<BettyAiTool>) -> BettyAiAgent {
+    let mut agent = test_provider();
+    agent.tools = Some(tools);
+    agent
+}
+
+pub(crate) fn http_search_tool() -> BettyAiTool {
+    BettyAiTool::HttpSearch(HttpSearchOptions { description: None })
+}
+
+pub(crate) fn mcp_tool(url: &str, token: Option<&str>) -> BettyAiTool {
+    BettyAiTool::Mcp(McpOptions {
+        description: None,
+        url: url.to_string(),
+        authentication: AuthenticationConfig {
+            kind: "bearer".to_string(),
+            value: token.map(|token| token.to_string()),
+        },
+    })
 }
 
 pub(crate) fn test_prompt(message: &str) -> Prompt {
