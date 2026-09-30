@@ -3,18 +3,12 @@ package betty-blocks:expression@3.0.0;
 interface expression {
     type json-string = string;
 
-    record output {
-        %result: json-string
-    }
-
-    record input {
+    expression: func(
         expression: string,
         variables: json-string,
         schema-model: option<string>,
         debug-logging: option<bool>,
-    }
-
-    expression: func(input: input) -> result<output, string>;
+    ) -> result<json-string, string>;
 }
 
 world main {
