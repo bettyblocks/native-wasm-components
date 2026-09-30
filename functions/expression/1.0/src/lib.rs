@@ -2,7 +2,7 @@ use rquickjs::{
     embed, loader::Bundle, CatchResultExt, CaughtError, Context, Ctx, Module, Runtime, Value,
 };
 
-use crate::exports::betty_blocks::expression::expression::{Guest, Input, Output};
+use crate::exports::betty_blocks::expression::expression::{Guest, JsonString};
 
 wit_bindgen::generate!({ generate_all });
 
@@ -31,12 +31,17 @@ fn handle_catch_error<'a>(error: CaughtError<'a>, ctx: &Ctx<'a>) -> String {
 }
 
 impl Guest for Expression {
-    fn expression(input: Input) -> Result<Output, String> {
+    fn expression(
+        expression: String,
+        variables: JsonString,
+        _schema_model: Option<String>,
+        _debug_logging: Option<bool>,
+    ) -> Result<JsonString, String> {
         let rt = Runtime::new().expect("if not enough memory, should we just crash");
         let ctx = Context::full(&rt).expect("if not enough memory, should we just crash");
 
-        let escaped_expression = format!("{:?}", input.expression);
-        let escaped_variables = format!("{:?}", input.variables);
+        let escaped_expression = format!("{:?}", expression);
+        let escaped_variables = format!("{:?}", variables);
 
         rt.set_loader(TEMPLATED_JS, TEMPLATED_JS);
         let out: Result<String, String> = ctx.with(|ctx| {
@@ -68,32 +73,27 @@ export const result = JSON.stringify(new Function(`return ${{template}}`)() ?? n
             Ok(result)
         });
 
-        Ok(Output { result: out? })
+        out
     }
 }
 
 export! {Expression}
 
 #[cfg(test)]
-fn run_expression(expression: String, variables: String) -> Result<Output, String> {
-    Expression::expression(Input {
-        expression,
-        variables,
-        schema_model: None,
-        debug_logging: None,
-    })
+fn run_expression(expression: String, variables: String) -> Result<String, String> {
+    Expression::expression(expression, variables, None, None)
 }
 
 #[test]
 fn simple_number_expression_test() {
     let out = run_expression("1 + 2".to_string(), "{}".to_string()).unwrap();
-    assert_eq!("3".to_string(), out.result);
+    assert_eq!("3".to_string(), out);
 }
 
 #[test]
 fn simple_number_expression_with_substitution_test() {
     let out = run_expression("1 + {{number}}".to_string(), r#"{"number": 6}"#.to_string()).unwrap();
-    assert_eq!("7".to_string(), out.result);
+    assert_eq!("7".to_string(), out);
 }
 
 #[test]
@@ -103,7 +103,7 @@ fn simple_text_expression_with_substitution_test() {
         r#"{"first_name": "John", "last_name": "Doe"}"#.to_string(),
     )
     .unwrap();
-    assert_eq!(r#""John Doe""#.to_string(), out.result);
+    assert_eq!(r#""John Doe""#.to_string(), out);
 }
 
 #[test]
@@ -113,7 +113,7 @@ fn templated_magic_test_1() {
         r#"{"array": [1,2,3,4,5]}"#.to_string(),
     )
     .unwrap();
-    assert_eq!("5".to_string(), out.result);
+    assert_eq!("5".to_string(), out);
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn templated_magic_test_2() {
         r#"{"array": [1,2,3,4,5]}"#.to_string(),
     )
     .unwrap();
-    assert_eq!("15".to_string(), out.result);
+    assert_eq!("15".to_string(), out);
 }
 
 #[test]
@@ -133,14 +133,14 @@ fn templated_magic_test_3() {
         r#"{"map": {"nested": {"text": "testing"}}}"#.to_string(),
     )
     .unwrap();
-    assert_eq!(r#""testing""#.to_string(), out.result);
+    assert_eq!(r#""testing""#.to_string(), out);
 }
 
 #[test]
 fn variable_not_found_test() {
     let out = run_expression(r#"{{ testing }}"#.to_string(), r#"{}"#.to_string()).unwrap();
 
-    assert_eq!(r#"null"#.to_string(), out.result);
+    assert_eq!(r#"null"#.to_string(), out);
 }
 
 #[test]
