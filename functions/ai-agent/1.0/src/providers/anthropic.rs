@@ -9,6 +9,7 @@ const API_VERSION: &str = "2023-06-01";
 const MESSAGES_PATH: &str = "messages";
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search_20250305";
 const MCP_SERVER_NAME_MAX_LEN: usize = 64;
+const MCP_CLIENT_BETA: &str = "mcp-client-2025-11-20";
 
 pub(crate) struct Anthropic;
 
@@ -28,28 +29,31 @@ impl Provider for Anthropic {
     async fn complete(
         &self,
         client: &impl HttpClient,
-        provider: &BettyAiAgent,
+        agent: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<String, String> {
-        if provider.api_key.is_empty() {
-            return Err("No API key configured for provider: anthropic".to_string());
+        if agent.api_key.is_empty() {
+            return Err("No API key configured for agent: anthropic".to_string());
         }
 
-        if provider.url.is_empty() {
-            return Err("No URL configured for provider: anthropic".to_string());
+        if agent.url.is_empty() {
+            return Err("No URL configured for agent: anthropic".to_string());
         }
 
-        let headers = vec![
-            ("x-api-key", provider.api_key.clone()),
+        let mut headers = vec![
+            ("x-api-key", agent.api_key.clone()),
             ("anthropic-version", API_VERSION.to_string()),
             ("content-type", "application/json".to_string()),
         ];
+        if uses_mcp(agent) {
+            headers.push(("anthropic-beta", MCP_CLIENT_BETA.to_string()));
+        }
 
         let (status, response) = client
             .post_json(
-                &messages_url(&provider.url),
+                &messages_url(&agent.url),
                 headers,
-                request_body(provider, prompt),
+                request_body(agent, prompt),
             )
             .await?;
 
@@ -65,47 +69,62 @@ fn messages_url(base_url: &str) -> String {
     format!("{}/{MESSAGES_PATH}", base_url.trim_end_matches('/'))
 }
 
-fn request_body(provider: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
+fn uses_mcp(agent: &BettyAiAgent) -> bool {
+    agent
+        .tools
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .any(|tool| matches!(tool, BettyAiTool::Mcp(_)))
+}
+
+fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
     let mut body = serde_json::json!({
-        "model": provider.ai_model_name,
+        "model": agent.ai_model_name,
         "max_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
         "system": prompt.instructions,
         "messages": [{ "role": "user", "content": prompt.message }],
     });
 
-    let tools = provider.tools.as_deref().unwrap_or(&[]);
+    let tools = agent.tools.as_deref().unwrap_or(&[]);
     if tools.is_empty() {
         return body.to_string().into_bytes();
     }
 
-    let mut web_search_tools = Vec::new();
+    let mut tools_body = Vec::new();
     let mut mcp_servers = Vec::new();
 
     for tool in tools {
         match tool {
-            BettyAiTool::HttpSearch(_) => web_search_tools.push(serde_json::json!({
+            BettyAiTool::HttpSearch(_) => tools_body.push(serde_json::json!({
                 "type": WEB_SEARCH_TOOL_TYPE,
                 "name": "web_search",
             })),
-            BettyAiTool::Mcp(options) => mcp_servers.push(mcp_server(options)),
+            BettyAiTool::Mcp(options) => {
+                let name = unique_mcp_server_name(&options.url, &mcp_servers);
+                tools_body.push(serde_json::json!({
+                    "type": "mcp_toolset",
+                    "mcp_server_name": name,
+                }));
+                mcp_servers.push(mcp_server(options, name))
+            }
         }
     }
 
-    if !web_search_tools.is_empty() {
-        body["tools"] = web_search_tools.into();
+    if !tools_body.is_empty() {
+        body["tools"] = tools_body.into();
     }
     if !mcp_servers.is_empty() {
         body["mcp_servers"] = mcp_servers.into();
     }
-
     body.to_string().into_bytes()
 }
 
-fn mcp_server(options: &McpOptions) -> serde_json::Value {
+fn mcp_server(options: &McpOptions, name: String) -> serde_json::Value {
     let mut server = serde_json::json!({
-        "type": "mcp",
+        "type": "url",
         "url": options.url,
-        "name": mcp_server_name(&options.url),
+        "name": name,
     });
 
     if let Some(token) = options
@@ -118,6 +137,27 @@ fn mcp_server(options: &McpOptions) -> serde_json::Value {
     }
 
     server
+}
+
+fn unique_mcp_server_name(url: &str, servers: &[serde_json::Value]) -> String {
+    let base = mcp_server_name(url);
+    let taken = |name: &str| servers.iter().any(|server| server["name"] == name);
+
+    if !taken(&base) {
+        return base;
+    }
+
+    (2..)
+        .map(|n| {
+            let suffix = format!("-{n}");
+            let stem: String = base
+                .chars()
+                .take(MCP_SERVER_NAME_MAX_LEN - suffix.len())
+                .collect();
+            format!("{stem}{suffix}")
+        })
+        .find(|name| !taken(name))
+        .expect("an unused suffix always exists")
 }
 
 fn mcp_server_name(url: &str) -> String {
@@ -240,6 +280,7 @@ mod tests {
         assert_eq!(body["tools"].as_array().unwrap().len(), 1);
         assert_eq!(body["tools"][0]["type"], WEB_SEARCH_TOOL_TYPE);
         assert_eq!(body["tools"][0]["name"], "web_search");
+        assert!(body["tools"][0].get("description").is_none());
         assert!(body.get("mcp_servers").is_none());
     }
 
@@ -254,11 +295,43 @@ mod tests {
             serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert_eq!(body["mcp_servers"].as_array().unwrap().len(), 1);
-        assert_eq!(body["mcp_servers"][0]["type"], "mcp");
+        assert_eq!(body["mcp_servers"][0]["type"], "url");
         assert_eq!(body["mcp_servers"][0]["url"], "https://mcp.example.com/sse");
         assert_eq!(body["mcp_servers"][0]["name"], "mcp-example-com");
-        assert_eq!(body["mcp_servers"][0]["authorization_token"], "secret-token");
-        assert!(body.get("tools").is_none());
+        assert_eq!(
+            body["mcp_servers"][0]["authorization_token"],
+            "secret-token"
+        );
+    }
+
+    #[test]
+    fn request_body_references_each_mcp_server_from_an_mcp_toolset() {
+        let agent = test_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert_eq!(body["tools"].as_array().unwrap().len(), 1);
+        assert_eq!(body["tools"][0]["type"], "mcp_toolset");
+        assert_eq!(body["tools"][0]["mcp_server_name"], "mcp-example-com");
+        assert!(body["tools"][0].get("name").is_none());
+        assert!(body["tools"][0].get("description").is_none());
+    }
+
+    #[test]
+    fn request_body_gives_mcp_servers_on_the_same_host_distinct_names() {
+        let agent = test_agent_with_tools(vec![
+            mcp_tool("https://mcp.example.com/finance", None),
+            mcp_tool("https://mcp.example.com/weather", None),
+        ]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert_eq!(body["mcp_servers"][0]["name"], "mcp-example-com");
+        assert_eq!(body["mcp_servers"][1]["name"], "mcp-example-com-2");
+        assert_eq!(body["tools"][0]["mcp_server_name"], "mcp-example-com");
+        assert_eq!(body["tools"][1]["mcp_server_name"], "mcp-example-com-2");
     }
 
     #[test]
@@ -281,7 +354,9 @@ mod tests {
         let body: serde_json::Value =
             serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
 
-        assert_eq!(body["tools"].as_array().unwrap().len(), 1);
+        assert_eq!(body["tools"].as_array().unwrap().len(), 2);
+        assert_eq!(body["tools"][0]["type"], WEB_SEARCH_TOOL_TYPE);
+        assert_eq!(body["tools"][1]["type"], "mcp_toolset");
         assert_eq!(body["mcp_servers"].as_array().unwrap().len(), 1);
     }
 
@@ -349,15 +424,18 @@ mod tests {
     #[tokio::test]
     async fn complete_posts_to_the_messages_endpoint_of_the_provider_url() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("ok"))]);
-        let mut provider = test_provider();
-        provider.url = "http://localhost:4010/v1".to_string();
+        let mut agent = test_provider();
+        agent.url = "http://localhost:4010/v1".to_string();
 
         Anthropic
-            .complete(&client, &provider, &test_prompt("hi"))
+            .complete(&client, &agent, &test_prompt("hi"))
             .await
             .unwrap();
 
-        assert_eq!(client.requests()[0].url, "http://localhost:4010/v1/messages");
+        assert_eq!(
+            client.requests()[0].url,
+            "http://localhost:4010/v1/messages"
+        );
     }
 
     #[tokio::test]
@@ -374,17 +452,34 @@ mod tests {
         assert_eq!(request.header("anthropic-version"), Some(API_VERSION));
         assert_eq!(request.header("content-type"), Some("application/json"));
         assert_eq!(request.json()["model"], "claude-sonnet-5");
+        assert_eq!(request.header("anthropic-beta"), None);
+    }
+
+    #[tokio::test]
+    async fn complete_sends_the_mcp_beta_header_when_an_mcp_tool_is_configured() {
+        let client = MockHttpClient::new(vec![(200, anthropic_text_response("ok"))]);
+        let agent = test_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
+
+        Anthropic
+            .complete(&client, &agent, &test_prompt("hi"))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            client.requests()[0].header("anthropic-beta"),
+            Some(MCP_CLIENT_BETA)
+        );
     }
 
     #[tokio::test]
     async fn complete_rejects_an_empty_api_key_without_calling_out() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
-        let mut provider = test_provider();
-        provider.api_key = String::new();
+        let mut agent = test_provider();
+        agent.api_key = String::new();
 
         assert!(
             Anthropic
-                .complete(&client, &provider, &test_prompt("hi"))
+                .complete(&client, &agent, &test_prompt("hi"))
                 .await
                 .is_err()
         );
@@ -394,12 +489,12 @@ mod tests {
     #[tokio::test]
     async fn complete_rejects_an_empty_url_without_calling_out() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
-        let mut provider = test_provider();
-        provider.url = String::new();
+        let mut agent = test_provider();
+        agent.url = String::new();
 
         assert!(
             Anthropic
-                .complete(&client, &provider, &test_prompt("hi"))
+                .complete(&client, &agent, &test_prompt("hi"))
                 .await
                 .is_err()
         );

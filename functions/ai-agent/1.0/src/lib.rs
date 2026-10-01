@@ -17,7 +17,7 @@ struct Component;
 
 impl ai_agent::Guest for Component {
     fn ai_agent(
-        provider: BettyAiAgent,
+        agent: BettyAiAgent,
         system_prompt: String,
         prompt: String,
         max_tokens: Option<u32>,
@@ -28,17 +28,17 @@ impl ai_agent::Guest for Component {
             max_tokens,
         };
 
-        wstd::runtime::block_on(run(&Client::new(), &provider, &prompt))
+        wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))
     }
 }
 
 async fn run(
     client: &impl HttpClient,
-    provider: &BettyAiAgent,
+    agent: &BettyAiAgent,
     prompt: &Prompt,
 ) -> Result<String, String> {
-    match provider.name.as_str() {
-        "anthropic" => Anthropic.complete(client, provider, prompt).await,
+    match agent.name.as_str() {
+        "anthropic" => Anthropic.complete(client, agent, prompt).await,
         other => Err(format!("Unsupported provider: {other}")),
     }
 }
