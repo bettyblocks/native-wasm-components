@@ -3,6 +3,7 @@ pub(crate) mod anthropic;
 use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 
+#[derive(Debug)]
 pub(crate) struct Prompt {
     pub(crate) instructions: String,
     pub(crate) message: String,

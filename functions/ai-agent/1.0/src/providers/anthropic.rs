@@ -7,18 +7,18 @@ use crate::providers::{Prompt, Provider};
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const API_VERSION: &str = "2023-06-01";
 const MESSAGES_PATH: &str = "messages";
-const WEB_SEARCH_TOOL_TYPE: &str = "web_search_20250305";
+const WEB_SEARCH_TOOL_TYPE: &str = "web_search_20260318";
 const MCP_SERVER_NAME_MAX_LEN: usize = 64;
 const MCP_CLIENT_BETA: &str = "mcp-client-2025-11-20";
 
 pub(crate) struct Anthropic;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct MessagesResponse {
     content: Vec<ContentBlock>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ContentBlock {
     #[serde(rename = "type")]
     block_type: String,
@@ -58,8 +58,16 @@ impl Provider for Anthropic {
             .await?;
 
         if status != 200 {
-            return Err(format!("Anthropic returned status {status}"));
+            return Err(format!(
+                "Anthropic returned status {status}: {}",
+                String::from_utf8_lossy(&response)
+            ));
         }
+
+        let pretty = serde_json::from_slice::<serde_json::Value>(&response)
+            .map(|value| serde_json::to_string_pretty(&value).unwrap_or_default())
+            .unwrap_or_else(|_| String::from_utf8_lossy(&response).into_owned());
+        eprintln!("Anthropic response:\n{pretty}");
 
         extract_text(&response)
     }
@@ -99,6 +107,7 @@ fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
             BettyAiTool::HttpSearch(_) => tools_body.push(serde_json::json!({
                 "type": WEB_SEARCH_TOOL_TYPE,
                 "name": "web_search",
+                "allowed_callers": ["direct"],
             })),
             BettyAiTool::Mcp(options) => {
                 let name = unique_mcp_server_name(&options.url, &mcp_servers);
@@ -202,7 +211,9 @@ fn extract_text(response: &[u8]) -> Result<String, String> {
         .into_iter()
         .filter(|block| block.block_type == "text")
         .filter_map(|block| block.text)
-        .collect();
+        .map(|text| text.trim().to_string())
+        .collect::<Vec<_>>()
+        .join("\n\n");
 
     if text.is_empty() {
         return Err("Anthropic response contained no text content".to_string());
@@ -280,6 +291,7 @@ mod tests {
         assert_eq!(body["tools"].as_array().unwrap().len(), 1);
         assert_eq!(body["tools"][0]["type"], WEB_SEARCH_TOOL_TYPE);
         assert_eq!(body["tools"][0]["name"], "web_search");
+        assert_eq!(body["tools"][0]["allowed_callers"][0], "direct");
         assert!(body["tools"][0].get("description").is_none());
         assert!(body.get("mcp_servers").is_none());
     }
@@ -381,7 +393,7 @@ mod tests {
         })
         .to_string();
 
-        assert_eq!(extract_text(response.as_bytes()).unwrap(), "Hello world");
+        assert_eq!(extract_text(response.as_bytes()).unwrap(), "Hello\n\nworld");
     }
 
     #[test]

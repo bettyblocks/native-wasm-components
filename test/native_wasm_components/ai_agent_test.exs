@@ -2,7 +2,7 @@ defmodule NativeWasmComponents.AiAgentTest do
   use ExUnit.Case, async: true
 
   @component_path "functions/ai-agent/1.0/ai_agent.wasm"
-  @interface {"betty-blocks:ai-agent/ai-agent@2.0.0", "ai-agent"}
+  @interface {"betty-blocks:ai-agent/ai-agent@1.0.0", "ai-agent"}
 
   defp run_component(args) do
     TestHelper.run_component(@component_path, @interface, args)
@@ -70,6 +70,51 @@ defmodule NativeWasmComponents.AiAgentTest do
       assert {:ok, "4"} == run_component(build_args(url))
     end
 
+    test "sends tool calls in the request", %{sham: sham, url: url} do
+      tools = [
+        {:"http-search", %{"description" => :none}},
+        {:mcp,
+         %{
+           "description" => {:some, "call this tool if the prompt contain \"mcp call\""},
+           "url" => "https://gateway.mcpservers.org/yahoo-finance/mcp",
+           "authentication" => %{"kind" => "access_token", "value" => {:some, "secret-token"}}
+         }}
+      ]
+
+      Sham.expect(sham, fn conn ->
+        assert {"anthropic-beta", "mcp-client-2025-11-20"} in conn.req_headers
+
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+        request = Jason.decode!(body)
+
+        assert [
+                 %{
+                   "type" => "web_search_20260318",
+                   "name" => "web_search",
+                   "allowed_callers" => ["direct"]
+                 },
+                 %{"type" => "mcp_toolset", "mcp_server_name" => "gateway-mcpservers-org"}
+               ] == request["tools"]
+
+        assert [
+                 %{
+                   "type" => "url",
+                   "url" => "https://gateway.mcpservers.org/yahoo-finance/mcp",
+                   "name" => "gateway-mcpservers-org",
+                   "authorization_token" => "secret-token"
+                 }
+               ] == request["mcp_servers"]
+
+        assert request["system"] =~ "Tools:"
+        assert request["system"] =~
+                 ~s|- mcp-server https://gateway.mcpservers.org/yahoo-finance/mcp: call this tool if the prompt contain "mcp call"|
+
+        Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
+      end)
+
+      assert {:ok, "ok"} == run_component(build_args(url, %{provider: %{"tools" => {:some, tools}}}))
+    end
+
     test "honours an explicit max-tokens", %{sham: sham, url: url} do
       Sham.expect(sham, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
@@ -88,13 +133,13 @@ defmodule NativeWasmComponents.AiAgentTest do
 
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, response) end)
 
-      assert {:ok, "2 + 2 = 4"} == run_component(build_args(url))
+      assert {:ok, "2 + 2 =\n\n4"} == run_component(build_args(url))
     end
 
     test "reports a non-success status", %{sham: sham, url: url} do
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 429, "slow down") end)
 
-      assert {:error, "Anthropic returned status 429"} == run_component(build_args(url))
+      assert {:error, "Anthropic returned status 429: slow down"} == run_component(build_args(url))
     end
 
     test "rejects an unsupported provider", %{url: url} do
@@ -106,13 +151,13 @@ defmodule NativeWasmComponents.AiAgentTest do
     test "rejects a provider without an api key", %{url: url} do
       args = build_args(url, %{provider: %{"api-key" => ""}})
 
-      assert {:error, "No API key configured for provider: anthropic"} == run_component(args)
+      assert {:error, "No API key configured for agent: anthropic"} == run_component(args)
     end
 
     test "rejects an empty url" do
       args = build_args("")
 
-      assert {:error, "No URL configured for provider: anthropic"} == run_component(args)
+      assert {:error, "No URL configured for agent: anthropic"} == run_component(args)
     end
   end
 
