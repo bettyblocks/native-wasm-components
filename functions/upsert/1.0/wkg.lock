@@ -7,24 +7,24 @@ name = "betty-blocks-types:crud"
 registry = "bettyblocksdev.azurecr.io"
 
 [[packages.versions]]
-requirement = "=2.0.0"
-version = "2.0.0"
-digest = "sha256:d66e00efe5bc274d115851ac7645972e84b204dd36914c7235db1327ed313e54"
+requirement = "=3.0.0"
+version = "3.0.0"
+digest = "sha256:9713b0d7b47bf6b4f342602d12190dbecb3c073cfa6812818259328eb8a7623d"
 
 [[packages]]
 name = "betty-blocks-types:data-api"
 registry = "bettyblocksdev.azurecr.io"
 
 [[packages.versions]]
-requirement = "=2.0.0"
-version = "2.0.0"
-digest = "sha256:5feead72a07fd94c3c8022c588bdd8e189246e42175bc7e0006495132d65fb4d"
+requirement = "=3.0.0"
+version = "3.0.0"
+digest = "sha256:e6d7f8ce58401277eee4ac110956d42d9a4da34c6ed6cdbe1fa9dc8f3bd6c1dd"
 
 [[packages]]
 name = "betty-blocks-types:types"
 registry = "bettyblocksdev.azurecr.io"
 
 [[packages.versions]]
-requirement = "=2.0.0"
-version = "2.0.0"
-digest = "sha256:0deb3c29a7d1eab2e15ed10d849055ebddf7ab638d3bd61fce9f2901d1a999d5"
+requirement = "=3.0.0"
+version = "3.0.0"
+digest = "sha256:0a45f282ea939522642d1149ade9bfb59ac5cc0faf5ae80dfd03f7509302e917"

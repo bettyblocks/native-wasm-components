@@ -1,13 +1,13 @@
-package betty-blocks:create@2.0.0;
+package betty-blocks:create@3.0.0;
 
 interface create {
-    use betty-blocks-types:data-api/data-api@2.0.0.{helper-context};
-    use betty-blocks-types:types/types@2.0.0.{betty-model, betty-property-mapping, betty-record-json};
+    use betty-blocks-types:data-api/data-api@3.0.0.{helper-context};
+    use betty-blocks-types:types/types@3.0.0.{betty-model, betty-property-mapping, betty-record-json};
 
     create: func(helper-context: helper-context, model: betty-model, mapping: betty-property-mapping, validates: bool) -> result<betty-record-json, string>;
 }
 
 world main {
-    import betty-blocks-types:crud/crud@2.0.0;
+    import betty-blocks-types:crud/crud@3.0.0;
     export create;
 }
