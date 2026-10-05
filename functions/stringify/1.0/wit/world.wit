@@ -1,4 +1,4 @@
-package betty-blocks:stringify@2.0.0;
+package betty-blocks:stringify@3.0.0;
 
 interface stringify {
     type json-string = string;

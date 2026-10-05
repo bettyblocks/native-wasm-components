@@ -53,7 +53,9 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,wkg
+          tool: just
+
+      - uses: bettyblocks/wasm-base-components/.github/actions/install-wkg@main
 
       - name: Install wash
         shell: bash
@@ -128,9 +130,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: wkg
+      - uses: bettyblocks/wasm-base-components/.github/actions/install-wkg@main
 
       - name: Download wasm artifacts
         uses: actions/download-artifact@v4
