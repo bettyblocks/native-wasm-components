@@ -1,6 +1,8 @@
 use serde::Deserialize;
 
-use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
+use crate::betty_blocks_types::types::types::{
+    AuthenticationConfig, BettyAiAgent, BettyAiTool, McpOptions,
+};
 use crate::http::HttpClient;
 use crate::providers::{Prompt, Provider};
 
@@ -10,6 +12,7 @@ const MESSAGES_PATH: &str = "messages";
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search_20260318";
 const MCP_SERVER_NAME_MAX_LEN: usize = 64;
 const MCP_CLIENT_BETA: &str = "mcp-client-2025-11-20";
+const API_KEY_AUTH: &str = "api_key";
 
 pub(crate) struct Anthropic;
 
@@ -136,13 +139,17 @@ fn mcp_server(options: &McpOptions, name: String) -> serde_json::Value {
         "name": name,
     });
 
-    if let Some(token) = options
+    if let Some(value) = options
         .authentication
         .value
         .as_deref()
         .filter(|value| !value.is_empty())
     {
-        server["authorization_token"] = token.into();
+        if options.authentication.kind == API_KEY_AUTH {
+            server["custom_headers"] = serde_json::json!({ "X-API-Key": value });
+        } else {
+            server["authorization_token"] = value.into();
+        }
     }
 
     server
@@ -314,6 +321,24 @@ mod tests {
             body["mcp_servers"][0]["authorization_token"],
             "secret-token"
         );
+    }
+
+    #[test]
+    fn request_body_sends_an_api_key_as_a_custom_header() {
+        let agent = test_agent_with_tools(vec![BettyAiTool::Mcp(McpOptions {
+            description: None,
+            url: "https://mcp.example.com/sse".to_string(),
+            authentication: AuthenticationConfig {
+                kind: "api_key".to_string(),
+                value: Some("my-api-key".to_string()),
+            },
+        })]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert_eq!(body["mcp_servers"][0]["custom_headers"]["X-API-Key"], "my-api-key");
+        assert!(body["mcp_servers"][0].get("authorization_token").is_none());
     }
 
     #[test]
