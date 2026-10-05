@@ -2,12 +2,17 @@
 
 ## Status
 
-**Accepted.** Applies to every component with a `wit/world.wit` in this repository — the
-function components under `functions/` (namespace `betty-blocks`).
+**Superseded.** Major-only bumps are no longer required. `scripts/check-version-bumps.sh` now
+accepts any version increase — major, minor or patch — as long as the version goes up, matching
+the same change in `wasm-base-components`. See [Current policy](#current-policy).
 
-Enforced by `scripts/check-version-bumps.sh` via the `Version Check` workflow.
+The analysis below of what `wit-parser` merges inside one compatibility class still holds, and is
+kept as the reason breaking changes should take a new major.
 
-This is the same policy as
+Originally applied to every component with a `wit/world.wit` in this repository — the function
+components under `functions/` (namespace `betty-blocks`).
+
+This was the same policy as
 [`wasm-base-components` ADR 001](https://github.com/bettyblocks/wasm-base-components/blob/main/docs/decisions/001-major-only-wit-version-bumps.md),
 applied to this repository's components. That ADR carries the full evidence; the summary below
 is what matters here.
@@ -52,16 +57,8 @@ directory (the Betty function version). `release.yaml` derives the Azure registr
 
 ### Enforcement
 
-Enforced in CI by `scripts/check-version-bumps.sh`, run by the **Version Check** workflow on
-every PR. A component whose `src/`, `build.rs`, `Cargo.toml` or `wit/` (excluding the fetched
-`wit/deps/`) changed vs the base branch must show exactly one major step. A component with no
-version on the base branch is new and may start at any major.
-
-There is one exception, mirroring the `dev` exception in `wasm-base-components`: a PR targeting
-**`edge`** may reuse the version a changed component already has there. `edge` is an integration
-environment rather than a production one, so overwriting a version that is still in development
-is safe. Promotion PRs into `acceptance` and `main` get no such allowance — those compare against
-a branch real apps run from, so every changed component must show exactly one major step.
+Was enforced in CI by `scripts/check-version-bumps.sh`, run by the **Version Check** workflow on
+every PR. No longer enforced — see [Current policy](#current-policy).
 
 ## Consequences
 
@@ -69,3 +66,29 @@ a branch real apps run from, so every changed component must show exactly one ma
 deployed, where same-class merging would have collapsed them to one. That is the price of
 refusing the unchecked rebind, and it grows unless consumers are deliberately moved forward onto
 the current major.
+
+## Current policy
+
+**Every published release of a component must increase its version.** Any increase — major,
+minor or patch — is accepted, as long as the version goes up.
+
+```
+2.0.0  ->  2.1.0  ->  2.1.1  ->  3.0.0
+```
+
+Pick the bump by semver, and treat a breaking change as a major: a breaking change shipped as a
+minor or patch is silently rebound onto older consumers in the same compatibility class (see
+[Context](#context)).
+
+`scripts/check-version-bumps.sh`, run by the **Version Check** workflow on every PR, compares the
+`world.wit` version of each component whose `src/`, `build.rs`, `Cargo.toml` or `wit/` (excluding
+the fetched `wit/deps/`) changed against the same file on the PR's base branch:
+
+- changed and not bumped → ❌, unless the base is `edge`, where reuse is allowed;
+- changed and the version went down → ❌, on every base;
+- a component with no version on the base is new and may start at any version.
+
+The `edge` exception mirrors the `dev` exception in `wasm-base-components`: `edge` is an
+integration environment rather than a production one, so overwriting a version that is still in
+development is safe. Promotion PRs into `acceptance` and `main` compare against a branch real
+apps run from, so every changed component must show a version bump there.
