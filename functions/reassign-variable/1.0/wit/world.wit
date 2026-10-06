@@ -1,4 +1,4 @@
-package betty-blocks:reassign-variable@3.0.0;
+package betty-blocks:reassign-variable@4.0.0;
 
 interface reassign-variable {
     use betty-blocks-types:types/types@3.0.0.{json-string, betty-value};
