@@ -9,18 +9,18 @@ wit_bindgen::generate!({
 use betty_blocks::smtp::client::{
     self, Attachment, Credentials, Message, Recipient, Sender, TlsMode,
 };
-use exports::betty_blocks::send_mail::send_mail::{
-    CollectionHandle, Guest, Input, JsonString, KeyValue, BettyPropertyPath,
-};
+use betty_blocks_types::types::types::{BettyCollection, BettyProperty, KeyValue};
+use exports::betty_blocks::send_mail::send_mail::{BettySendMail, Guest, JsonString};
 use futures::future::join_all;
+use std::collections::HashMap;
 use tracing::debug;
-use types::{CollectionData, FileInfo, SendMailOutput, UrlField};
+use types::{FileInfo, SendMailOutput, UrlField};
 use wstd::http::{Client, Request};
 
 struct SendMailComponent;
 
 impl Guest for SendMailComponent {
-    fn send_mail(input: Input) -> Result<JsonString, String> {
+    fn send_mail(input: BettySendMail) -> Result<JsonString, String> {
         let tls_mode = resolve_tls_mode(input.secure, input.port);
 
         let creds = Credentials {
@@ -37,9 +37,11 @@ impl Guest for SendMailComponent {
             input.attachments_col_property,
         )?;
 
-        let variables = input
-            .variables
-            .map(|vars| vars.into_iter().map(|kv| (kv.key, kv.value)).collect());
+        let variables = input.variables.map(|vars| {
+            vars.into_iter()
+                .map(|kv| (kv.key, kv.value.unwrap_or_default()))
+                .collect()
+        });
 
         let body = renderer::render_body(input.body.unwrap_or_default(), variables)?;
 
@@ -89,7 +91,7 @@ fn collect_map_attachments(map_attachments: Option<Vec<KeyValue>>) -> Vec<(Strin
 
     list.into_iter()
         .filter_map(|kv| {
-            let url = extract_url(&kv.value);
+            let url = kv.value.as_deref().map(extract_url).unwrap_or_default();
             if kv.key.is_empty() || url.is_empty() {
                 debug!("Skipping map attachment: empty filename or url");
                 return None;
@@ -100,26 +102,30 @@ fn collect_map_attachments(map_attachments: Option<Vec<KeyValue>>) -> Vec<(Strin
 }
 
 fn collect_col_attachments(
-    col: Option<CollectionHandle>,
-    props: Option<Vec<BettyPropertyPath>>,
+    col: Option<BettyCollection>,
+    props: Option<Vec<BettyProperty>>,
 ) -> Result<Vec<(String, String)>, String> {
-    let (Some(handle), Some(props)) = (col, props) else {
+    let (Some(collection), Some(props)) = (col, props) else {
         return Ok(Vec::new());
     };
 
-    let Some(col_json) = handle.data else {
+    let Some(records) = collection.data else {
         return Ok(Vec::new());
     };
 
-    let col_data: CollectionData =
-        serde_json::from_str(&col_json).map_err(|e| format!("Invalid attachmentsCol: {e}"))?;
     let prop_name = &props.first().ok_or("attachmentsColProperty is empty")?.name;
 
-    Ok(col_data
-        .data
+    // Each record arrives as its own JSON object; only the selected property is read.
+    let records = records
+        .iter()
+        .map(|record| serde_json::from_str::<HashMap<String, serde_json::Value>>(record))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Invalid attachmentsCol: {e}"))?;
+
+    Ok(records
         .into_iter()
-        .filter_map(|mut item| {
-            let file = item.remove(prop_name)?;
+        .filter_map(|mut record| {
+            let file = serde_json::from_value::<FileInfo>(record.remove(prop_name)?).ok()?;
             match file {
                 // both name and url are present
                 FileInfo {
@@ -143,8 +149,8 @@ fn collect_col_attachments(
 
 fn build_attachments(
     map_attachments: Option<Vec<KeyValue>>,
-    col: Option<CollectionHandle>,
-    props: Option<Vec<BettyPropertyPath>>,
+    col: Option<BettyCollection>,
+    props: Option<Vec<BettyProperty>>,
 ) -> Result<Option<Vec<Attachment>>, String> {
     let mut files = collect_map_attachments(map_attachments);
     files.extend(collect_col_attachments(col, props)?);
@@ -239,21 +245,23 @@ export!(SendMailComponent);
 #[cfg(test)]
 mod tests {
     use super::{
-        collect_col_attachments, collect_map_attachments, resolve_tls_mode, CollectionHandle,
-        KeyValue, BettyPropertyPath, TlsMode,
+        collect_col_attachments, collect_map_attachments, resolve_tls_mode, BettyCollection,
+        BettyProperty, KeyValue, TlsMode,
     };
+    use crate::betty_blocks_types::types::types::BettyModel;
 
-    fn handle(json: &str) -> CollectionHandle {
-        CollectionHandle {
-            data: Some(json.to_string()),
+    fn collection(records: &[&str]) -> BettyCollection {
+        BettyCollection {
+            model: BettyModel {
+                name: "Attachment".to_string(),
+            },
+            data: Some(records.iter().map(|record| record.to_string()).collect()),
         }
     }
 
-    fn prop_path(name: &str) -> BettyPropertyPath {
-        BettyPropertyPath {
+    fn prop_path(name: &str) -> BettyProperty {
+        BettyProperty {
             name: name.to_string(),
-            kind: String::new(),
-            object_fields: None,
         }
     }
 
@@ -289,10 +297,7 @@ mod tests {
     fn tls_explicit_false_is_none() {
         assert!(matches!(resolve_tls_mode(Some(false), 25), TlsMode::None));
         assert!(matches!(resolve_tls_mode(Some(false), 587), TlsMode::None));
-        assert!(matches!(
-            resolve_tls_mode(Some(false), 1025),
-            TlsMode::None
-        ));
+        assert!(matches!(resolve_tls_mode(Some(false), 1025), TlsMode::None));
         assert!(matches!(resolve_tls_mode(Some(false), 2525), TlsMode::None));
     }
 
@@ -346,7 +351,7 @@ mod tests {
     fn kv(key: &str, value: &str) -> KeyValue {
         KeyValue {
             key: key.to_string(),
-            value: value.to_string(),
+            value: Some(value.to_string()),
         }
     }
 
@@ -431,30 +436,28 @@ mod tests {
     fn col_attachments_none_inputs() {
         assert_eq!(collect_col_attachments(None, None).unwrap(), vec![]);
         assert_eq!(
-            collect_col_attachments(Some(handle("{}")), None).unwrap(),
+            collect_col_attachments(Some(collection(&[])), None).unwrap(),
             vec![]
         );
-        assert_eq!(
-            collect_col_attachments(None, Some(vec![])).unwrap(),
-            vec![]
-        );
+        assert_eq!(collect_col_attachments(None, Some(vec![])).unwrap(), vec![]);
     }
 
     #[test]
-    fn col_attachments_handle_with_no_data() {
-        let result = collect_col_attachments(
-            Some(CollectionHandle { data: None }),
-            Some(vec![prop_path("file")]),
-        )
-        .unwrap();
+    fn col_attachments_collection_with_no_data() {
+        let empty = BettyCollection {
+            data: None,
+            ..collection(&[])
+        };
+        let result = collect_col_attachments(Some(empty), Some(vec![prop_path("file")])).unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
     fn col_attachments_with_url() {
-        let col = r#"{"data":[{"file":{"name":"doc.pdf","url":"https://example.com/doc.pdf"}}]}"#;
+        let record = r#"{"id":1,"file":{"name":"doc.pdf","url":"https://example.com/doc.pdf"}}"#;
         let result =
-            collect_col_attachments(Some(handle(col)), Some(vec![prop_path("file")])).unwrap();
+            collect_col_attachments(Some(collection(&[record])), Some(vec![prop_path("file")]))
+                .unwrap();
         assert_eq!(
             result,
             vec![(
@@ -466,17 +469,19 @@ mod tests {
 
     #[test]
     fn col_attachments_without_url_is_skipped() {
-        let col = r#"{"data":[{"file":{"name":"https://example.com/raw.pdf"}}]}"#;
+        let record = r#"{"file":{"name":"https://example.com/raw.pdf"}}"#;
         let result =
-            collect_col_attachments(Some(handle(col)), Some(vec![prop_path("file")])).unwrap();
+            collect_col_attachments(Some(collection(&[record])), Some(vec![prop_path("file")]))
+                .unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
     fn col_attachments_empty_name_extracts_from_url() {
-        let col = r#"{"data":[{"file":{"name":"","url":"https://example.com/doc.pdf"}}]}"#;
+        let record = r#"{"file":{"name":"","url":"https://example.com/doc.pdf"}}"#;
         let result =
-            collect_col_attachments(Some(handle(col)), Some(vec![prop_path("file")])).unwrap();
+            collect_col_attachments(Some(collection(&[record])), Some(vec![prop_path("file")]))
+                .unwrap();
         assert_eq!(
             result,
             vec![(
@@ -488,22 +493,44 @@ mod tests {
 
     #[test]
     fn col_attachments_skips_missing_prop() {
-        let col = r#"{"data":[{"other":{"name":"doc.pdf","url":"https://example.com/doc.pdf"}}]}"#;
+        let record = r#"{"other":{"name":"doc.pdf","url":"https://example.com/doc.pdf"}}"#;
         let result =
-            collect_col_attachments(Some(handle(col)), Some(vec![prop_path("file")])).unwrap();
+            collect_col_attachments(Some(collection(&[record])), Some(vec![prop_path("file")]))
+                .unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
-    fn col_attachments_invalid_col_json() {
+    fn col_attachments_multiple_records() {
+        let records = [
+            r#"{"file":{"name":"a.pdf","url":"https://example.com/a.pdf"}}"#,
+            r#"{"file":null}"#,
+            r#"{"file":{"name":"b.pdf","url":"https://example.com/b.pdf"}}"#,
+        ];
         let result =
-            collect_col_attachments(Some(handle("not json")), Some(vec![prop_path("file")]));
+            collect_col_attachments(Some(collection(&records)), Some(vec![prop_path("file")]))
+                .unwrap();
+        assert_eq!(
+            result,
+            vec![
+                ("a.pdf".to_string(), "https://example.com/a.pdf".to_string()),
+                ("b.pdf".to_string(), "https://example.com/b.pdf".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn col_attachments_invalid_record_json() {
+        let result = collect_col_attachments(
+            Some(collection(&["not json"])),
+            Some(vec![prop_path("file")]),
+        );
         assert!(result.is_err());
     }
 
     #[test]
     fn col_attachments_empty_prop_list() {
-        let result = collect_col_attachments(Some(handle(r#"{"data":[]}"#)), Some(vec![]));
+        let result = collect_col_attachments(Some(collection(&[])), Some(vec![]));
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "attachmentsColProperty is empty");
     }
