@@ -5,7 +5,8 @@ wit_bindgen::generate!({ generate_all });
 struct Component;
 
 impl Guest for Component {
-    fn parse_json(input: String) -> String {
+    // The schema model only types the step's output in the IDE; the JSON passes through as is.
+    fn parse_json(input: String, _schema_model: Option<String>) -> String {
         input
     }
 }
