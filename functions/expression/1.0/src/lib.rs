@@ -2,7 +2,7 @@ use rquickjs::{
     embed, loader::Bundle, CatchResultExt, CaughtError, Context, Ctx, Module, Runtime, Value,
 };
 
-use crate::exports::betty_blocks::expression::expression::{Guest, JsonString};
+use crate::exports::betty_blocks::expression::expression::{BettyExpression, Guest, JsonString};
 
 wit_bindgen::generate!({ generate_all });
 
@@ -31,17 +31,12 @@ fn handle_catch_error<'a>(error: CaughtError<'a>, ctx: &Ctx<'a>) -> String {
 }
 
 impl Guest for Expression {
-    fn expression(
-        expression: String,
-        variables: JsonString,
-        _schema_model: Option<String>,
-        _debug_logging: Option<bool>,
-    ) -> Result<JsonString, String> {
+    fn expression(input: BettyExpression) -> Result<JsonString, String> {
         let rt = Runtime::new().expect("if not enough memory, should we just crash");
         let ctx = Context::full(&rt).expect("if not enough memory, should we just crash");
 
-        let escaped_expression = format!("{:?}", expression);
-        let escaped_variables = format!("{:?}", variables);
+        let escaped_expression = format!("{:?}", input.expression);
+        let escaped_variables = format!("{:?}", input.variables);
 
         rt.set_loader(TEMPLATED_JS, TEMPLATED_JS);
         let out: Result<String, String> = ctx.with(|ctx| {
@@ -81,7 +76,12 @@ export! {Expression}
 
 #[cfg(test)]
 fn run_expression(expression: String, variables: String) -> Result<String, String> {
-    Expression::expression(expression, variables, None, None)
+    Expression::expression(BettyExpression {
+        expression,
+        variables,
+        schema_model: None,
+        debug_logging: None,
+    })
 }
 
 #[test]
