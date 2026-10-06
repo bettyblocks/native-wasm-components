@@ -1,9 +1,9 @@
-package betty-blocks:stringify@3.0.0;
+package betty-blocks:stringify@4.0.0;
 
 interface stringify {
-    type json-string = string;
+    use betty-blocks-types:types/types@3.0.0.{betty-value};
 
-    stringify: func(value: json-string) -> string;
+    stringify: func(value: betty-value) -> string;
 }
 
 world main {
