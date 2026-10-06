@@ -1,8 +1,8 @@
-package betty-blocks:store-file@2.0.0;
+package betty-blocks:store-file@3.0.0;
 
 interface store {
-    use betty-blocks-types:data-api/data-api@2.0.0.{helper-context};
-    use betty-blocks-types:types/types@2.0.0.{betty-model, betty-property};
+    use betty-blocks-types:data-api/data-api@3.0.0.{helper-context};
+    use betty-blocks-types:types/types@3.0.0.{betty-model, betty-property};
 
     store-file: func(
         helper-context: helper-context,
@@ -16,9 +16,9 @@ interface store {
 world store-file {
     import wasi:http/outgoing-handler@0.2.0;
     import wasi:random/random@0.2.0;
-    import betty-blocks-types:data-api/data-api@2.0.0;
-    import betty-blocks-types:types/types@2.0.0;
-    import betty-blocks-types:upload-file/upload-file@2.0.0;
+    import betty-blocks-types:data-api/data-api@3.0.0;
+    import betty-blocks-types:types/types@3.0.0;
+    import betty-blocks-types:upload-file/upload-file@4.0.0;
 
     export store;
 }
