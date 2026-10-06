@@ -1,4 +1,4 @@
-package betty-blocks:add-variable-to-array@3.0.0;
+package betty-blocks:add-variable-to-array@4.0.0;
 
 interface add-variable-to-array {
     use betty-blocks-types:types/types@3.0.0.{json-string, betty-value};
