@@ -45,6 +45,7 @@ defmodule NativeWasmComponents.MixProject do
     "functions/*/*"
     |> Path.wildcard()
     |> Enum.map(fn path ->
+      IO.inspect(path, label: "path")
       {_, 0} = System.cmd("just", ["build"], cd: path, into: IO.stream())
     end)
   end
