@@ -1,8 +1,6 @@
 use serde::Deserialize;
 
-use crate::betty_blocks_types::types::types::{
-    AuthenticationConfig, BettyAiAgent, BettyAiTool, McpOptions,
-};
+use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
 use crate::http::HttpClient;
 use crate::providers::{Prompt, Provider};
 
@@ -232,6 +230,7 @@ fn extract_text(response: &[u8]) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::betty_blocks_types::types::types::AuthenticationConfig;
     use crate::test_helpers::{
         MockHttpClient, anthropic_text_response, http_search_tool, mcp_tool, test_agent_with_tools,
         test_prompt, test_provider,

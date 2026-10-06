@@ -106,13 +106,15 @@ defmodule NativeWasmComponents.AiAgentTest do
                ] == request["mcp_servers"]
 
         assert request["system"] =~ "Tools:"
+
         assert request["system"] =~
                  ~s|- mcp-server https://gateway.mcpservers.org/yahoo-finance/mcp: call this tool if the prompt contain "mcp call"|
 
         Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
       end)
 
-      assert {:ok, "ok"} == run_component(build_args(url, %{provider: %{"tools" => {:some, tools}}}))
+      assert {:ok, "ok"} ==
+               run_component(build_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
     test "honours an explicit max-tokens", %{sham: sham, url: url} do
@@ -139,7 +141,8 @@ defmodule NativeWasmComponents.AiAgentTest do
     test "reports a non-success status", %{sham: sham, url: url} do
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 429, "slow down") end)
 
-      assert {:error, "Anthropic returned status 429: slow down"} == run_component(build_args(url))
+      assert {:error, "Anthropic returned status 429: slow down"} ==
+               run_component(build_args(url))
     end
 
     test "rejects an unsupported provider", %{url: url} do
