@@ -7,7 +7,12 @@ defmodule NativeWasmComponents.ExpressionTest do
     case TestHelper.run_component(
            @component_path,
            {"betty-blocks:expression/expression@4.0.0", "expression"},
-           [expression, Jason.encode!(variables), :none, :none]
+           %{
+             "expression" => expression,
+             "variables" => Jason.encode!(variables),
+             "schema-model" => :none,
+             "debug-logging" => :none
+           }
          ) do
       {:ok, result} -> {:ok, Jason.decode!(result)}
       e -> e
