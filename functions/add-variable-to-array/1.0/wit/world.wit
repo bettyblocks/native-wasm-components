@@ -1,9 +1,9 @@
-package betty-blocks:add-variable-to-array@3.0.0;
+package betty-blocks:add-variable-to-array@4.0.0;
 
 interface add-variable-to-array {
-    type json-string = string;
+    use betty-blocks-types:types/types@3.0.0.{json-string, betty-value};
 
-    add-variable-to-array: func(array: json-string, item: json-string) -> result<json-string, string>;
+    add-variable-to-array: func(array: betty-value, item: betty-value) -> result<json-string, string>;
 }
 
 world main {
