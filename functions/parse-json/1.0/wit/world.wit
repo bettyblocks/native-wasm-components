@@ -1,9 +1,9 @@
 package betty-blocks:parse-json@4.0.0;
 
 interface parse-json {
-    use betty-blocks-types:types/types@3.1.0.{betty-schema-model, betty-value};
+    use betty-blocks-types:types/types@3.1.0.{betty-schema-model, json-string};
 
-    parse-json: func(input: string, schema-model: option<betty-schema-model>) -> betty-value;
+    parse-json: func(input: string, schema-model: option<betty-schema-model>) -> json-string;
 }
 
 world main {
