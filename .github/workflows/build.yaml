@@ -44,6 +44,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Edge re-resolves WIT deps instead of verifying wkg.lock (docs/decisions/002).
+          build-args: |
+            REFRESH_WIT_LOCKS=${{ github.ref_name == 'edge' }}
           secrets: |
             "npm_token=${{ secrets.NPM_TOKEN }}"
 
