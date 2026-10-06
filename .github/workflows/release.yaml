@@ -87,6 +87,10 @@ jobs:
 
       - name: Build wasm components
         run: mix build
+        # Builds targeting edge re-resolve WIT deps instead of verifying wkg.lock:
+        # wasm-base-components' dev overwrites version tags on publish (docs/decisions/002).
+        env:
+          REFRESH_WIT_LOCKS: ${{ github.ref_name == 'edge' }}
 
       - name: Upload wasm artifacts
         uses: actions/upload-artifact@v4
