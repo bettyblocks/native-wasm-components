@@ -1,0 +1,16 @@
+package betty-blocks:ai-agent@2.0.0;
+
+interface ai-agent {
+    use betty-blocks-types:types/types@3.0.0.{betty-ai-provider};
+
+    ai-agent: func(
+        provider: betty-ai-provider,
+        system-prompt: string,
+        prompt: string,
+        max-tokens: option<u32>,
+    ) -> result<string, string>;
+}
+
+world main {
+    export ai-agent;
+}
