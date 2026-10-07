@@ -1,6 +1,6 @@
-use crate::wasi::logging::logging::log;
+use crate::wasi::logging::logging::{log, Level};
 
-use crate::exports::betty_blocks::logging::logger::{self, Input};
+use crate::exports::betty_blocks::logging::logger::{self, JsonString, LogSeverity};
 use simd_json::prelude::Writable;
 
 // with: { "wasi:logging/logging@0.1.0-draft": generate, }
@@ -9,8 +9,8 @@ wit_bindgen::generate!({ generate_all });
 struct Logger;
 
 impl logger::Guest for Logger {
-    fn log(input: Input) -> Result<(), String> {
-        let mut variables = input.variables;
+    fn log(severity: LogSeverity, mut variables: JsonString) -> Result<(), String> {
+        let level = Level::from(severity);
         let mut var_bytes = unsafe { variables.as_bytes_mut() };
         let tape = simd_json::to_tape(&mut var_bytes).map_err(|e| e.to_string())?;
         let value = tape.as_value();
@@ -20,10 +20,21 @@ impl logger::Guest for Logger {
             .ok_or_else(|| "expected log variables to be an object/map".to_string())?;
         for (key, item) in map.iter() {
             let item = item.encode();
-            log(input.severity, "stdout", &format!("{key} : {item}"));
+            log(level, "stdout", &format!("{key} : {item}"));
         }
 
         Ok(())
+    }
+}
+
+impl From<LogSeverity> for Level {
+    fn from(severity: LogSeverity) -> Level {
+        match severity {
+            LogSeverity::Debug => Level::Debug,
+            LogSeverity::Info => Level::Info,
+            LogSeverity::Warn => Level::Warn,
+            LogSeverity::Error => Level::Error,
+        }
     }
 }
 
