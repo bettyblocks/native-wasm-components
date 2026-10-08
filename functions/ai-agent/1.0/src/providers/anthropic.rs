@@ -10,7 +10,6 @@ const MESSAGES_PATH: &str = "messages";
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search_20260318";
 const MCP_SERVER_NAME_MAX_LEN: usize = 64;
 const MCP_CLIENT_BETA: &str = "mcp-client-2025-11-20";
-const API_KEY_AUTH: &str = "api_key";
 
 pub(crate) struct Anthropic;
 
@@ -143,11 +142,7 @@ fn mcp_server(options: &McpOptions, name: String) -> serde_json::Value {
         .as_deref()
         .filter(|value| !value.is_empty())
     {
-        if options.authentication.kind == API_KEY_AUTH {
-            server["custom_headers"] = serde_json::json!({ "X-API-Key": value });
-        } else {
-            server["authorization_token"] = value.into();
-        }
+        server["authorization_token"] = value.into();
     }
 
     server
@@ -323,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    fn request_body_sends_an_api_key_as_a_custom_header() {
+    fn request_body_sends_an_api_key_as_the_authorization_token() {
         let agent = test_agent_with_tools(vec![BettyAiTool::Mcp(McpOptions {
             description: None,
             url: "https://mcp.example.com/sse".to_string(),
@@ -336,8 +331,8 @@ mod tests {
         let body: serde_json::Value =
             serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
 
-        assert_eq!(body["mcp_servers"][0]["custom_headers"]["X-API-Key"], "my-api-key");
-        assert!(body["mcp_servers"][0].get("authorization_token").is_none());
+        assert_eq!(body["mcp_servers"][0]["authorization_token"], "my-api-key");
+        assert!(body["mcp_servers"][0].get("custom_headers").is_none());
     }
 
     #[test]
