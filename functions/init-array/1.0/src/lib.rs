@@ -5,7 +5,8 @@ wit_bindgen::generate!({ generate_all });
 struct Component;
 
 impl Guest for Component {
-    fn init_array() -> String {
+    // The schema model only types the array's elements in the IDE; the array starts empty either way.
+    fn init_array(_schema_model: Option<String>) -> String {
         String::from("[]")
     }
 }
