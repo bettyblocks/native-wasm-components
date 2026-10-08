@@ -1,5 +1,4 @@
 fetch-wit-deps:
-  if [ "${REFRESH_WIT_LOCKS:-}" = "true" ]; then rm -rf wkg.lock wit/deps; fi
   WKG_CONFIG_FILE={{justfile_directory()}}/../../../wkg.toml wash wit fetch
 
 move_wasm_to_root:

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::exports::betty_blocks::create_object::create_object::{Guest, JsonString};
 
 wit_bindgen::generate!({ generate_all });
