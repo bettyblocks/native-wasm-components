@@ -1,8 +1,8 @@
-defmodule NativeWasmComponents.AiAgentTest do
+defmodule NativeWasmComponents.PromptCallTest do
   use ExUnit.Case, async: true
 
-  @component_path "functions/ai-agent/1.0/ai_agent.wasm"
-  @interface {"betty-blocks:ai-agent/ai-agent@1.0.0", "ai-agent"}
+  @component_path "functions/prompt-call/1.0/prompt_call.wasm"
+  @interface {"betty-blocks:prompt-call/prompt-call@1.0.0", "prompt-call"}
 
   defp run_component(args) do
     TestHelper.run_component(@component_path, @interface, args)
@@ -33,7 +33,7 @@ defmodule NativeWasmComponents.AiAgentTest do
     Jason.encode!(%{content: [%{type: "text", text: text}]})
   end
 
-  describe "ai-agent component" do
+  describe "prompt-call component" do
     setup do
       sham = Sham.start()
 

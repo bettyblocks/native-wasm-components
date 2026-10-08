@@ -64,11 +64,6 @@ impl Provider for Anthropic {
             ));
         }
 
-        let pretty = serde_json::from_slice::<serde_json::Value>(&response)
-            .map(|value| serde_json::to_string_pretty(&value).unwrap_or_default())
-            .unwrap_or_else(|_| String::from_utf8_lossy(&response).into_owned());
-        eprintln!("Anthropic response:\n{pretty}");
-
         extract_text(&response)
     }
 }

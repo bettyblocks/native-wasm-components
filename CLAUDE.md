@@ -131,7 +131,7 @@ docker login -u <user> -p <token> wascodevdev.azurecr.io
 wkg oci push wascodevdev.azurecr.io/wasco-dev/<function-name>:<version> <file>.wasm
 ```
 
-e.g. `wkg oci push wascodevdev.azurecr.io/wasco-dev/ai-agent:1.0.0 ai_agent.wasm`.
+e.g. `wkg oci push wascodevdev.azurecr.io/wasco-dev/prompt-call:1.0.0 prompt_call.wasm`.
 
 Credentials are shared by the platform team — ask, don't commit them. This is the **dev**
 registry (`wascodevdev`), which is separate from the one `wkg.toml` maps for WIT dependency
@@ -152,10 +152,10 @@ as a single opaque SchemaModel/OBJECT (wit-ui-generator ADR 004). So step config
 
 ```wit
 // wrong — collapses into one opaque blob in the IDE
-ai-agent: func(input: input) -> result<output, string>;
+prompt-call: func(input: input) -> result<output, string>;
 
 // right — one option per argument
-ai-agent: func(provider: ai-provider, instructions: string, message: string,
+prompt-call: func(provider: ai-provider, instructions: string, message: string,
                max-tokens: option<u32>) -> result<string, string>;
 ```
 

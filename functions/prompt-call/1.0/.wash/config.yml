@@ -2,4 +2,4 @@ version: 2.2.0
 
 build:
   command: cargo build --release --target wasm32-wasip2
-  component_path: target/wasm32-wasip2/release/ai_agent.wasm
+  component_path: target/wasm32-wasip2/release/prompt_call.wasm

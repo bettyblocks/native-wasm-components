@@ -1,5 +1,5 @@
 [package]
-name = "ai_agent"
+name = "prompt_call"
 version = "1.0.0"
 edition = "2024"
 

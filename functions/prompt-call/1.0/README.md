@@ -1,6 +1,6 @@
-# AI Agent
+# Prompt Call
 
-Calls an AI model from an AI Agent action. Takes a provider configuration, a
+Calls an AI model from a Prompt Call action. Takes a provider configuration, a
 system prompt and a prompt, and returns the model's text.
 
 Only Anthropic is supported. Providers are dispatched on `provider.name`, so
@@ -43,7 +43,7 @@ just test
 ```
 
 Unit tests run on the host against a mock HTTP client. The component itself is
-exercised from Elixir in `test/native_wasm_components/ai_agent_test.exs`, which
+exercised from Elixir in `test/native_wasm_components/prompt_call_test.exs`, which
 passes a local server's base url as the provider's `url`:
 
 ```sh

@@ -6,7 +6,7 @@ mod test_helpers;
 use wstd::http::Client;
 
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
-use crate::exports::betty_blocks::ai_agent::ai_agent;
+use crate::exports::betty_blocks::prompt_call::prompt_call;
 use crate::http::HttpClient;
 use crate::providers::anthropic::Anthropic;
 use crate::providers::{Prompt, Provider};
@@ -15,8 +15,8 @@ wit_bindgen::generate!({ generate_all });
 
 struct Component;
 
-impl ai_agent::Guest for Component {
-    fn ai_agent(
+impl prompt_call::Guest for Component {
+    fn prompt_call(
         agent: BettyAiAgent,
         system_prompt: String,
         prompt: String,

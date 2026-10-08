@@ -3,17 +3,6 @@
 version = 4
 
 [[package]]
-name = "ai_agent"
-version = "1.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "tokio",
- "wit-bindgen 0.51.0",
- "wstd",
-]
-
-[[package]]
 name = "anyhow"
 version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -225,6 +214,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "prompt_call"
+version = "1.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+ "wit-bindgen 0.51.0",
+ "wstd",
 ]
 
 [[package]]
