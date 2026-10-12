@@ -92,8 +92,8 @@ require_bump() {
   [ -z "$hits" ] && return 0 # nothing relevant to this component changed
 
   local cur base
-  cur="$(version_of <"$vfile" 2>/dev/null)"
-  base="$(git show "${BASE}:${vfile}" 2>/dev/null | version_of)"
+  cur="$(version_of <"$vfile" 2>/dev/null || true)"
+  base="$(git show "${BASE}:${vfile}" 2>/dev/null | version_of || true)"
 
   if [ -z "$base" ]; then
     echo "🆕 ${label}: new component (no version on base) — OK"

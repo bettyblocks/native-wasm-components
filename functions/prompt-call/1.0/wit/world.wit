@@ -1,0 +1,16 @@
+package betty-blocks:prompt-call@1.0.0;
+
+interface prompt-call {
+    use betty-blocks-types:types/types@2.4.0.{betty-ai-agent,json-string};
+
+    prompt-call: func(
+        ai-agent: betty-ai-agent,
+        system-prompt: string,
+        prompt: string,
+        max-tokens: option<u32>,
+    ) -> result<string, string>;
+}
+
+world main {
+    export prompt-call;
+}
