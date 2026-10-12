@@ -108,7 +108,8 @@ fn mcp_options(url: &str, token: Option<&str>, selected: Option<&[&str]>) -> Mcp
             kind: "bearer".to_string(),
             value: token.map(|token| token.to_string()),
         },
-        tools: selected.map(|selected| selected.iter().map(|tool| tool.to_string()).collect()),
+        enabled_tools: selected
+            .map(|selected| selected.iter().map(|tool| tool.to_string()).collect()),
     }
 }
 

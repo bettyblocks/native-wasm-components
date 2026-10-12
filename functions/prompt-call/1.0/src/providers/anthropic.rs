@@ -127,7 +127,7 @@ fn mcp_toolset(options: &McpOptions, name: &str) -> serde_json::Value {
         "mcp_server_name": name,
     });
 
-    let Some(selected) = options.tools.as_deref() else {
+    let Some(selected) = options.enabled_tools.as_deref() else {
         return toolset;
     };
 
@@ -341,7 +341,7 @@ mod tests {
                 kind: "api_key".to_string(),
                 value: Some("my-api-key".to_string()),
             },
-            tools: None,
+            enabled_tools: None,
         })]);
 
         let body: serde_json::Value =
@@ -436,8 +436,10 @@ mod tests {
 
     #[test]
     fn request_body_disables_every_mcp_tool_for_an_empty_selection() {
-        let agent =
-            test_agent_with_tools(vec![mcp_tool_limited_to("https://mcp.example.com/sse", &[])]);
+        let agent = test_agent_with_tools(vec![mcp_tool_limited_to(
+            "https://mcp.example.com/sse",
+            &[],
+        )]);
 
         let body: serde_json::Value =
             serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();

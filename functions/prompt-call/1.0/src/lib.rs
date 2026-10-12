@@ -101,7 +101,7 @@ mod tests {
                 kind: "access_token".to_string(),
                 value: None,
             },
-            tools: None,
+            enabled_tools: None,
         })]);
 
         run(&client, &agent, &test_prompt("hi")).await.unwrap();

@@ -39,7 +39,7 @@ defmodule NativeWasmComponents.PromptCallTest do
        "description" => :none,
        "url" => "https://mcp.example.com/mcp",
        "authentication" => %{"kind" => "access_token", "value" => :none},
-       "tools" => selected
+       "enabled-tools" => selected
      }}
   end
 
@@ -88,7 +88,7 @@ defmodule NativeWasmComponents.PromptCallTest do
            "description" => {:some, "call this tool if the prompt contain \"mcp call\""},
            "url" => "https://gateway.mcpservers.org/yahoo-finance/mcp",
            "authentication" => %{"kind" => "access_token", "value" => {:some, "secret-token"}},
-           "tools" => :none
+           "enabled-tools" => :none
          }}
       ]
 
