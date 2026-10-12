@@ -106,10 +106,7 @@ fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
             })),
             BettyAiTool::Mcp(options) => {
                 let name = unique_mcp_server_name(&options.url, &mcp_servers);
-                tools_body.push(serde_json::json!({
-                    "type": "mcp_toolset",
-                    "mcp_server_name": name,
-                }));
+                tools_body.push(mcp_toolset(options, &name));
                 mcp_servers.push(mcp_server(options, name))
             }
         }
@@ -122,6 +119,29 @@ fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
         body["mcp_servers"] = mcp_servers.into();
     }
     body.to_string().into_bytes()
+}
+
+fn mcp_toolset(options: &McpOptions, name: &str) -> serde_json::Value {
+    let mut toolset = serde_json::json!({
+        "type": "mcp_toolset",
+        "mcp_server_name": name,
+    });
+
+    let Some(selected) = options.tools.as_deref() else {
+        return toolset;
+    };
+
+    toolset["default_config"] = serde_json::json!({ "enabled": false });
+
+    if !selected.is_empty() {
+        toolset["configs"] = selected
+            .iter()
+            .map(|tool| (tool.clone(), serde_json::json!({ "enabled": true })))
+            .collect::<serde_json::Map<String, serde_json::Value>>()
+            .into();
+    }
+
+    toolset
 }
 
 fn mcp_server(options: &McpOptions, name: String) -> serde_json::Value {
@@ -222,8 +242,8 @@ mod tests {
     use super::*;
     use crate::betty_blocks_types::types::types::AuthenticationConfig;
     use crate::test_helpers::{
-        MockHttpClient, anthropic_text_response, http_search_tool, mcp_tool, test_agent_with_tools,
-        test_prompt, test_provider,
+        MockHttpClient, anthropic_text_response, http_search_tool, mcp_tool, mcp_tool_limited_to,
+        test_agent_with_tools, test_prompt, test_provider,
     };
 
     #[test]
@@ -321,6 +341,7 @@ mod tests {
                 kind: "api_key".to_string(),
                 value: Some("my-api-key".to_string()),
             },
+            tools: None,
         })]);
 
         let body: serde_json::Value =
@@ -384,6 +405,61 @@ mod tests {
         assert_eq!(body["tools"][0]["type"], WEB_SEARCH_TOOL_TYPE);
         assert_eq!(body["tools"][1]["type"], "mcp_toolset");
         assert_eq!(body["mcp_servers"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn request_body_leaves_every_mcp_tool_available_without_a_selection() {
+        let agent = test_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert!(body["tools"][0].get("default_config").is_none());
+        assert!(body["tools"][0].get("configs").is_none());
+    }
+
+    #[test]
+    fn request_body_enables_only_the_mcp_tools_the_builder_picked() {
+        let agent = test_agent_with_tools(vec![mcp_tool_limited_to(
+            "https://mcp.example.com/sse",
+            &["get_customer", "list_orders"],
+        )]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert_eq!(body["tools"][0]["default_config"]["enabled"], false);
+        assert_eq!(body["tools"][0]["configs"]["get_customer"]["enabled"], true);
+        assert_eq!(body["tools"][0]["configs"]["list_orders"]["enabled"], true);
+        assert_eq!(body["tools"][0]["configs"].as_object().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn request_body_disables_every_mcp_tool_for_an_empty_selection() {
+        let agent =
+            test_agent_with_tools(vec![mcp_tool_limited_to("https://mcp.example.com/sse", &[])]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert_eq!(body["tools"][0]["default_config"]["enabled"], false);
+        assert!(body["tools"][0].get("configs").is_none());
+    }
+
+    #[test]
+    fn request_body_keeps_the_selections_of_two_mcp_servers_apart() {
+        let agent = test_agent_with_tools(vec![
+            mcp_tool_limited_to("https://mcp.example.com/finance", &["get_quote"]),
+            mcp_tool_limited_to("https://mcp.example.com/weather", &["get_forecast"]),
+        ]);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+
+        assert_eq!(body["tools"][0]["configs"]["get_quote"]["enabled"], true);
+        assert!(body["tools"][0]["configs"].get("get_forecast").is_none());
+        assert_eq!(body["tools"][1]["configs"]["get_forecast"]["enabled"], true);
+        assert!(body["tools"][1]["configs"].get("get_quote").is_none());
     }
 
     #[test]

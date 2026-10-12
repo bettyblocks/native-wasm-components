@@ -93,14 +93,23 @@ pub(crate) fn http_search_tool() -> BettyAiTool {
 }
 
 pub(crate) fn mcp_tool(url: &str, token: Option<&str>) -> BettyAiTool {
-    BettyAiTool::Mcp(McpOptions {
+    BettyAiTool::Mcp(mcp_options(url, token, None))
+}
+
+pub(crate) fn mcp_tool_limited_to(url: &str, selected: &[&str]) -> BettyAiTool {
+    BettyAiTool::Mcp(mcp_options(url, None, Some(selected)))
+}
+
+fn mcp_options(url: &str, token: Option<&str>, selected: Option<&[&str]>) -> McpOptions {
+    McpOptions {
         description: None,
         url: url.to_string(),
         authentication: AuthenticationConfig {
             kind: "bearer".to_string(),
             value: token.map(|token| token.to_string()),
         },
-    })
+        tools: selected.map(|selected| selected.iter().map(|tool| tool.to_string()).collect()),
+    }
 }
 
 pub(crate) fn test_prompt(message: &str) -> Prompt {
