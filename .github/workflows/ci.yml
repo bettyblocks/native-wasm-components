@@ -2,11 +2,9 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches:
-      - edge
-      - acceptance
-      - main
+  # Pushes to edge/acceptance/main run this through release.yaml, which only
+  # publishes once it passes.
+  workflow_call:
 
 jobs:
   mix_test:
