@@ -2,7 +2,7 @@ defmodule NativeWasmComponents.PromptCallTest do
   use ExUnit.Case, async: true
 
   @component_path "functions/prompt-call/1.0/prompt_call.wasm"
-  @interface {"betty-blocks:prompt-call/prompt-call@1.0.0", "prompt-call"}
+  @interface {"betty-blocks:prompt-call/prompt-call@1.1.0", "prompt-call"}
 
   defp run_component(args) do
     TestHelper.run_component(@component_path, @interface, args)
@@ -31,6 +31,16 @@ defmodule NativeWasmComponents.PromptCallTest do
 
   defp anthropic_response(text) do
     Jason.encode!(%{content: [%{type: "text", text: text}]})
+  end
+
+  defp mcp_tool(selected) do
+    {:mcp,
+     %{
+       "description" => :none,
+       "url" => "https://mcp.example.com/mcp",
+       "authentication" => %{"kind" => "access_token", "value" => :none},
+       "enabled-tools" => selected
+     }}
   end
 
   describe "prompt-call component" do
@@ -77,7 +87,8 @@ defmodule NativeWasmComponents.PromptCallTest do
          %{
            "description" => {:some, "call this tool if the prompt contain \"mcp call\""},
            "url" => "https://gateway.mcpservers.org/yahoo-finance/mcp",
-           "authentication" => %{"kind" => "access_token", "value" => {:some, "secret-token"}}
+           "authentication" => %{"kind" => "access_token", "value" => {:some, "secret-token"}},
+           "enabled-tools" => :none
          }}
       ]
 
@@ -109,6 +120,49 @@ defmodule NativeWasmComponents.PromptCallTest do
 
         assert request["system"] =~
                  ~s|- mcp-server https://gateway.mcpservers.org/yahoo-finance/mcp: call this tool if the prompt contain "mcp call"|
+
+        Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
+      end)
+
+      assert {:ok, "ok"} ==
+               run_component(build_args(url, %{provider: %{"tools" => {:some, tools}}}))
+    end
+
+    test "enables only the mcp tools the builder picked", %{sham: sham, url: url} do
+      tools = [mcp_tool({:some, ["get_customer", "list_orders"]})]
+
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert [
+                 %{
+                   "type" => "mcp_toolset",
+                   "mcp_server_name" => "mcp-example-com",
+                   "default_config" => %{"enabled" => false},
+                   "configs" => %{
+                     "get_customer" => %{"enabled" => true},
+                     "list_orders" => %{"enabled" => true}
+                   }
+                 }
+               ] == Jason.decode!(body)["tools"]
+
+        Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
+      end)
+
+      assert {:ok, "ok"} ==
+               run_component(build_args(url, %{provider: %{"tools" => {:some, tools}}}))
+    end
+
+    test "disables every mcp tool when the builder picked none", %{sham: sham, url: url} do
+      tools = [mcp_tool({:some, []})]
+
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert [%{"default_config" => %{"enabled" => false}} = toolset] =
+                 Jason.decode!(body)["tools"]
+
+        refute Map.has_key?(toolset, "configs")
 
         Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
       end)
