@@ -2,13 +2,12 @@ use serde::Deserialize;
 
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
 use crate::http::HttpClient;
-use crate::providers::{Prompt, Provider};
+use crate::providers::{Prompt, Provider, unique_mcp_server_name};
 
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const API_VERSION: &str = "2023-06-01";
 const MESSAGES_PATH: &str = "messages";
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search_20260318";
-const MCP_SERVER_NAME_MAX_LEN: usize = 64;
 const MCP_CLIENT_BETA: &str = "mcp-client-2025-11-20";
 
 pub(crate) struct Anthropic;
@@ -105,7 +104,11 @@ fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
                 "allowed_callers": ["direct"],
             })),
             BettyAiTool::Mcp(options) => {
-                let name = unique_mcp_server_name(&options.url, &mcp_servers);
+                let taken: Vec<&str> = mcp_servers
+                    .iter()
+                    .filter_map(|server: &serde_json::Value| server["name"].as_str())
+                    .collect();
+                let name = unique_mcp_server_name(&options.url, &taken);
                 tools_body.push(mcp_toolset(options, &name));
                 mcp_servers.push(mcp_server(options, name))
             }
@@ -161,60 +164,6 @@ fn mcp_server(options: &McpOptions, name: String) -> serde_json::Value {
     }
 
     server
-}
-
-fn unique_mcp_server_name(url: &str, servers: &[serde_json::Value]) -> String {
-    let base = mcp_server_name(url);
-    let taken = |name: &str| servers.iter().any(|server| server["name"] == name);
-
-    if !taken(&base) {
-        return base;
-    }
-
-    (2..)
-        .map(|n| {
-            let suffix = format!("-{n}");
-            let stem: String = base
-                .chars()
-                .take(MCP_SERVER_NAME_MAX_LEN - suffix.len())
-                .collect();
-            format!("{stem}{suffix}")
-        })
-        .find(|name| !taken(name))
-        .expect("an unused suffix always exists")
-}
-
-fn mcp_server_name(url: &str) -> String {
-    let without_scheme = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))
-        .unwrap_or(url);
-    let host = without_scheme
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or(without_scheme);
-    let sanitized: String = host
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
-                c
-            } else {
-                '-'
-            }
-        })
-        .collect();
-
-    let name: String = sanitized
-        .trim_matches('-')
-        .chars()
-        .take(MCP_SERVER_NAME_MAX_LEN)
-        .collect();
-
-    if name.is_empty() {
-        "mcp-server".to_string()
-    } else {
-        name
-    }
 }
 
 fn extract_text(response: &[u8]) -> Result<String, String> {

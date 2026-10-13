@@ -9,6 +9,7 @@ use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
 use crate::exports::betty_blocks::prompt_call::prompt_call;
 use crate::http::HttpClient;
 use crate::providers::anthropic::Anthropic;
+use crate::providers::openai::OpenAi;
 use crate::providers::{Prompt, Provider};
 
 wit_bindgen::generate!({ generate_all });
@@ -40,6 +41,7 @@ async fn run(
     let prompt = with_tool_descriptions(agent, prompt);
     match agent.name.as_str() {
         "anthropic" => Anthropic.complete(client, agent, &prompt).await,
+        "openai" => OpenAi.complete(client, agent, &prompt).await,
         other => Err(format!("Unsupported provider: {other}")),
     }
 }
@@ -87,7 +89,8 @@ mod tests {
     use super::*;
     use crate::betty_blocks_types::types::types::{AuthenticationConfig, McpOptions};
     use crate::test_helpers::{
-        MockHttpClient, anthropic_text_response, test_prompt, test_provider,
+        MockHttpClient, anthropic_text_response, openai_agent, openai_text_response, test_prompt,
+        test_provider,
     };
 
     #[tokio::test]
@@ -144,16 +147,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dispatches_openai_to_the_openai_provider() {
+        let client = MockHttpClient::new(vec![(200, openai_text_response("hello"))]);
+
+        let text = run(&client, &openai_agent(), &test_prompt("hi"))
+            .await
+            .unwrap();
+
+        assert_eq!(text, "hello");
+        assert!(client.requests()[0].url.ends_with("/responses"));
+    }
+
+    #[tokio::test]
     async fn rejects_an_unsupported_provider_without_calling_out() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
         let mut provider = test_provider();
-        provider.name = "openai".to_string();
+        provider.name = "mistral".to_string();
 
         let error = run(&client, &provider, &test_prompt("hi"))
             .await
             .unwrap_err();
 
-        assert!(error.contains("openai"));
+        assert!(error.contains("mistral"));
         assert!(client.requests().is_empty());
     }
 }

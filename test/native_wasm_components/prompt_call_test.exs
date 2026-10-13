@@ -33,6 +33,24 @@ defmodule NativeWasmComponents.PromptCallTest do
     Jason.encode!(%{content: [%{type: "text", text: text}]})
   end
 
+  defp openai_response(text) do
+    Jason.encode!(%{
+      output: [
+        %{type: "message", role: "assistant", content: [%{type: "output_text", text: text}]}
+      ]
+    })
+  end
+
+  defp openai_args(url, overrides \\ %{}) do
+    provider =
+      Map.merge(
+        %{"name" => "openai", "ai-model-name" => "gpt-5.4"},
+        Map.get(overrides, :provider, %{})
+      )
+
+    build_args(url, Map.put(overrides, :provider, provider))
+  end
+
   defp mcp_tool(selected) do
     {:mcp,
      %{
@@ -200,9 +218,9 @@ defmodule NativeWasmComponents.PromptCallTest do
     end
 
     test "rejects an unsupported provider", %{url: url} do
-      args = build_args(url, %{provider: %{"name" => "openai", "ai-model-name" => "gpt-5.4"}})
+      args = build_args(url, %{provider: %{"name" => "mistral"}})
 
-      assert {:error, "Unsupported provider: openai"} == run_component(args)
+      assert {:error, "Unsupported provider: mistral"} == run_component(args)
     end
 
     test "rejects a provider without an api key", %{url: url} do
@@ -215,6 +233,93 @@ defmodule NativeWasmComponents.PromptCallTest do
       args = build_args("")
 
       assert {:error, "No URL configured for agent: anthropic"} == run_component(args)
+    end
+  end
+
+  describe "prompt-call component with openai" do
+    setup do
+      sham = Sham.start()
+
+      {:ok, %{sham: sham, url: "http://localhost:#{sham.port}/v1"}}
+    end
+
+    test "posts to the responses endpoint and returns the output text", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn ->
+        assert conn.path_info == ["v1", "responses"]
+        assert {"authorization", "Bearer test-key"} in conn.req_headers
+        assert {"content-type", "application/json"} in conn.req_headers
+
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert %{
+                 "model" => "gpt-5.4",
+                 "max_output_tokens" => 4096,
+                 "instructions" => "You are helpful.",
+                 "input" => "What is 2 + 2?",
+                 "store" => false
+               } == Jason.decode!(body)
+
+        Plug.Conn.send_resp(conn, 200, openai_response("4"))
+      end)
+
+      assert {:ok, "4"} == run_component(openai_args(url))
+    end
+
+    test "sends web search and mcp tools", %{sham: sham, url: url} do
+      tools = [
+        {:"http-search", %{"description" => :none}},
+        {:mcp,
+         %{
+           "description" => :none,
+           "url" => "https://gateway.mcpservers.org/yahoo-finance/mcp",
+           "authentication" => %{"kind" => "access_token", "value" => {:some, "secret-token"}}
+         }}
+      ]
+
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert [
+                 %{"type" => "web_search"},
+                 %{
+                   "type" => "mcp",
+                   "server_label" => "gateway-mcpservers-org",
+                   "server_url" => "https://gateway.mcpservers.org/yahoo-finance/mcp",
+                   "require_approval" => "never",
+                   "authorization" => "secret-token"
+                 }
+               ] == Jason.decode!(body)["tools"]
+
+        Plug.Conn.send_resp(conn, 200, openai_response("ok"))
+      end)
+
+      assert {:ok, "ok"} ==
+               run_component(openai_args(url, %{provider: %{"tools" => {:some, tools}}}))
+    end
+
+    test "reports a non-success status without the response body", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 401, "bad key sk-...abcd") end)
+
+      assert {:error, "OpenAI returned status 401"} == run_component(openai_args(url))
+    end
+  end
+
+  describe "against the real openai api" do
+    @tag :live
+    test "completes a prompt" do
+      key =
+        System.get_env("OPENAI_API_KEY") ||
+          flunk("set OPENAI_API_KEY to run the live test")
+
+      args =
+        openai_args("https://api.openai.com/v1", %{
+          provider: %{"api-key" => key},
+          instructions: "Reply with a single word and no punctuation.",
+          message: "Reply with the word pong"
+        })
+
+      assert {:ok, text} = run_component(args)
+      assert text =~ "pong"
     end
   end
 

@@ -120,3 +120,24 @@ pub(crate) fn test_prompt(message: &str) -> Prompt {
         max_tokens: None,
     }
 }
+
+pub(crate) fn openai_text_response(text: &str) -> String {
+    serde_json::json!({
+        "output": [{
+            "type": "message",
+            "role": "assistant",
+            "content": [{ "type": "output_text", "text": text, "annotations": [] }]
+        }]
+    })
+    .to_string()
+}
+
+pub(crate) fn openai_agent() -> BettyAiAgent {
+    BettyAiAgent {
+        name: "openai".to_string(),
+        ai_model_name: "gpt-5.4".to_string(),
+        url: "https://api.openai.com/v1".to_string(),
+        tools: None,
+        api_key: "test-key".to_string(),
+    }
+}
