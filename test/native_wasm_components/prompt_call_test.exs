@@ -297,10 +297,42 @@ defmodule NativeWasmComponents.PromptCallTest do
                run_component(openai_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
-    test "reports a non-success status without the response body", %{sham: sham, url: url} do
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 401, "bad key sk-...abcd") end)
+    test "reports the openai error with the api key redacted", %{sham: sham, url: url} do
+      body =
+        Jason.encode!(%{
+          error: %{
+            message: "Incorrect API key provided: sk-proj-...abcd.",
+            type: "invalid_request_error",
+            code: "invalid_api_key"
+          }
+        })
 
-      assert {:error, "OpenAI returned status 401"} == run_component(openai_args(url))
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 401, body) end)
+
+      assert {:error,
+              "OpenAI returned status 401 (invalid_api_key): Incorrect API key provided: [redacted]"} ==
+               run_component(openai_args(url))
+    end
+
+    test "does not echo a body that is not an openai error", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 502, "bad gateway") end)
+
+      assert {:error, "OpenAI returned status 502"} == run_component(openai_args(url))
+    end
+
+    test "reports a response that ran out of tokens", %{sham: sham, url: url} do
+      body =
+        Jason.encode!(%{
+          status: "incomplete",
+          incomplete_details: %{reason: "max_output_tokens"},
+          output: [%{type: "reasoning", summary: []}]
+        })
+
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, body) end)
+
+      assert {:error,
+              "OpenAI response was incomplete (max_output_tokens) before producing any text"} ==
+               run_component(openai_args(url))
     end
   end
 

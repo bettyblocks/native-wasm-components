@@ -12,7 +12,29 @@ pub(crate) struct OpenAi;
 
 #[derive(Debug, Deserialize)]
 struct ResponsesResponse {
+    status: Option<String>,
+    #[serde(default)]
     output: Vec<OutputItem>,
+    error: Option<ApiError>,
+    incomplete_details: Option<IncompleteDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiError {
+    message: Option<String>,
+    code: Option<String>,
+    #[serde(rename = "type")]
+    error_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ErrorBody {
+    error: ApiError,
+}
+
+#[derive(Debug, Deserialize)]
+struct IncompleteDetails {
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,6 +50,7 @@ struct ContentPart {
     #[serde(rename = "type")]
     part_type: String,
     text: Option<String>,
+    refusal: Option<String>,
 }
 
 impl Provider for OpenAi {
@@ -59,10 +82,10 @@ impl Provider for OpenAi {
             .await?;
 
         if status != 200 {
-            return Err(format!("OpenAI returned status {status}"));
+            return Err(status_error(status, &response, &agent.api_key));
         }
 
-        extract_text(&response)
+        extract_text(&response).map_err(|error| redact(&error, &agent.api_key))
     }
 }
 
@@ -123,26 +146,96 @@ fn mcp_tool(options: &McpOptions, label: &str) -> serde_json::Value {
     tool
 }
 
+fn status_error(status: u16, response: &[u8], api_key: &str) -> String {
+    match serde_json::from_slice::<ErrorBody>(response) {
+        Ok(body) => redact(
+            &format!("OpenAI returned status {status}{}", describe(&body.error)),
+            api_key,
+        ),
+        Err(_) => format!("OpenAI returned status {status}"),
+    }
+}
+
+fn describe(error: &ApiError) -> String {
+    let kind = error
+        .code
+        .as_deref()
+        .or(error.error_type.as_deref())
+        .map(|kind| format!(" ({kind})"))
+        .unwrap_or_default();
+    let message = error
+        .message
+        .as_deref()
+        .filter(|message| !message.is_empty())
+        .map(|message| format!(": {message}"))
+        .unwrap_or_default();
+
+    format!("{kind}{message}")
+}
+
+fn redact(message: &str, api_key: &str) -> String {
+    let message = if api_key.is_empty() {
+        message.to_string()
+    } else {
+        message.replace(api_key, "[redacted]")
+    };
+
+    message
+        .split(' ')
+        .map(|word| {
+            if word.starts_with("sk-") {
+                "[redacted]"
+            } else {
+                word
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn extract_text(response: &[u8]) -> Result<String, String> {
     let parsed: ResponsesResponse = serde_json::from_slice(response)
         .map_err(|e| format!("Failed to parse OpenAI response: {e}"))?;
 
-    let text: String = parsed
+    if parsed.status.as_deref() == Some("failed") {
+        let details = parsed.error.as_ref().map(describe).unwrap_or_default();
+        return Err(format!("OpenAI response failed{details}"));
+    }
+
+    let parts: Vec<ContentPart> = parsed
         .output
         .into_iter()
         .filter(|item| item.item_type == "message")
         .flat_map(|item| item.content)
+        .collect();
+
+    let text: String = parts
+        .iter()
         .filter(|part| part.part_type == "output_text")
-        .filter_map(|part| part.text)
-        .map(|text| text.trim().to_string())
+        .filter_map(|part| part.text.as_deref())
+        .map(str::trim)
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    if text.is_empty() {
-        return Err("OpenAI response contained no text content".to_string());
+    if !text.is_empty() {
+        return Ok(text);
     }
 
-    Ok(text)
+    if let Some(refusal) = parts.iter().find_map(|part| part.refusal.as_deref()) {
+        return Err(format!("OpenAI refused the request: {refusal}"));
+    }
+
+    if parsed.status.as_deref() == Some("incomplete") {
+        let reason = parsed
+            .incomplete_details
+            .and_then(|details| details.reason)
+            .unwrap_or_else(|| "unknown reason".to_string());
+        return Err(format!(
+            "OpenAI response was incomplete ({reason}) before producing any text"
+        ));
+    }
+
+    Err("OpenAI response contained no text content".to_string())
 }
 
 #[cfg(test)]
@@ -282,6 +375,114 @@ mod tests {
         assert!(extract_text(b"not json").is_err());
     }
 
+    #[test]
+    fn extract_text_reports_a_failed_response_with_its_error() {
+        let response = serde_json::json!({
+            "status": "failed",
+            "output": [],
+            "error": { "code": "server_error", "message": "The model failed." }
+        })
+        .to_string();
+
+        assert_eq!(
+            extract_text(response.as_bytes()).unwrap_err(),
+            "OpenAI response failed (server_error): The model failed."
+        );
+    }
+
+    #[test]
+    fn extract_text_reports_an_incomplete_response_without_text() {
+        let response = serde_json::json!({
+            "status": "incomplete",
+            "incomplete_details": { "reason": "max_output_tokens" },
+            "output": [{ "type": "reasoning", "summary": [] }]
+        })
+        .to_string();
+
+        assert_eq!(
+            extract_text(response.as_bytes()).unwrap_err(),
+            "OpenAI response was incomplete (max_output_tokens) before producing any text"
+        );
+    }
+
+    #[test]
+    fn extract_text_keeps_partial_text_from_an_incomplete_response() {
+        let response = serde_json::json!({
+            "status": "incomplete",
+            "incomplete_details": { "reason": "max_output_tokens" },
+            "output": [{ "type": "message", "content": [
+                { "type": "output_text", "text": "partial" }
+            ]}]
+        })
+        .to_string();
+
+        assert_eq!(extract_text(response.as_bytes()).unwrap(), "partial");
+    }
+
+    #[test]
+    fn extract_text_reports_a_refusal() {
+        let response = serde_json::json!({
+            "status": "completed",
+            "output": [{ "type": "message", "content": [
+                { "type": "refusal", "refusal": "I can't help with that." }
+            ]}]
+        })
+        .to_string();
+
+        assert_eq!(
+            extract_text(response.as_bytes()).unwrap_err(),
+            "OpenAI refused the request: I can't help with that."
+        );
+    }
+
+    #[test]
+    fn status_error_includes_the_code_and_message() {
+        let body = r#"{"error":{"message":"Rate limit reached for gpt-5.4.","type":"requests","code":"rate_limit_exceeded"}}"#;
+
+        assert_eq!(
+            status_error(429, body.as_bytes(), "test-key"),
+            "OpenAI returned status 429 (rate_limit_exceeded): Rate limit reached for gpt-5.4."
+        );
+    }
+
+    #[test]
+    fn status_error_falls_back_to_the_type_without_a_code() {
+        let body =
+            r#"{"error":{"message":"Bad input.","type":"invalid_request_error","code":null}}"#;
+
+        assert_eq!(
+            status_error(400, body.as_bytes(), "test-key"),
+            "OpenAI returned status 400 (invalid_request_error): Bad input."
+        );
+    }
+
+    #[test]
+    fn status_error_redacts_the_masked_api_key() {
+        let body = r#"{"error":{"message":"Incorrect API key provided: sk-proj-...abcd. You can find your API key at https://platform.openai.com/account/api-keys.","code":"invalid_api_key"}}"#;
+
+        let error = status_error(401, body.as_bytes(), "sk-proj-secret");
+
+        assert!(!error.contains("abcd"));
+        assert!(error.starts_with(
+            "OpenAI returned status 401 (invalid_api_key): Incorrect API key provided: [redacted]"
+        ));
+    }
+
+    #[test]
+    fn status_error_redacts_the_configured_api_key() {
+        let body = r#"{"error":{"message":"key mykey123 is not valid","code":"invalid_api_key"}}"#;
+
+        assert!(!status_error(401, body.as_bytes(), "mykey123").contains("mykey123"));
+    }
+
+    #[test]
+    fn status_error_does_not_echo_a_body_that_is_not_an_openai_error() {
+        assert_eq!(
+            status_error(502, b"<html>Bad gateway</html>", "test-key"),
+            "OpenAI returned status 502"
+        );
+    }
+
     #[tokio::test]
     async fn complete_posts_to_the_responses_endpoint_with_a_bearer_token() {
         let client = MockHttpClient::new(vec![(200, openai_text_response("42"))]);
@@ -329,7 +530,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn complete_reports_a_non_success_status_without_the_body() {
+    async fn complete_reports_a_non_success_status_with_a_redacted_error() {
         let client = MockHttpClient::new(vec![(
             401,
             r#"{"error":{"message":"Incorrect API key provided: sk-...abcd"}}"#.to_string(),
@@ -340,6 +541,9 @@ mod tests {
             .await
             .unwrap_err();
 
-        assert_eq!(error, "OpenAI returned status 401");
+        assert_eq!(
+            error,
+            "OpenAI returned status 401: Incorrect API key provided: [redacted]"
+        );
     }
 }
