@@ -77,6 +77,21 @@ defmodule NativeWasmComponents.PromptCallTest do
      }}
   end
 
+  defp mistral_response(text) do
+    Jason.encode!(%{outputs: [%{type: "message.output", content: text}]})
+  end
+
+  defp mistral_args(url, overrides \\ %{}) do
+    mistral_provider = %{"name" => "mistral", "ai-model-name" => "mistral-large-latest"}
+
+    overrides =
+      Map.update(overrides, :provider, mistral_provider, fn provider ->
+        Map.merge(mistral_provider, provider)
+      end)
+
+    build_args(url, overrides)
+  end
+
   describe "prompt-call component" do
     setup do
       sham = Sham.start()
@@ -278,9 +293,9 @@ defmodule NativeWasmComponents.PromptCallTest do
     end
 
     test "rejects an unsupported provider", %{url: url} do
-      args = build_args(url, %{provider: %{"name" => "mistral"}})
+      args = build_args(url, %{provider: %{"name" => "unknown"}})
 
-      assert {:error, "Unsupported provider: mistral"} == run_component(args)
+      assert {:error, "Unsupported provider: unknown"} == run_component(args)
     end
 
     test "rejects a provider without an api key", %{url: url} do
@@ -542,6 +557,114 @@ defmodule NativeWasmComponents.PromptCallTest do
     end
   end
 
+  describe "prompt-call component with mistral" do
+    setup do
+      sham = Sham.start()
+
+      {:ok, %{sham: sham, url: "http://localhost:#{sham.port}/v1"}}
+    end
+
+    test "returns the assistant text", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn ->
+        Plug.Conn.send_resp(conn, 200, mistral_response("4"))
+      end)
+
+      assert {:ok, %{result: "4", usage: {:some, "{}"}}} == run_component(mistral_args(url))
+    end
+
+    test "appends the conversations endpoint to the provider base url", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn ->
+        assert conn.path_info == ["v1", "conversations"]
+        assert {"authorization", "Bearer test-key"} in conn.req_headers
+        assert {"content-type", "application/json"} in conn.req_headers
+
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert %{
+                 "model" => "mistral-large-latest",
+                 "completion_args" => %{"max_tokens" => 4096},
+                 "inputs" => [
+                   %{"role" => "user", "content" => "You are helpful.\n\nWhat is 2 + 2?"}
+                 ]
+               } == Jason.decode!(body)
+
+        Plug.Conn.send_resp(conn, 200, mistral_response("4"))
+      end)
+
+      assert {:ok, %{result: "4", usage: {:some, "{}"}}} == run_component(mistral_args(url))
+    end
+
+    test "sends the web search tool and leaves mcp servers out of the request", %{
+      sham: sham,
+      url: url
+    } do
+      tools = [
+        {:"http-search", %{"description" => :none}},
+        {:mcp,
+         %{
+           "description" => {:some, "call this tool if the prompt contain \"mcp call\""},
+           "url" => "https://gateway.mcpservers.org/yahoo-finance/mcp",
+           "authentication" => %{"kind" => "access_token", "value" => {:some, "secret-token"}},
+           "enabled-tools" => :none
+         }}
+      ]
+
+      Sham.expect(sham, fn conn ->
+        assert conn.path_info == ["v1", "conversations"]
+
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+        request = Jason.decode!(body)
+
+        assert [%{"type" => "web_search"}] == request["tools"]
+
+        assert [%{"role" => "user", "content" => user}] = request["inputs"]
+
+        assert user =~ "Tools:"
+        assert user =~ "You are helpful."
+
+        assert user =~
+                 ~s|- mcp-server https://gateway.mcpservers.org/yahoo-finance/mcp: call this tool if the prompt contain "mcp call"|
+
+        Plug.Conn.send_resp(conn, 200, mistral_response("ok"))
+      end)
+
+      assert {:ok, %{result: "ok", usage: {:some, "{}"}}} ==
+               run_component(mistral_args(url, %{provider: %{"tools" => {:some, tools}}}))
+    end
+
+    test "honours an explicit max-tokens", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert %{"completion_args" => %{"max_tokens" => 256}} = Jason.decode!(body)
+
+        Plug.Conn.send_resp(conn, 200, mistral_response("ok"))
+      end)
+
+      assert {:ok, %{result: "ok", usage: {:some, "{}"}}} ==
+               run_component(mistral_args(url, %{max_tokens: {:some, 256}}))
+    end
+
+    test "reports a non-success status", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 429, "slow down") end)
+
+      assert {:error, "Mistral returned status 429: slow down"} ==
+               run_component(mistral_args(url))
+    end
+
+    test "rejects a provider without an api key", %{url: url} do
+      args = mistral_args(url, %{provider: %{"api-key" => ""}})
+
+      assert {:error, "No API key configured for agent: mistral"} == run_component(args)
+    end
+
+    test "rejects an empty url" do
+      args = mistral_args("")
+
+      assert {:error, "No URL configured for agent: mistral"} == run_component(args)
+    end
+  end
+
   describe "against the real openai api" do
     @tag :live
     test "completes a prompt" do
@@ -599,6 +722,25 @@ defmodule NativeWasmComponents.PromptCallTest do
       assert {:ok, %{result: text, usage: {:some, usage}}} = run_component(args)
       assert text =~ "pong"
       assert %{"promptTokenCount" => _, "candidatesTokenCount" => _} = Jason.decode!(usage)
+    end
+  end
+
+  describe "against the real mistral api" do
+    @tag :live
+    test "completes a prompt" do
+      key =
+        System.get_env("MISTRAL_API_KEY") ||
+          flunk("set MISTRAL_API_KEY to run the live test")
+
+      args =
+        mistral_args("https://api.mistral.ai/v1", %{
+          provider: %{"api-key" => key},
+          instructions: "Reply with a single word and no punctuation.",
+          message: "Reply with the word pong"
+        })
+
+      assert {:ok, text} = run_component(args)
+      assert text =~ "pong"
     end
   end
 end
