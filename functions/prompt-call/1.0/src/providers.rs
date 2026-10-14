@@ -1,6 +1,7 @@
 pub(crate) mod anthropic;
 pub(crate) mod openai;
 
+use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
@@ -20,6 +21,70 @@ pub(crate) trait Provider {
         provider: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<String, String>;
+}
+
+pub(crate) fn ensure_configured(agent: &BettyAiAgent) -> Result<(), String> {
+    if agent.api_key.is_empty() {
+        return Err(format!("No API key configured for agent: {}", agent.name));
+    }
+
+    if agent.url.is_empty() {
+        return Err(format!("No URL configured for agent: {}", agent.name));
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct ApiError {
+    message: Option<String>,
+    code: Option<String>,
+    #[serde(rename = "type")]
+    error_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ErrorBody {
+    error: ApiError,
+}
+
+impl ApiError {
+    pub(crate) fn describe(&self) -> String {
+        let kind = self
+            .code
+            .as_deref()
+            .or(self.error_type.as_deref())
+            .map(|kind| format!(" ({kind})"))
+            .unwrap_or_default();
+        let message = self
+            .message
+            .as_deref()
+            .filter(|message| !message.is_empty())
+            .map(|message| format!(": {message}"))
+            .unwrap_or_default();
+
+        format!("{kind}{message}")
+    }
+}
+
+fn redact(message: &str, api_key: &str) -> String {
+    let message = if api_key.is_empty() {
+        message.to_string()
+    } else {
+        message.replace(api_key, "[redacted]")
+    };
+
+    message
+        .split(' ')
+        .map(|word| {
+            if word.starts_with("sk-") {
+                "[redacted]"
+            } else {
+                word
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub(crate) trait ProviderResponse: DeserializeOwned {
@@ -59,6 +124,27 @@ pub(crate) trait ProviderResponse: DeserializeOwned {
 
     fn extract_text(response: &[u8]) -> Result<String, String> {
         Self::parse(response)?.text()
+    }
+
+    fn status_error(status: u16, response: &[u8]) -> String {
+        match serde_json::from_slice::<ErrorBody>(response) {
+            Ok(body) => format!(
+                "{} returned status {status}{}",
+                Self::PROVIDER,
+                body.error.describe()
+            ),
+            Err(_) => format!("{} returned status {status}", Self::PROVIDER),
+        }
+    }
+
+    fn handle(status: u16, response: &[u8], api_key: &str) -> Result<String, String> {
+        let result = if status == 200 {
+            Self::extract_text(response)
+        } else {
+            Err(Self::status_error(status, response))
+        };
+
+        result.map_err(|error| redact(&error, api_key))
     }
 }
 

@@ -2,7 +2,10 @@ use serde::Deserialize;
 
 use crate::betty_blocks_types::types::types::{BettyAiAgent, McpOptions};
 use crate::http::HttpClient;
-use crate::providers::{Prompt, Provider, ProviderRequest, ProviderResponse, mcp_auth_token};
+use crate::providers::{
+    ApiError, Prompt, Provider, ProviderRequest, ProviderResponse, ensure_configured,
+    mcp_auth_token,
+};
 
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const RESPONSES_PATH: &str = "responses";
@@ -17,19 +20,6 @@ struct ResponsesResponse {
     output: Vec<OutputItem>,
     error: Option<ApiError>,
     incomplete_details: Option<IncompleteDetails>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ApiError {
-    message: Option<String>,
-    code: Option<String>,
-    #[serde(rename = "type")]
-    error_type: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ErrorBody {
-    error: ApiError,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,13 +50,7 @@ impl Provider for OpenAi {
         agent: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<String, String> {
-        if agent.api_key.is_empty() {
-            return Err("No API key configured for agent: openai".to_string());
-        }
-
-        if agent.url.is_empty() {
-            return Err("No URL configured for agent: openai".to_string());
-        }
+        ensure_configured(agent)?;
 
         let headers = vec![
             ("authorization", format!("Bearer {}", agent.api_key)),
@@ -81,11 +65,7 @@ impl Provider for OpenAi {
             )
             .await?;
 
-        if status != 200 {
-            return Err(status_error(status, &response, &agent.api_key));
-        }
-
-        ResponsesResponse::extract_text(&response).map_err(|error| redact(&error, &agent.api_key))
+        ResponsesResponse::handle(status, &response, &agent.api_key)
     }
 }
 
@@ -128,53 +108,6 @@ impl ProviderRequest for OpenAi {
     }
 }
 
-fn status_error(status: u16, response: &[u8], api_key: &str) -> String {
-    match serde_json::from_slice::<ErrorBody>(response) {
-        Ok(body) => redact(
-            &format!("OpenAI returned status {status}{}", describe(&body.error)),
-            api_key,
-        ),
-        Err(_) => format!("OpenAI returned status {status}"),
-    }
-}
-
-fn describe(error: &ApiError) -> String {
-    let kind = error
-        .code
-        .as_deref()
-        .or(error.error_type.as_deref())
-        .map(|kind| format!(" ({kind})"))
-        .unwrap_or_default();
-    let message = error
-        .message
-        .as_deref()
-        .filter(|message| !message.is_empty())
-        .map(|message| format!(": {message}"))
-        .unwrap_or_default();
-
-    format!("{kind}{message}")
-}
-
-fn redact(message: &str, api_key: &str) -> String {
-    let message = if api_key.is_empty() {
-        message.to_string()
-    } else {
-        message.replace(api_key, "[redacted]")
-    };
-
-    message
-        .split(' ')
-        .map(|word| {
-            if word.starts_with("sk-") {
-                "[redacted]"
-            } else {
-                word
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 impl ResponsesResponse {
     fn message_parts(&self) -> impl Iterator<Item = &ContentPart> {
         self.output
@@ -196,7 +129,11 @@ impl ProviderResponse for ResponsesResponse {
 
     fn ensure_succeeded(&self) -> Result<(), String> {
         if self.status.as_deref() == Some("failed") {
-            let details = self.error.as_ref().map(describe).unwrap_or_default();
+            let details = self
+                .error
+                .as_ref()
+                .map(ApiError::describe)
+                .unwrap_or_default();
             return Err(format!("OpenAI response failed{details}"));
         }
 
@@ -489,7 +426,7 @@ mod tests {
         let body = r#"{"error":{"message":"Rate limit reached for gpt-5.4.","type":"requests","code":"rate_limit_exceeded"}}"#;
 
         assert_eq!(
-            status_error(429, body.as_bytes(), "test-key"),
+            ResponsesResponse::handle(429, body.as_bytes(), "test-key").unwrap_err(),
             "OpenAI returned status 429 (rate_limit_exceeded): Rate limit reached for gpt-5.4."
         );
     }
@@ -500,7 +437,7 @@ mod tests {
             r#"{"error":{"message":"Bad input.","type":"invalid_request_error","code":null}}"#;
 
         assert_eq!(
-            status_error(400, body.as_bytes(), "test-key"),
+            ResponsesResponse::handle(400, body.as_bytes(), "test-key").unwrap_err(),
             "OpenAI returned status 400 (invalid_request_error): Bad input."
         );
     }
@@ -509,7 +446,7 @@ mod tests {
     fn status_error_redacts_the_masked_api_key() {
         let body = r#"{"error":{"message":"Incorrect API key provided: sk-proj-...abcd. You can find your API key at https://platform.openai.com/account/api-keys.","code":"invalid_api_key"}}"#;
 
-        let error = status_error(401, body.as_bytes(), "sk-proj-secret");
+        let error = ResponsesResponse::handle(401, body.as_bytes(), "sk-proj-secret").unwrap_err();
 
         assert!(!error.contains("abcd"));
         assert!(error.starts_with(
@@ -521,13 +458,17 @@ mod tests {
     fn status_error_redacts_the_configured_api_key() {
         let body = r#"{"error":{"message":"key mykey123 is not valid","code":"invalid_api_key"}}"#;
 
-        assert!(!status_error(401, body.as_bytes(), "mykey123").contains("mykey123"));
+        assert!(
+            !ResponsesResponse::handle(401, body.as_bytes(), "mykey123")
+                .unwrap_err()
+                .contains("mykey123")
+        );
     }
 
     #[test]
     fn status_error_does_not_echo_a_body_that_is_not_an_openai_error() {
         assert_eq!(
-            status_error(502, b"<html>Bad gateway</html>", "test-key"),
+            ResponsesResponse::handle(502, b"<html>Bad gateway</html>", "test-key").unwrap_err(),
             "OpenAI returned status 502"
         );
     }

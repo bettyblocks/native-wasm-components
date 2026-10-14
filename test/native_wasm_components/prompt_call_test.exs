@@ -210,11 +210,24 @@ defmodule NativeWasmComponents.PromptCallTest do
       assert {:ok, "2 + 2 =\n\n4"} == run_component(build_args(url))
     end
 
-    test "reports a non-success status", %{sham: sham, url: url} do
+    test "reports the anthropic error with the api key redacted", %{sham: sham, url: url} do
+      body =
+        Jason.encode!(%{
+          type: "error",
+          error: %{type: "authentication_error", message: "invalid x-api-key sk-ant-abcd"}
+        })
+
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 401, body) end)
+
+      assert {:error,
+              "Anthropic returned status 401 (authentication_error): invalid x-api-key [redacted]"} ==
+               run_component(build_args(url))
+    end
+
+    test "does not echo a body that is not an anthropic error", %{sham: sham, url: url} do
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 429, "slow down") end)
 
-      assert {:error, "Anthropic returned status 429: slow down"} ==
-               run_component(build_args(url))
+      assert {:error, "Anthropic returned status 429"} == run_component(build_args(url))
     end
 
     test "rejects an unsupported provider", %{url: url} do

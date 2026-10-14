@@ -2,7 +2,9 @@ use serde::Deserialize;
 
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
 use crate::http::HttpClient;
-use crate::providers::{Prompt, Provider, ProviderRequest, ProviderResponse, mcp_auth_token};
+use crate::providers::{
+    Prompt, Provider, ProviderRequest, ProviderResponse, ensure_configured, mcp_auth_token,
+};
 
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const API_VERSION: &str = "2023-06-01";
@@ -14,7 +16,9 @@ pub(crate) struct Anthropic;
 
 #[derive(Debug, Deserialize)]
 struct MessagesResponse {
+    #[serde(default)]
     content: Vec<ContentBlock>,
+    stop_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,13 +35,7 @@ impl Provider for Anthropic {
         agent: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<String, String> {
-        if agent.api_key.is_empty() {
-            return Err("No API key configured for agent: anthropic".to_string());
-        }
-
-        if agent.url.is_empty() {
-            return Err("No URL configured for agent: anthropic".to_string());
-        }
+        ensure_configured(agent)?;
 
         let mut headers = vec![
             ("x-api-key", agent.api_key.clone()),
@@ -56,14 +54,7 @@ impl Provider for Anthropic {
             )
             .await?;
 
-        if status != 200 {
-            return Err(format!(
-                "Anthropic returned status {status}: {}",
-                String::from_utf8_lossy(&response)
-            ));
-        }
-
-        MessagesResponse::extract_text(&response)
+        MessagesResponse::handle(status, &response, &agent.api_key)
     }
 }
 
@@ -145,6 +136,16 @@ impl ProviderResponse for MessagesResponse {
             .filter(|block| block.block_type == "text")
             .filter_map(|block| block.text.as_deref())
             .collect()
+    }
+
+    fn no_text_error(&self) -> String {
+        match self.stop_reason.as_deref() {
+            Some("refusal") => "Anthropic refused the request".to_string(),
+            Some(reason) if !matches!(reason, "end_turn" | "stop_sequence") => {
+                format!("Anthropic response was incomplete ({reason}) before producing any text")
+            }
+            _ => "Anthropic response contained no text content".to_string(),
+        }
     }
 }
 
@@ -532,14 +533,77 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn complete_reports_a_non_success_status() {
-        let client = MockHttpClient::new(vec![(429, "rate limited".to_string())]);
+    async fn complete_reports_a_non_success_status_with_a_redacted_error() {
+        let client = MockHttpClient::new(vec![(
+            401,
+            r#"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key test-key"}}"#
+                .to_string(),
+        )]);
 
         let error = Anthropic
             .complete(&client, &test_provider(), &test_prompt("hi"))
             .await
             .unwrap_err();
 
-        assert!(error.contains("429"));
+        assert_eq!(
+            error,
+            "Anthropic returned status 401 (authentication_error): invalid x-api-key [redacted]"
+        );
+    }
+
+    #[test]
+    fn status_error_includes_the_error_type_and_message() {
+        let body = r#"{"type":"error","error":{"type":"rate_limit_error","message":"Number of requests has exceeded your rate limit."}}"#;
+
+        assert_eq!(
+            MessagesResponse::handle(429, body.as_bytes(), "test-key").unwrap_err(),
+            "Anthropic returned status 429 (rate_limit_error): Number of requests has exceeded your rate limit."
+        );
+    }
+
+    #[test]
+    fn status_error_does_not_echo_a_body_that_is_not_an_anthropic_error() {
+        assert_eq!(
+            MessagesResponse::handle(502, b"<html>Bad gateway</html>", "test-key").unwrap_err(),
+            "Anthropic returned status 502"
+        );
+    }
+
+    #[test]
+    fn extract_text_reports_a_refusal() {
+        let response = serde_json::json!({ "content": [], "stop_reason": "refusal" }).to_string();
+
+        assert_eq!(
+            MessagesResponse::extract_text(response.as_bytes()).unwrap_err(),
+            "Anthropic refused the request"
+        );
+    }
+
+    #[test]
+    fn extract_text_reports_a_response_that_ran_out_of_tokens() {
+        let response = serde_json::json!({
+            "content": [{ "type": "thinking", "thinking": "hmm" }],
+            "stop_reason": "max_tokens"
+        })
+        .to_string();
+
+        assert_eq!(
+            MessagesResponse::extract_text(response.as_bytes()).unwrap_err(),
+            "Anthropic response was incomplete (max_tokens) before producing any text"
+        );
+    }
+
+    #[test]
+    fn extract_text_keeps_partial_text_from_a_response_that_ran_out_of_tokens() {
+        let response = serde_json::json!({
+            "content": [{ "type": "text", "text": "partial" }],
+            "stop_reason": "max_tokens"
+        })
+        .to_string();
+
+        assert_eq!(
+            MessagesResponse::extract_text(response.as_bytes()).unwrap(),
+            "partial"
+        );
     }
 }
