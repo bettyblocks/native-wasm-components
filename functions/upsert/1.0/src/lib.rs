@@ -1,7 +1,7 @@
 use crate::bindings::betty_blocks_types::crud::crud::upsert as crud_upsert;
 use crate::bindings::betty_blocks_types::data_api::data_api::DataApi;
 use crate::bindings::betty_blocks_types::types::types::{
-    BettyModel, BettyProperty, BettyPropertyMapping, BettyPropertyPath,
+    BettyModel, BettyProperty, BettyPropertyMapping, BettyUniqueBy,
 };
 use crate::bindings::exports::betty_blocks::upsert::upsert::{BettyRecordJson, Guest};
 
@@ -20,7 +20,7 @@ impl Guest for Upsert {
         data_api: &DataApi,
         model: BettyModel,
         mapping: BettyPropertyMapping,
-        mut unique_by: Vec<BettyPropertyPath>,
+        mut unique_by: BettyUniqueBy,
         validates: bool,
     ) -> Result<BettyRecordJson, String> {
         let validates = match validates {
