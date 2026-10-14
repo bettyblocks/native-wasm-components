@@ -10,7 +10,7 @@ use crate::exports::betty_blocks::prompt_call::prompt_call;
 use crate::http::HttpClient;
 use crate::providers::anthropic::Anthropic;
 use crate::providers::openai::OpenAi;
-use crate::providers::{Prompt, Provider, active_tools, redact};
+use crate::providers::{Output, Prompt, Provider, active_tools, redact};
 
 wit_bindgen::generate!({ generate_all });
 
@@ -22,14 +22,19 @@ impl prompt_call::Guest for Component {
         system_prompt: String,
         prompt: String,
         max_tokens: Option<u32>,
-    ) -> Result<String, String> {
+    ) -> Result<prompt_call::FlatOutput, String> {
         let prompt = Prompt {
             instructions: system_prompt,
             message: prompt,
             max_tokens,
         };
 
-        wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))
+        let output = wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))?;
+
+        Ok(prompt_call::FlatOutput {
+            result: output.text,
+            usage: output.usage.to_string(),
+        })
     }
 }
 
@@ -37,7 +42,7 @@ async fn run(
     client: &impl HttpClient,
     agent: &BettyAiAgent,
     prompt: &Prompt,
-) -> Result<String, String> {
+) -> Result<Output, String> {
     let prompt = with_tool_descriptions(agent, prompt);
     let result = match agent.name.as_str() {
         "anthropic" => Anthropic.complete(client, agent, &prompt).await,
@@ -162,7 +167,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(text, "hello");
+        assert_eq!(text.text, "hello");
         assert_eq!(client.requests().len(), 1);
     }
 
@@ -174,7 +179,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(text, "hello");
+        assert_eq!(text.text, "hello");
         assert!(client.requests()[0].url.ends_with("/responses"));
     }
 

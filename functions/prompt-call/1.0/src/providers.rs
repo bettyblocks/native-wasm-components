@@ -16,6 +16,12 @@ pub(crate) struct Prompt {
     pub(crate) max_tokens: Option<u32>,
 }
 
+#[derive(Debug, PartialEq)]
+pub(crate) struct Output {
+    pub(crate) text: String,
+    pub(crate) usage: serde_json::Value,
+}
+
 impl Prompt {
     pub(crate) fn max_tokens(&self) -> u32 {
         self.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS)
@@ -36,7 +42,7 @@ pub(crate) trait Provider {
         client: &impl HttpClient,
         provider: &BettyAiAgent,
         prompt: &Prompt,
-    ) -> Result<String, String>;
+    ) -> Result<Output, String>;
 }
 
 pub(crate) fn active_tools(agent: &BettyAiAgent) -> impl Iterator<Item = &BettyAiTool> {
@@ -157,6 +163,8 @@ pub(crate) trait ProviderResponse: DeserializeOwned {
 
     fn text_parts(&self) -> Vec<&str>;
 
+    fn usage(&self) -> Option<&serde_json::Value>;
+
     fn ensure_succeeded(&self) -> Result<(), String> {
         Ok(())
     }
@@ -187,8 +195,16 @@ pub(crate) trait ProviderResponse: DeserializeOwned {
         Ok(text)
     }
 
-    fn extract_text(response: &[u8]) -> Result<String, String> {
-        Self::parse(response)?.text()
+    fn extract(response: &[u8]) -> Result<Output, String> {
+        let response = Self::parse(response)?;
+
+        Ok(Output {
+            text: response.text()?,
+            usage: response
+                .usage()
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({})),
+        })
     }
 
     fn status_error(status: u16, response: &[u8]) -> String {
@@ -202,9 +218,9 @@ pub(crate) trait ProviderResponse: DeserializeOwned {
         }
     }
 
-    fn handle(status: u16, response: &[u8]) -> Result<String, String> {
+    fn handle(status: u16, response: &[u8]) -> Result<Output, String> {
         if status == 200 {
-            Self::extract_text(response)
+            Self::extract(response)
         } else {
             Err(Self::status_error(status, response))
         }

@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 use crate::providers::{
-    ApiError, McpServer, Prompt, Provider, ProviderRequest, ProviderResponse, ensure_configured,
+    ApiError, McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, ensure_configured,
     mcp_auth_token, null_as_empty,
 };
 
@@ -18,6 +18,7 @@ struct ResponsesResponse {
     output: Vec<OutputItem>,
     error: Option<ApiError>,
     incomplete_details: Option<IncompleteDetails>,
+    usage: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,7 +48,7 @@ impl Provider for OpenAi {
         client: &impl HttpClient,
         agent: &BettyAiAgent,
         prompt: &Prompt,
-    ) -> Result<String, String> {
+    ) -> Result<Output, String> {
         ensure_configured(agent)?;
 
         let headers = vec![
@@ -122,6 +123,10 @@ impl ProviderResponse for ResponsesResponse {
             .filter(|part| part.part_type == "output_text")
             .filter_map(|part| part.text.as_deref())
             .collect()
+    }
+
+    fn usage(&self) -> Option<&serde_json::Value> {
+        self.usage.as_ref()
     }
 
     fn ensure_succeeded(&self) -> Result<(), String> {
@@ -312,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_text_joins_output_text_across_messages_and_skips_tool_items() {
+    fn extract_joins_output_text_across_messages_and_skips_tool_items() {
         let response = serde_json::json!({
             "output": [
                 { "type": "reasoning", "summary": [] },
@@ -329,25 +334,52 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            ResponsesResponse::extract_text(response.as_bytes()).unwrap(),
+            ResponsesResponse::extract(response.as_bytes())
+                .unwrap()
+                .text,
             "Hello\n\nworld"
         );
     }
 
     #[test]
-    fn extract_text_rejects_a_response_carrying_no_text() {
+    fn extract_rejects_a_response_carrying_no_text() {
         let response = serde_json::json!({ "output": [] }).to_string();
 
-        assert!(ResponsesResponse::extract_text(response.as_bytes()).is_err());
+        assert!(ResponsesResponse::extract(response.as_bytes()).is_err());
     }
 
     #[test]
-    fn extract_text_rejects_malformed_json() {
-        assert!(ResponsesResponse::extract_text(b"not json").is_err());
+    fn extract_passes_the_usage_through() {
+        let usage = serde_json::json!({
+            "input_tokens": 12,
+            "input_tokens_details": { "cached_tokens": 0 },
+            "output_tokens": 3,
+            "output_tokens_details": { "reasoning_tokens": 0 },
+            "total_tokens": 15
+        });
+        let response = serde_json::json!({
+            "output": [{ "type": "message", "content": [
+                { "type": "output_text", "text": "answer" }
+            ]}],
+            "usage": usage
+        })
+        .to_string();
+
+        assert_eq!(
+            ResponsesResponse::extract(response.as_bytes())
+                .unwrap()
+                .usage,
+            usage
+        );
     }
 
     #[test]
-    fn extract_text_reports_a_failed_response_with_its_error() {
+    fn extract_rejects_malformed_json() {
+        assert!(ResponsesResponse::extract(b"not json").is_err());
+    }
+
+    #[test]
+    fn extract_reports_a_failed_response_with_its_error() {
         let response = serde_json::json!({
             "status": "failed",
             "output": [],
@@ -356,7 +388,7 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            ResponsesResponse::extract_text(response.as_bytes()).unwrap_err(),
+            ResponsesResponse::extract(response.as_bytes()).unwrap_err(),
             "OpenAI response failed (server_error): The model failed."
         );
     }
@@ -388,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_text_reports_an_incomplete_response_without_text() {
+    fn extract_reports_an_incomplete_response_without_text() {
         let response = serde_json::json!({
             "status": "incomplete",
             "incomplete_details": { "reason": "max_output_tokens" },
@@ -397,13 +429,13 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            ResponsesResponse::extract_text(response.as_bytes()).unwrap_err(),
+            ResponsesResponse::extract(response.as_bytes()).unwrap_err(),
             "OpenAI response was incomplete (max_output_tokens) before producing any text"
         );
     }
 
     #[test]
-    fn extract_text_keeps_partial_text_from_an_incomplete_response() {
+    fn extract_keeps_partial_text_from_an_incomplete_response() {
         let response = serde_json::json!({
             "status": "incomplete",
             "incomplete_details": { "reason": "max_output_tokens" },
@@ -414,13 +446,15 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            ResponsesResponse::extract_text(response.as_bytes()).unwrap(),
+            ResponsesResponse::extract(response.as_bytes())
+                .unwrap()
+                .text,
             "partial"
         );
     }
 
     #[test]
-    fn extract_text_reports_a_refusal() {
+    fn extract_reports_a_refusal() {
         let response = serde_json::json!({
             "status": "completed",
             "output": [{ "type": "message", "content": [
@@ -430,7 +464,7 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            ResponsesResponse::extract_text(response.as_bytes()).unwrap_err(),
+            ResponsesResponse::extract(response.as_bytes()).unwrap_err(),
             "OpenAI refused the request: I can't help with that."
         );
     }
@@ -474,7 +508,7 @@ mod tests {
             .unwrap();
 
         let request = &client.requests()[0];
-        assert_eq!(text, "42");
+        assert_eq!(text.text, "42");
         assert_eq!(request.url, "https://api.openai.com/v1/responses");
         assert_eq!(request.header("authorization"), Some("Bearer test-key"));
         assert_eq!(request.header("content-type"), Some("application/json"));
