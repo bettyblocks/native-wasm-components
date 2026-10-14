@@ -1,8 +1,8 @@
 use serde::Deserialize;
 
-use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
+use crate::betty_blocks_types::types::types::{BettyAiAgent, McpOptions};
 use crate::http::HttpClient;
-use crate::providers::{Prompt, Provider, unique_mcp_server_name};
+use crate::providers::{Prompt, Provider, ProviderRequest, ProviderResponse, mcp_auth_token};
 
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const RESPONSES_PATH: &str = "responses";
@@ -77,7 +77,7 @@ impl Provider for OpenAi {
             .post_json(
                 &responses_url(&agent.url),
                 headers,
-                request_body(agent, prompt),
+                Self::request_body(agent, prompt),
             )
             .await?;
 
@@ -85,7 +85,7 @@ impl Provider for OpenAi {
             return Err(status_error(status, &response, &agent.api_key));
         }
 
-        extract_text(&response).map_err(|error| redact(&error, &agent.api_key))
+        ResponsesResponse::extract_text(&response).map_err(|error| redact(&error, &agent.api_key))
     }
 }
 
@@ -93,61 +93,39 @@ fn responses_url(base_url: &str) -> String {
     format!("{}/{RESPONSES_PATH}", base_url.trim_end_matches('/'))
 }
 
-fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
-    let mut body = serde_json::json!({
-        "model": agent.ai_model_name,
-        "max_output_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
-        "instructions": prompt.instructions,
-        "input": prompt.message,
-        "store": false,
-    });
-
-    let tools = agent.tools.as_deref().unwrap_or(&[]);
-    if tools.is_empty() {
-        return body.to_string().into_bytes();
-    }
-
-    let mut labels: Vec<String> = Vec::new();
-    let tools_body: Vec<serde_json::Value> = tools
-        .iter()
-        .map(|tool| match tool {
-            BettyAiTool::HttpSearch(_) => serde_json::json!({ "type": WEB_SEARCH_TOOL_TYPE }),
-            BettyAiTool::Mcp(options) => {
-                let taken: Vec<&str> = labels.iter().map(String::as_str).collect();
-                let label = unique_mcp_server_name(&options.url, &taken);
-                let tool = mcp_tool(options, &label);
-                labels.push(label);
-                tool
-            }
+impl ProviderRequest for OpenAi {
+    fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
+        serde_json::json!({
+            "model": agent.ai_model_name,
+            "max_output_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+            "instructions": prompt.instructions,
+            "input": prompt.message,
+            "store": false,
         })
-        .collect();
-
-    body["tools"] = tools_body.into();
-    body.to_string().into_bytes()
-}
-
-fn mcp_tool(options: &McpOptions, label: &str) -> serde_json::Value {
-    let mut tool = serde_json::json!({
-        "type": "mcp",
-        "server_label": label,
-        "server_url": options.url,
-        "require_approval": "never",
-    });
-
-    if let Some(value) = options
-        .authentication
-        .value
-        .as_deref()
-        .filter(|value| !value.is_empty())
-    {
-        tool["authorization"] = value.into();
     }
 
-    if let Some(selected) = options.enabled_tools.as_deref() {
-        tool["allowed_tools"] = selected.into();
+    fn web_search_tool() -> serde_json::Value {
+        serde_json::json!({ "type": WEB_SEARCH_TOOL_TYPE })
     }
 
-    tool
+    fn mcp_tool(options: &McpOptions, label: &str) -> serde_json::Value {
+        let mut tool = serde_json::json!({
+            "type": "mcp",
+            "server_label": label,
+            "server_url": options.url,
+            "require_approval": "never",
+        });
+
+        if let Some(token) = mcp_auth_token(options) {
+            tool["authorization"] = token.into();
+        }
+
+        if let Some(selected) = options.enabled_tools.as_deref() {
+            tool["allowed_tools"] = selected.into();
+        }
+
+        tool
+    }
 }
 
 fn status_error(status: u16, response: &[u8], api_key: &str) -> String {
@@ -197,54 +175,59 @@ fn redact(message: &str, api_key: &str) -> String {
         .join(" ")
 }
 
-fn extract_text(response: &[u8]) -> Result<String, String> {
-    let parsed: ResponsesResponse = serde_json::from_slice(response)
-        .map_err(|e| format!("Failed to parse OpenAI response: {e}"))?;
+impl ResponsesResponse {
+    fn message_parts(&self) -> impl Iterator<Item = &ContentPart> {
+        self.output
+            .iter()
+            .filter(|item| item.item_type == "message")
+            .flat_map(|item| &item.content)
+    }
+}
 
-    if parsed.status.as_deref() == Some("failed") {
-        let details = parsed.error.as_ref().map(describe).unwrap_or_default();
-        return Err(format!("OpenAI response failed{details}"));
+impl ProviderResponse for ResponsesResponse {
+    const PROVIDER: &'static str = "OpenAI";
+
+    fn text_parts(&self) -> Vec<&str> {
+        self.message_parts()
+            .filter(|part| part.part_type == "output_text")
+            .filter_map(|part| part.text.as_deref())
+            .collect()
     }
 
-    let parts: Vec<ContentPart> = parsed
-        .output
-        .into_iter()
-        .filter(|item| item.item_type == "message")
-        .flat_map(|item| item.content)
-        .collect();
+    fn ensure_succeeded(&self) -> Result<(), String> {
+        if self.status.as_deref() == Some("failed") {
+            let details = self.error.as_ref().map(describe).unwrap_or_default();
+            return Err(format!("OpenAI response failed{details}"));
+        }
 
-    let text: String = parts
-        .iter()
-        .filter(|part| part.part_type == "output_text")
-        .filter_map(|part| part.text.as_deref())
-        .map(str::trim)
-        .collect::<Vec<_>>()
-        .join("\n\n");
-
-    if !text.is_empty() {
-        return Ok(text);
+        Ok(())
     }
 
-    if let Some(refusal) = parts.iter().find_map(|part| part.refusal.as_deref()) {
-        return Err(format!("OpenAI refused the request: {refusal}"));
-    }
+    fn no_text_error(&self) -> String {
+        if let Some(refusal) = self
+            .message_parts()
+            .find_map(|part| part.refusal.as_deref())
+        {
+            return format!("OpenAI refused the request: {refusal}");
+        }
 
-    if parsed.status.as_deref() == Some("incomplete") {
-        let reason = parsed
-            .incomplete_details
-            .and_then(|details| details.reason)
-            .unwrap_or_else(|| "unknown reason".to_string());
-        return Err(format!(
-            "OpenAI response was incomplete ({reason}) before producing any text"
-        ));
-    }
+        if self.status.as_deref() == Some("incomplete") {
+            let reason = self
+                .incomplete_details
+                .as_ref()
+                .and_then(|details| details.reason.as_deref())
+                .unwrap_or("unknown reason");
+            return format!("OpenAI response was incomplete ({reason}) before producing any text");
+        }
 
-    Err("OpenAI response contained no text content".to_string())
+        "OpenAI response contained no text content".to_string()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::betty_blocks_types::types::types::BettyAiTool;
     use crate::test_helpers::{
         MockHttpClient, http_search_tool, mcp_tool as betty_mcp_tool, mcp_tool_limited_to,
         openai_agent, openai_text_response, test_prompt,
@@ -257,7 +240,7 @@ mod tests {
     }
 
     fn body_of(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
-        serde_json::from_slice(&request_body(agent, prompt)).unwrap()
+        serde_json::from_slice(&OpenAi::request_body(agent, prompt)).unwrap()
     }
 
     #[test]
@@ -420,19 +403,22 @@ mod tests {
         })
         .to_string();
 
-        assert_eq!(extract_text(response.as_bytes()).unwrap(), "Hello\n\nworld");
+        assert_eq!(
+            ResponsesResponse::extract_text(response.as_bytes()).unwrap(),
+            "Hello\n\nworld"
+        );
     }
 
     #[test]
     fn extract_text_rejects_a_response_carrying_no_text() {
         let response = serde_json::json!({ "output": [] }).to_string();
 
-        assert!(extract_text(response.as_bytes()).is_err());
+        assert!(ResponsesResponse::extract_text(response.as_bytes()).is_err());
     }
 
     #[test]
     fn extract_text_rejects_malformed_json() {
-        assert!(extract_text(b"not json").is_err());
+        assert!(ResponsesResponse::extract_text(b"not json").is_err());
     }
 
     #[test]
@@ -445,7 +431,7 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            extract_text(response.as_bytes()).unwrap_err(),
+            ResponsesResponse::extract_text(response.as_bytes()).unwrap_err(),
             "OpenAI response failed (server_error): The model failed."
         );
     }
@@ -460,7 +446,7 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            extract_text(response.as_bytes()).unwrap_err(),
+            ResponsesResponse::extract_text(response.as_bytes()).unwrap_err(),
             "OpenAI response was incomplete (max_output_tokens) before producing any text"
         );
     }
@@ -476,7 +462,10 @@ mod tests {
         })
         .to_string();
 
-        assert_eq!(extract_text(response.as_bytes()).unwrap(), "partial");
+        assert_eq!(
+            ResponsesResponse::extract_text(response.as_bytes()).unwrap(),
+            "partial"
+        );
     }
 
     #[test]
@@ -490,7 +479,7 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            extract_text(response.as_bytes()).unwrap_err(),
+            ResponsesResponse::extract_text(response.as_bytes()).unwrap_err(),
             "OpenAI refused the request: I can't help with that."
         );
     }

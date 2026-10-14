@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
 use crate::http::HttpClient;
-use crate::providers::{Prompt, Provider, unique_mcp_server_name};
+use crate::providers::{Prompt, Provider, ProviderRequest, ProviderResponse, mcp_auth_token};
 
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const API_VERSION: &str = "2023-06-01";
@@ -52,7 +52,7 @@ impl Provider for Anthropic {
             .post_json(
                 &messages_url(&agent.url),
                 headers,
-                request_body(agent, prompt),
+                Self::request_body(agent, prompt),
             )
             .await?;
 
@@ -63,7 +63,7 @@ impl Provider for Anthropic {
             ));
         }
 
-        extract_text(&response)
+        MessagesResponse::extract_text(&response)
     }
 }
 
@@ -80,110 +80,72 @@ fn uses_mcp(agent: &BettyAiAgent) -> bool {
         .any(|tool| matches!(tool, BettyAiTool::Mcp(_)))
 }
 
-fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
-    let mut body = serde_json::json!({
-        "model": agent.ai_model_name,
-        "max_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
-        "system": prompt.instructions,
-        "messages": [{ "role": "user", "content": prompt.message }],
-    });
-
-    let tools = agent.tools.as_deref().unwrap_or(&[]);
-    if tools.is_empty() {
-        return body.to_string().into_bytes();
+impl ProviderRequest for Anthropic {
+    fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
+        serde_json::json!({
+            "model": agent.ai_model_name,
+            "max_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+            "system": prompt.instructions,
+            "messages": [{ "role": "user", "content": prompt.message }],
+        })
     }
 
-    let mut tools_body = Vec::new();
-    let mut mcp_servers = Vec::new();
+    fn web_search_tool() -> serde_json::Value {
+        serde_json::json!({
+            "type": WEB_SEARCH_TOOL_TYPE,
+            "name": "web_search",
+            "allowed_callers": ["direct"],
+        })
+    }
 
-    for tool in tools {
-        match tool {
-            BettyAiTool::HttpSearch(_) => tools_body.push(serde_json::json!({
-                "type": WEB_SEARCH_TOOL_TYPE,
-                "name": "web_search",
-                "allowed_callers": ["direct"],
-            })),
-            BettyAiTool::Mcp(options) => {
-                let taken: Vec<&str> = mcp_servers
-                    .iter()
-                    .filter_map(|server: &serde_json::Value| server["name"].as_str())
-                    .collect();
-                let name = unique_mcp_server_name(&options.url, &taken);
-                tools_body.push(mcp_toolset(options, &name));
-                mcp_servers.push(mcp_server(options, name))
-            }
+    fn mcp_tool(options: &McpOptions, name: &str) -> serde_json::Value {
+        let mut toolset = serde_json::json!({
+            "type": "mcp_toolset",
+            "mcp_server_name": name,
+        });
+
+        let Some(selected) = options.enabled_tools.as_deref() else {
+            return toolset;
+        };
+
+        toolset["default_config"] = serde_json::json!({ "enabled": false });
+
+        if !selected.is_empty() {
+            toolset["configs"] = selected
+                .iter()
+                .map(|tool| (tool.clone(), serde_json::json!({ "enabled": true })))
+                .collect::<serde_json::Map<String, serde_json::Value>>()
+                .into();
         }
+
+        toolset
     }
 
-    if !tools_body.is_empty() {
-        body["tools"] = tools_body.into();
+    fn mcp_server(options: &McpOptions, name: &str) -> Option<serde_json::Value> {
+        let mut server = serde_json::json!({
+            "type": "url",
+            "url": options.url,
+            "name": name,
+        });
+
+        if let Some(token) = mcp_auth_token(options) {
+            server["authorization_token"] = token.into();
+        }
+
+        Some(server)
     }
-    if !mcp_servers.is_empty() {
-        body["mcp_servers"] = mcp_servers.into();
-    }
-    body.to_string().into_bytes()
 }
 
-fn mcp_toolset(options: &McpOptions, name: &str) -> serde_json::Value {
-    let mut toolset = serde_json::json!({
-        "type": "mcp_toolset",
-        "mcp_server_name": name,
-    });
+impl ProviderResponse for MessagesResponse {
+    const PROVIDER: &'static str = "Anthropic";
 
-    let Some(selected) = options.enabled_tools.as_deref() else {
-        return toolset;
-    };
-
-    toolset["default_config"] = serde_json::json!({ "enabled": false });
-
-    if !selected.is_empty() {
-        toolset["configs"] = selected
+    fn text_parts(&self) -> Vec<&str> {
+        self.content
             .iter()
-            .map(|tool| (tool.clone(), serde_json::json!({ "enabled": true })))
-            .collect::<serde_json::Map<String, serde_json::Value>>()
-            .into();
+            .filter(|block| block.block_type == "text")
+            .filter_map(|block| block.text.as_deref())
+            .collect()
     }
-
-    toolset
-}
-
-fn mcp_server(options: &McpOptions, name: String) -> serde_json::Value {
-    let mut server = serde_json::json!({
-        "type": "url",
-        "url": options.url,
-        "name": name,
-    });
-
-    if let Some(value) = options
-        .authentication
-        .value
-        .as_deref()
-        .filter(|value| !value.is_empty())
-    {
-        server["authorization_token"] = value.into();
-    }
-
-    server
-}
-
-fn extract_text(response: &[u8]) -> Result<String, String> {
-    let parsed: MessagesResponse = serde_json::from_slice(response)
-        .map_err(|e| format!("Failed to parse Anthropic response: {e}"))?;
-
-    let text: String = parsed
-        .content
-        .into_iter()
-        .filter(|block| block.block_type == "text")
-        .filter_map(|block| block.text)
-        .map(|text| text.trim().to_string())
-        .collect::<Vec<_>>()
-        .join("\n\n");
-
-    if text.is_empty() {
-        return Err("Anthropic response contained no text content".to_string());
-    }
-
-    Ok(text)
 }
 
 #[cfg(test)]
@@ -213,7 +175,7 @@ mod tests {
 
     #[test]
     fn request_body_carries_model_prompts_and_default_max_tokens() {
-        let body: serde_json::Value = serde_json::from_slice(&request_body(
+        let body: serde_json::Value = serde_json::from_slice(&Anthropic::request_body(
             &test_provider(),
             &test_prompt("Summarise this"),
         ))
@@ -232,15 +194,18 @@ mod tests {
         prompt.max_tokens = Some(256);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&test_provider(), &prompt)).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&test_provider(), &prompt)).unwrap();
 
         assert_eq!(body["max_tokens"], 256);
     }
 
     #[test]
     fn request_body_omits_the_tool_fields_without_tools() {
-        let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&test_provider(), &test_prompt("hi"))).unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&Anthropic::request_body(
+            &test_provider(),
+            &test_prompt("hi"),
+        ))
+        .unwrap();
 
         assert!(body.get("tools").is_none());
         assert!(body.get("mcp_servers").is_none());
@@ -250,8 +215,11 @@ mod tests {
     fn request_body_enables_web_search_for_an_http_search_tool() {
         let agent = test_agent_with_tools(vec![http_search_tool()]);
 
-        let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("latest news"))).unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&Anthropic::request_body(
+            &agent,
+            &test_prompt("latest news"),
+        ))
+        .unwrap();
 
         assert_eq!(body["tools"].as_array().unwrap().len(), 1);
         assert_eq!(body["tools"][0]["type"], WEB_SEARCH_TOOL_TYPE);
@@ -269,7 +237,7 @@ mod tests {
         )]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert_eq!(body["mcp_servers"].as_array().unwrap().len(), 1);
         assert_eq!(body["mcp_servers"][0]["type"], "url");
@@ -294,7 +262,7 @@ mod tests {
         })]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert_eq!(body["mcp_servers"][0]["authorization_token"], "my-api-key");
         assert!(body["mcp_servers"][0].get("custom_headers").is_none());
@@ -305,7 +273,7 @@ mod tests {
         let agent = test_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert_eq!(body["tools"].as_array().unwrap().len(), 1);
         assert_eq!(body["tools"][0]["type"], "mcp_toolset");
@@ -322,7 +290,7 @@ mod tests {
         ]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert_eq!(body["mcp_servers"][0]["name"], "mcp-example-com");
         assert_eq!(body["mcp_servers"][1]["name"], "mcp-example-com-2");
@@ -335,7 +303,7 @@ mod tests {
         let agent = test_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert!(body["mcp_servers"][0].get("authorization_token").is_none());
     }
@@ -348,7 +316,7 @@ mod tests {
         ]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert_eq!(body["tools"].as_array().unwrap().len(), 2);
         assert_eq!(body["tools"][0]["type"], WEB_SEARCH_TOOL_TYPE);
@@ -361,7 +329,7 @@ mod tests {
         let agent = test_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert!(body["tools"][0].get("default_config").is_none());
         assert!(body["tools"][0].get("configs").is_none());
@@ -375,7 +343,7 @@ mod tests {
         )]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert_eq!(body["tools"][0]["default_config"]["enabled"], false);
         assert_eq!(body["tools"][0]["configs"]["get_customer"]["enabled"], true);
@@ -391,7 +359,7 @@ mod tests {
         )]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert_eq!(body["tools"][0]["default_config"]["enabled"], false);
         assert!(body["tools"][0].get("configs").is_none());
@@ -405,7 +373,7 @@ mod tests {
         ]);
 
         let body: serde_json::Value =
-            serde_json::from_slice(&request_body(&agent, &test_prompt("hi"))).unwrap();
+            serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
         assert_eq!(body["tools"][0]["configs"]["get_quote"]["enabled"], true);
         assert!(body["tools"][0]["configs"].get("get_forecast").is_none());
@@ -437,7 +405,10 @@ mod tests {
         })
         .to_string();
 
-        assert_eq!(extract_text(response.as_bytes()).unwrap(), "Hello\n\nworld");
+        assert_eq!(
+            MessagesResponse::extract_text(response.as_bytes()).unwrap(),
+            "Hello\n\nworld"
+        );
     }
 
     #[test]
@@ -450,19 +421,22 @@ mod tests {
         })
         .to_string();
 
-        assert_eq!(extract_text(response.as_bytes()).unwrap(), "answer");
+        assert_eq!(
+            MessagesResponse::extract_text(response.as_bytes()).unwrap(),
+            "answer"
+        );
     }
 
     #[test]
     fn extract_text_rejects_a_response_carrying_no_text() {
         let response = serde_json::json!({ "content": [] }).to_string();
 
-        assert!(extract_text(response.as_bytes()).is_err());
+        assert!(MessagesResponse::extract_text(response.as_bytes()).is_err());
     }
 
     #[test]
     fn extract_text_rejects_malformed_json() {
-        assert!(extract_text(b"not json").is_err());
+        assert!(MessagesResponse::extract_text(b"not json").is_err());
     }
 
     #[tokio::test]

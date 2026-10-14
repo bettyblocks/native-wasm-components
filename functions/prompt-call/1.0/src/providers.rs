@@ -1,7 +1,9 @@
 pub(crate) mod anthropic;
 pub(crate) mod openai;
 
-use crate::betty_blocks_types::types::types::BettyAiAgent;
+use serde::de::DeserializeOwned;
+
+use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
 use crate::http::HttpClient;
 
 #[derive(Debug)]
@@ -20,9 +22,97 @@ pub(crate) trait Provider {
     ) -> Result<String, String>;
 }
 
+pub(crate) trait ProviderResponse: DeserializeOwned {
+    const PROVIDER: &'static str;
+
+    fn text_parts(&self) -> Vec<&str>;
+
+    fn ensure_succeeded(&self) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn no_text_error(&self) -> String {
+        format!("{} response contained no text content", Self::PROVIDER)
+    }
+
+    fn parse(response: &[u8]) -> Result<Self, String> {
+        serde_json::from_slice(response)
+            .map_err(|e| format!("Failed to parse {} response: {e}", Self::PROVIDER))
+    }
+
+    fn text(&self) -> Result<String, String> {
+        self.ensure_succeeded()?;
+
+        let text = self
+            .text_parts()
+            .into_iter()
+            .map(str::trim)
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        if text.is_empty() {
+            return Err(self.no_text_error());
+        }
+
+        Ok(text)
+    }
+
+    fn extract_text(response: &[u8]) -> Result<String, String> {
+        Self::parse(response)?.text()
+    }
+}
+
+pub(crate) trait ProviderRequest {
+    fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value;
+
+    fn web_search_tool() -> serde_json::Value;
+
+    fn mcp_tool(options: &McpOptions, name: &str) -> serde_json::Value;
+
+    fn mcp_server(_options: &McpOptions, _name: &str) -> Option<serde_json::Value> {
+        None
+    }
+
+    fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
+        let mut body = Self::base_body(agent, prompt);
+        let mut tools = Vec::new();
+        let mut mcp_servers = Vec::new();
+        let mut mcp_names: Vec<String> = Vec::new();
+
+        for tool in agent.tools.as_deref().unwrap_or(&[]) {
+            match tool {
+                BettyAiTool::HttpSearch(_) => tools.push(Self::web_search_tool()),
+                BettyAiTool::Mcp(options) => {
+                    let taken: Vec<&str> = mcp_names.iter().map(String::as_str).collect();
+                    let name = unique_mcp_server_name(&options.url, &taken);
+                    tools.push(Self::mcp_tool(options, &name));
+                    mcp_servers.extend(Self::mcp_server(options, &name));
+                    mcp_names.push(name);
+                }
+            }
+        }
+
+        if !tools.is_empty() {
+            body["tools"] = tools.into();
+        }
+        if !mcp_servers.is_empty() {
+            body["mcp_servers"] = mcp_servers.into();
+        }
+        body.to_string().into_bytes()
+    }
+}
+
+pub(crate) fn mcp_auth_token(options: &McpOptions) -> Option<&str> {
+    options
+        .authentication
+        .value
+        .as_deref()
+        .filter(|value| !value.is_empty())
+}
+
 const MCP_SERVER_NAME_MAX_LEN: usize = 64;
 
-pub(crate) fn unique_mcp_server_name(url: &str, taken: &[&str]) -> String {
+fn unique_mcp_server_name(url: &str, taken: &[&str]) -> String {
     let base = mcp_server_name(url);
     let is_taken = |name: &str| taken.contains(&name);
 
