@@ -1,8 +1,11 @@
 use crate::bindings::betty_blocks_types::crud::crud::upsert as crud_upsert;
 use crate::bindings::betty_blocks_types::data_api::data_api::DataApi;
-use crate::bindings::betty_blocks_types::types::types::{
-    BettyModel, BettyProperty, BettyPropertyMapping, BettyPropertyPath,
+// `crud` uses `types@3.0.0`, and `betty-unique-by` starts in `types@3.2.0`. With two versions,
+// wit-bindgen puts the version in the module name.
+use crate::bindings::betty_blocks_types::types3_0_0::types::{
+    BettyModel, BettyProperty, BettyPropertyMapping,
 };
+use crate::bindings::betty_blocks_types::types3_2_0::types::BettyUniqueBy;
 use crate::bindings::exports::betty_blocks::upsert::upsert::{BettyRecordJson, Guest};
 
 mod bindings {
@@ -20,7 +23,7 @@ impl Guest for Upsert {
         data_api: &DataApi,
         model: BettyModel,
         mapping: BettyPropertyMapping,
-        mut unique_by: Vec<BettyPropertyPath>,
+        mut unique_by: BettyUniqueBy,
         validates: bool,
     ) -> Result<BettyRecordJson, String> {
         let validates = match validates {
