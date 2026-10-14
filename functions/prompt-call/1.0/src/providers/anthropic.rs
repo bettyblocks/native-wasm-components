@@ -416,12 +416,15 @@ mod tests {
     #[test]
     fn mcp_server_name_sanitizes_the_url_host() {
         assert_eq!(
-            mcp_server_name("https://MCP.Example.com:8080/sse"),
+            crate::providers::mcp_server_name("https://MCP.Example.com:8080/sse"),
             "MCP-Example-com-8080"
         );
-        assert_eq!(mcp_server_name("http://localhost:3000"), "localhost-3000");
-        assert_eq!(mcp_server_name("not a url"), "not-a-url");
-        assert_eq!(mcp_server_name("///"), "mcp-server");
+        assert_eq!(
+            crate::providers::mcp_server_name("http://localhost:3000"),
+            "localhost-3000"
+        );
+        assert_eq!(crate::providers::mcp_server_name("not a url"), "not-a-url");
+        assert_eq!(crate::providers::mcp_server_name("///"), "mcp-server");
     }
 
     #[test]

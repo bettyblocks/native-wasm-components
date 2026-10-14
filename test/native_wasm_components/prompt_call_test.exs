@@ -272,7 +272,8 @@ defmodule NativeWasmComponents.PromptCallTest do
          %{
            "description" => :none,
            "url" => "https://gateway.mcpservers.org/yahoo-finance/mcp",
-           "authentication" => %{"kind" => "access_token", "value" => {:some, "secret-token"}}
+           "authentication" => %{"kind" => "access_token", "value" => {:some, "secret-token"}},
+           "enabled-tools" => :none
          }}
       ]
 
