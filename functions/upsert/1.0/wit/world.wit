@@ -1,13 +1,13 @@
 package betty-blocks:upsert@4.0.0;
 
 interface upsert {
-    use betty-blocks-types:data-api/data-api@3.0.0.{data-api};
+    use betty-blocks-types:data-api/data-api@3.1.0.{data-api};
     use betty-blocks-types:types/types@3.2.0.{betty-property-mapping, betty-model, betty-record-json, betty-unique-by};
 
     upsert: func(data-api: borrow<data-api>, model: betty-model, mapping: betty-property-mapping, unique-by: betty-unique-by, validates: bool) -> result<betty-record-json, string>;
 }
 
 world main {
-    import betty-blocks-types:crud/crud@4.0.0;
+    import betty-blocks-types:crud/crud@4.1.0;
     export upsert;
 }
