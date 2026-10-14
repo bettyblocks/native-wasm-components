@@ -1,0 +1,20 @@
+pub(crate) mod anthropic;
+
+use crate::betty_blocks_types::types::types::BettyAiAgent;
+use crate::http::HttpClient;
+
+#[derive(Debug)]
+pub(crate) struct Prompt {
+    pub(crate) instructions: String,
+    pub(crate) message: String,
+    pub(crate) max_tokens: Option<u32>,
+}
+
+pub(crate) trait Provider {
+    async fn complete(
+        &self,
+        client: &impl HttpClient,
+        provider: &BettyAiAgent,
+        prompt: &Prompt,
+    ) -> Result<String, String>;
+}
