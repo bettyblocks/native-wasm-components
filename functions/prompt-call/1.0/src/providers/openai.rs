@@ -143,6 +143,10 @@ fn mcp_tool(options: &McpOptions, label: &str) -> serde_json::Value {
         tool["authorization"] = value.into();
     }
 
+    if let Some(selected) = options.enabled_tools.as_deref() {
+        tool["allowed_tools"] = selected.into();
+    }
+
     tool
 }
 
@@ -242,8 +246,8 @@ fn extract_text(response: &[u8]) -> Result<String, String> {
 mod tests {
     use super::*;
     use crate::test_helpers::{
-        MockHttpClient, http_search_tool, mcp_tool as betty_mcp_tool, openai_agent,
-        openai_text_response, test_prompt,
+        MockHttpClient, http_search_tool, mcp_tool as betty_mcp_tool, mcp_tool_limited_to,
+        openai_agent, openai_text_response, test_prompt,
     };
 
     fn agent_with_tools(tools: Vec<BettyAiTool>) -> BettyAiAgent {
@@ -325,6 +329,62 @@ mod tests {
             body_of(&agent, &test_prompt("hi"))["tools"][0]
                 .get("authorization")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn request_body_allows_every_mcp_tool_without_a_selection() {
+        let agent = agent_with_tools(vec![betty_mcp_tool("https://mcp.example.com/sse", None)]);
+
+        assert!(
+            body_of(&agent, &test_prompt("hi"))["tools"][0]
+                .get("allowed_tools")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn request_body_allows_only_the_mcp_tools_the_builder_picked() {
+        let agent = agent_with_tools(vec![mcp_tool_limited_to(
+            "https://mcp.example.com/sse",
+            &["get_customer", "list_orders"],
+        )]);
+
+        assert_eq!(
+            body_of(&agent, &test_prompt("hi"))["tools"][0]["allowed_tools"],
+            serde_json::json!(["get_customer", "list_orders"])
+        );
+    }
+
+    #[test]
+    fn request_body_allows_no_mcp_tools_for_an_empty_selection() {
+        let agent = agent_with_tools(vec![mcp_tool_limited_to(
+            "https://mcp.example.com/sse",
+            &[],
+        )]);
+
+        assert_eq!(
+            body_of(&agent, &test_prompt("hi"))["tools"][0]["allowed_tools"],
+            serde_json::json!([])
+        );
+    }
+
+    #[test]
+    fn request_body_keeps_the_selections_of_two_mcp_servers_apart() {
+        let agent = agent_with_tools(vec![
+            mcp_tool_limited_to("https://mcp.example.com/finance", &["get_quote"]),
+            mcp_tool_limited_to("https://mcp.example.com/weather", &["get_forecast"]),
+        ]);
+
+        let body = body_of(&agent, &test_prompt("hi"));
+
+        assert_eq!(
+            body["tools"][0]["allowed_tools"],
+            serde_json::json!(["get_quote"])
+        );
+        assert_eq!(
+            body["tools"][1]["allowed_tools"],
+            serde_json::json!(["get_forecast"])
         );
     }
 

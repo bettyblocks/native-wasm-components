@@ -298,6 +298,29 @@ defmodule NativeWasmComponents.PromptCallTest do
                run_component(openai_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
+    test "allows only the mcp tools the builder picked", %{sham: sham, url: url} do
+      tools = [mcp_tool({:some, ["get_customer", "list_orders"]})]
+
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert [
+                 %{
+                   "type" => "mcp",
+                   "server_label" => "mcp-example-com",
+                   "server_url" => "https://mcp.example.com/mcp",
+                   "require_approval" => "never",
+                   "allowed_tools" => ["get_customer", "list_orders"]
+                 }
+               ] == Jason.decode!(body)["tools"]
+
+        Plug.Conn.send_resp(conn, 200, openai_response("ok"))
+      end)
+
+      assert {:ok, "ok"} ==
+               run_component(openai_args(url, %{provider: %{"tools" => {:some, tools}}}))
+    end
+
     test "reports the openai error with the api key redacted", %{sham: sham, url: url} do
       body =
         Jason.encode!(%{
