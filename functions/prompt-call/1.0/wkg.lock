@@ -7,6 +7,6 @@ name = "betty-blocks-types:types"
 registry = "bettyblocksdev.azurecr.io"
 
 [[packages.versions]]
-requirement = "=2.4.0"
-version = "2.4.0"
-digest = "sha256:e1523bd9af3782680c3b61dbc1953e15ad30fc2a9faa655c2f6e8b94305c6b7d"
+requirement = "=3.2.0"
+version = "3.2.0"
+digest = "sha256:38fe3242905a54113b37913ea01cf8c3707c4dbad7e22d066186180d815dfd50"
