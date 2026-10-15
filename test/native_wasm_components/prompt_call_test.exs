@@ -70,7 +70,7 @@ defmodule NativeWasmComponents.PromptCallTest do
 
     test "returns the assistant text", %{sham: sham, url: url} do
       Sham.expect(sham, fn conn ->
-        Plug.Conn.send_resp(conn, 200, anthropic_response("4"))
+        Plug.Conn.resp(conn, 200, anthropic_response("4"))
       end)
 
       assert {:ok, %{result: "4", usage: "{}"}} == run_component(build_args(url))
@@ -81,7 +81,7 @@ defmodule NativeWasmComponents.PromptCallTest do
 
       Sham.expect(sham, fn conn ->
         response = Jason.encode!(%{content: [%{type: "text", text: "4"}], usage: usage})
-        Plug.Conn.send_resp(conn, 200, response)
+        Plug.Conn.resp(conn, 200, response)
       end)
 
       assert {:ok, %{result: "4", usage: json}} = run_component(build_args(url))
@@ -104,7 +104,7 @@ defmodule NativeWasmComponents.PromptCallTest do
                  "messages" => [%{"role" => "user", "content" => "What is 2 + 2?"}]
                } == Jason.decode!(body)
 
-        Plug.Conn.send_resp(conn, 200, anthropic_response("4"))
+        Plug.Conn.resp(conn, 200, anthropic_response("4"))
       end)
 
       assert {:ok, %{result: "4", usage: "{}"}} == run_component(build_args(url))
@@ -151,7 +151,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         assert request["system"] =~
                  ~s|- mcp-server https://gateway.mcpservers.org/yahoo-finance/mcp: call this tool if the prompt contain "mcp call"|
 
-        Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
+        Plug.Conn.resp(conn, 200, anthropic_response("ok"))
       end)
 
       assert {:ok, %{result: "ok", usage: "{}"}} ==
@@ -176,7 +176,7 @@ defmodule NativeWasmComponents.PromptCallTest do
                  }
                ] == Jason.decode!(body)["tools"]
 
-        Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
+        Plug.Conn.resp(conn, 200, anthropic_response("ok"))
       end)
 
       assert {:ok, %{result: "ok", usage: "{}"}} ==
@@ -195,7 +195,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         refute Map.has_key?(decoded, "mcp_servers")
         assert [] == Plug.Conn.get_req_header(conn, "anthropic-beta")
 
-        Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
+        Plug.Conn.resp(conn, 200, anthropic_response("ok"))
       end)
 
       assert {:ok, %{result: "ok", usage: "{}"}} ==
@@ -208,7 +208,7 @@ defmodule NativeWasmComponents.PromptCallTest do
 
         assert %{"max_tokens" => 256} = Jason.decode!(body)
 
-        Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
+        Plug.Conn.resp(conn, 200, anthropic_response("ok"))
       end)
 
       assert {:ok, %{result: "ok", usage: "{}"}} ==
@@ -219,7 +219,7 @@ defmodule NativeWasmComponents.PromptCallTest do
       response =
         Jason.encode!(%{content: [%{type: "text", text: "2 + 2 = "}, %{type: "text", text: "4"}]})
 
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, response) end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 200, response) end)
 
       assert {:ok, %{result: "2 + 2 =\n\n4", usage: "{}"}} == run_component(build_args(url))
     end
@@ -231,7 +231,7 @@ defmodule NativeWasmComponents.PromptCallTest do
           error: %{type: "authentication_error", message: "invalid x-api-key sk-ant-abcd"}
         })
 
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 401, body) end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 401, body) end)
 
       assert {:error,
               "Anthropic returned status 401 (authentication_error): invalid x-api-key [redacted]"} ==
@@ -239,7 +239,7 @@ defmodule NativeWasmComponents.PromptCallTest do
     end
 
     test "does not echo a body that is not an anthropic error", %{sham: sham, url: url} do
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 429, "slow down") end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 429, "slow down") end)
 
       assert {:error, "Anthropic returned status 429"} == run_component(build_args(url))
     end
@@ -286,7 +286,7 @@ defmodule NativeWasmComponents.PromptCallTest do
                  "store" => false
                } == Jason.decode!(body)
 
-        Plug.Conn.send_resp(conn, 200, openai_response("4"))
+        Plug.Conn.resp(conn, 200, openai_response("4"))
       end)
 
       assert {:ok, %{result: "4", usage: "{}"}} == run_component(openai_args(url))
@@ -308,7 +308,7 @@ defmodule NativeWasmComponents.PromptCallTest do
             usage: usage
           })
 
-        Plug.Conn.send_resp(conn, 200, response)
+        Plug.Conn.resp(conn, 200, response)
       end)
 
       assert {:ok, %{result: "4", usage: json}} = run_component(openai_args(url))
@@ -341,7 +341,7 @@ defmodule NativeWasmComponents.PromptCallTest do
                  }
                ] == Jason.decode!(body)["tools"]
 
-        Plug.Conn.send_resp(conn, 200, openai_response("ok"))
+        Plug.Conn.resp(conn, 200, openai_response("ok"))
       end)
 
       assert {:ok, %{result: "ok", usage: "{}"}} ==
@@ -364,7 +364,7 @@ defmodule NativeWasmComponents.PromptCallTest do
                  }
                ] == Jason.decode!(body)["tools"]
 
-        Plug.Conn.send_resp(conn, 200, openai_response("ok"))
+        Plug.Conn.resp(conn, 200, openai_response("ok"))
       end)
 
       assert {:ok, %{result: "ok", usage: "{}"}} ==
@@ -381,7 +381,7 @@ defmodule NativeWasmComponents.PromptCallTest do
           }
         })
 
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 401, body) end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 401, body) end)
 
       assert {:error,
               "OpenAI returned status 401 (invalid_api_key): Incorrect API key provided: [redacted]."} ==
@@ -389,7 +389,7 @@ defmodule NativeWasmComponents.PromptCallTest do
     end
 
     test "does not echo a body that is not an openai error", %{sham: sham, url: url} do
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 502, "bad gateway") end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 502, "bad gateway") end)
 
       assert {:error, "OpenAI returned status 502"} == run_component(openai_args(url))
     end
@@ -402,7 +402,7 @@ defmodule NativeWasmComponents.PromptCallTest do
           output: [%{type: "reasoning", summary: []}]
         })
 
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, body) end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 200, body) end)
 
       assert {:error,
               "OpenAI response was incomplete (max_output_tokens) before producing any text"} ==
