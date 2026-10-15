@@ -65,7 +65,7 @@ impl Provider for OpenAi {
             )
             .await?;
 
-        ResponsesResponse::handle(status, &response, &agent.api_key)
+        ResponsesResponse::handle(status, &response)
     }
 }
 
@@ -277,16 +277,16 @@ mod tests {
     }
 
     #[test]
-    fn request_body_allows_no_mcp_tools_for_an_empty_selection() {
-        let agent = agent_with_tools(vec![mcp_tool_limited_to(
-            "https://mcp.example.com/sse",
-            &[],
-        )]);
+    fn request_body_leaves_out_an_mcp_server_with_an_empty_selection() {
+        let agent = agent_with_tools(vec![
+            mcp_tool_limited_to("https://mcp.example.com/sse", &[]),
+            http_search_tool(),
+        ]);
 
-        assert_eq!(
-            body_of(&agent, &test_prompt("hi"))["tools"][0]["allowed_tools"],
-            serde_json::json!([])
-        );
+        let body = body_of(&agent, &test_prompt("hi"));
+
+        assert_eq!(body["tools"].as_array().unwrap().len(), 1);
+        assert_eq!(body["tools"][0]["type"], WEB_SEARCH_TOOL_TYPE);
     }
 
     #[test]
@@ -426,7 +426,7 @@ mod tests {
         let body = r#"{"error":{"message":"Rate limit reached for gpt-5.4.","type":"requests","code":"rate_limit_exceeded"}}"#;
 
         assert_eq!(
-            ResponsesResponse::handle(429, body.as_bytes(), "test-key").unwrap_err(),
+            ResponsesResponse::handle(429, body.as_bytes()).unwrap_err(),
             "OpenAI returned status 429 (rate_limit_exceeded): Rate limit reached for gpt-5.4."
         );
     }
@@ -437,38 +437,15 @@ mod tests {
             r#"{"error":{"message":"Bad input.","type":"invalid_request_error","code":null}}"#;
 
         assert_eq!(
-            ResponsesResponse::handle(400, body.as_bytes(), "test-key").unwrap_err(),
+            ResponsesResponse::handle(400, body.as_bytes()).unwrap_err(),
             "OpenAI returned status 400 (invalid_request_error): Bad input."
-        );
-    }
-
-    #[test]
-    fn status_error_redacts_the_masked_api_key() {
-        let body = r#"{"error":{"message":"Incorrect API key provided: sk-proj-...abcd. You can find your API key at https://platform.openai.com/account/api-keys.","code":"invalid_api_key"}}"#;
-
-        let error = ResponsesResponse::handle(401, body.as_bytes(), "sk-proj-secret").unwrap_err();
-
-        assert!(!error.contains("abcd"));
-        assert!(error.starts_with(
-            "OpenAI returned status 401 (invalid_api_key): Incorrect API key provided: [redacted]"
-        ));
-    }
-
-    #[test]
-    fn status_error_redacts_the_configured_api_key() {
-        let body = r#"{"error":{"message":"key mykey123 is not valid","code":"invalid_api_key"}}"#;
-
-        assert!(
-            !ResponsesResponse::handle(401, body.as_bytes(), "mykey123")
-                .unwrap_err()
-                .contains("mykey123")
         );
     }
 
     #[test]
     fn status_error_does_not_echo_a_body_that_is_not_an_openai_error() {
         assert_eq!(
-            ResponsesResponse::handle(502, b"<html>Bad gateway</html>", "test-key").unwrap_err(),
+            ResponsesResponse::handle(502, b"<html>Bad gateway</html>").unwrap_err(),
             "OpenAI returned status 502"
         );
     }
@@ -526,8 +503,7 @@ mod tests {
             r#"{"error":{"message":"Incorrect API key provided: sk-...abcd"}}"#.to_string(),
         )]);
 
-        let error = OpenAi
-            .complete(&client, &openai_agent(), &test_prompt("hi"))
+        let error = crate::run(&client, &openai_agent(), &test_prompt("hi"))
             .await
             .unwrap_err();
 

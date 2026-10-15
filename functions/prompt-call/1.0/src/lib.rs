@@ -10,7 +10,7 @@ use crate::exports::betty_blocks::prompt_call::prompt_call;
 use crate::http::HttpClient;
 use crate::providers::anthropic::Anthropic;
 use crate::providers::openai::OpenAi;
-use crate::providers::{Prompt, Provider};
+use crate::providers::{Prompt, Provider, active_tools, redact};
 
 wit_bindgen::generate!({ generate_all });
 
@@ -39,19 +39,17 @@ async fn run(
     prompt: &Prompt,
 ) -> Result<String, String> {
     let prompt = with_tool_descriptions(agent, prompt);
-    match agent.name.as_str() {
+    let result = match agent.name.as_str() {
         "anthropic" => Anthropic.complete(client, agent, &prompt).await,
         "openai" => OpenAi.complete(client, agent, &prompt).await,
         other => Err(format!("Unsupported provider: {other}")),
-    }
+    };
+
+    result.map_err(|error| redact(&error, agent))
 }
 
 fn with_tool_descriptions(agent: &BettyAiAgent, prompt: &Prompt) -> Prompt {
-    let lines: Vec<String> = agent
-        .tools
-        .as_deref()
-        .unwrap_or(&[])
-        .iter()
+    let lines: Vec<String> = active_tools(agent)
         .map(|tool| match tool {
             BettyAiTool::HttpSearch(options) => match &options.description {
                 Some(description) => format!("- http-search: {description}"),
@@ -117,6 +115,28 @@ mod tests {
         assert!(system.contains(
             "- mcp-server https://gateway.mcpservers.org/yahoo-finance/mcp: call this tool if the prompt contain \"mcp call\""
         ));
+    }
+
+    #[tokio::test]
+    async fn leaves_an_mcp_server_with_an_empty_selection_out_of_the_system_prompt() {
+        let client = MockHttpClient::new(vec![(200, anthropic_text_response("hello"))]);
+        let mut agent = test_provider();
+        agent.tools = Some(vec![BettyAiTool::Mcp(McpOptions {
+            description: Some("never offered".to_string()),
+            url: "https://mcp.example.com/mcp".to_string(),
+            authentication: AuthenticationConfig {
+                kind: "access_token".to_string(),
+                value: None,
+            },
+            enabled_tools: Some(vec![]),
+        })]);
+
+        run(&client, &agent, &test_prompt("hi")).await.unwrap();
+
+        let request = &client.requests()[0];
+        assert_eq!(request.json()["system"], "You are helpful.");
+        assert!(request.json().get("tools").is_none());
+        assert_eq!(request.header("anthropic-beta"), None);
     }
 
     #[tokio::test]

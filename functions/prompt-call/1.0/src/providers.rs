@@ -23,6 +23,16 @@ pub(crate) trait Provider {
     ) -> Result<String, String>;
 }
 
+pub(crate) fn active_tools(agent: &BettyAiAgent) -> impl Iterator<Item = &BettyAiTool> {
+    agent.tools.iter().flatten().filter(|tool| match tool {
+        BettyAiTool::Mcp(options) => options
+            .enabled_tools
+            .as_ref()
+            .is_none_or(|selected| !selected.is_empty()),
+        BettyAiTool::HttpSearch(_) => true,
+    })
+}
+
 pub(crate) fn ensure_configured(agent: &BettyAiAgent) -> Result<(), String> {
     if agent.api_key.is_empty() {
         return Err(format!("No API key configured for agent: {}", agent.name));
@@ -67,24 +77,63 @@ impl ApiError {
     }
 }
 
-fn redact(message: &str, api_key: &str) -> String {
-    let message = if api_key.is_empty() {
-        message.to_string()
-    } else {
-        message.replace(api_key, "[redacted]")
-    };
+const REDACTED: &str = "[redacted]";
 
-    message
-        .split(' ')
-        .map(|word| {
-            if word.starts_with("sk-") {
-                "[redacted]"
-            } else {
-                word
-            }
+pub(crate) fn redact(message: &str, agent: &BettyAiAgent) -> String {
+    let mut secrets: Vec<&str> = agent
+        .tools
+        .iter()
+        .flatten()
+        .filter_map(|tool| match tool {
+            BettyAiTool::Mcp(options) => mcp_auth_token(options),
+            BettyAiTool::HttpSearch(_) => None,
         })
-        .collect::<Vec<_>>()
-        .join(" ")
+        .chain([agent.api_key.as_str()])
+        .filter(|secret| !secret.is_empty())
+        .collect();
+
+    secrets.sort_by_key(|secret| std::cmp::Reverse(secret.len()));
+
+    let message = secrets
+        .into_iter()
+        .fold(message.to_string(), |message, secret| {
+            message.replace(secret, REDACTED)
+        });
+
+    redact_key_like_tokens(&message)
+}
+
+fn is_token_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '*')
+}
+
+fn redact_key_like_tokens(message: &str) -> String {
+    let mut redacted = String::with_capacity(message.len());
+    let mut rest = message;
+    let mut after_bearer = false;
+
+    while let Some(start) = rest.find(is_token_char) {
+        redacted.push_str(&rest[..start]);
+        rest = &rest[start..];
+
+        let run = &rest[..rest.find(|c| !is_token_char(c)).unwrap_or(rest.len())];
+
+        let token = match run.trim_end_matches('.') {
+            "" => run,
+            token => token,
+        };
+
+        if after_bearer || token.starts_with("sk-") {
+            redacted.push_str(REDACTED);
+        } else {
+            redacted.push_str(token);
+        }
+        after_bearer = token.eq_ignore_ascii_case("bearer");
+        rest = &rest[token.len()..];
+    }
+
+    redacted.push_str(rest);
+    redacted
 }
 
 pub(crate) trait ProviderResponse: DeserializeOwned {
@@ -137,14 +186,12 @@ pub(crate) trait ProviderResponse: DeserializeOwned {
         }
     }
 
-    fn handle(status: u16, response: &[u8], api_key: &str) -> Result<String, String> {
-        let result = if status == 200 {
+    fn handle(status: u16, response: &[u8]) -> Result<String, String> {
+        if status == 200 {
             Self::extract_text(response)
         } else {
             Err(Self::status_error(status, response))
-        };
-
-        result.map_err(|error| redact(&error, api_key))
+        }
     }
 }
 
@@ -165,7 +212,7 @@ pub(crate) trait ProviderRequest {
         let mut mcp_servers = Vec::new();
         let mut mcp_names: Vec<String> = Vec::new();
 
-        for tool in agent.tools.as_deref().unwrap_or(&[]) {
+        for tool in active_tools(agent) {
             match tool {
                 BettyAiTool::HttpSearch(_) => tools.push(Self::web_search_tool()),
                 BettyAiTool::Mcp(options) => {
@@ -255,6 +302,68 @@ fn mcp_server_name(url: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{mcp_tool, test_agent_with_tools};
+
+    fn agent_with_secrets() -> BettyAiAgent {
+        let mut agent = test_agent_with_tools(vec![mcp_tool(
+            "https://mcp.example.com",
+            Some("mcp-secret-token"),
+        )]);
+        agent.api_key = "mykey123".to_string();
+        agent
+    }
+
+    #[test]
+    fn redact_removes_the_configured_api_key_and_mcp_tokens() {
+        assert_eq!(
+            redact(
+                "key mykey123 and token mcp-secret-token are not valid",
+                &agent_with_secrets()
+            ),
+            "key [redacted] and token [redacted] are not valid"
+        );
+    }
+
+    #[test]
+    fn redact_removes_key_like_tokens_whatever_surrounds_them() {
+        let agent = agent_with_secrets();
+
+        assert_eq!(
+            redact(r#"bad key "sk-proj-abc" given"#, &agent),
+            r#"bad key "[redacted]" given"#
+        );
+        assert_eq!(redact("key=sk-abc,next", &agent), "key=[redacted],next");
+        assert_eq!(redact("line\nsk-ant-xyz\n", &agent), "line\n[redacted]\n");
+        assert_eq!(
+            redact(
+                "Incorrect API key provided: sk-proj-...abcd. See docs.",
+                &agent
+            ),
+            "Incorrect API key provided: [redacted]. See docs."
+        );
+        assert_eq!(
+            redact("Incorrect API key provided: sk-proj-****abcd", &agent),
+            "Incorrect API key provided: [redacted]"
+        );
+    }
+
+    #[test]
+    fn redact_removes_a_bearer_token() {
+        assert_eq!(
+            redact(
+                "header was Authorization: Bearer abc.def-ghi",
+                &agent_with_secrets()
+            ),
+            "header was Authorization: Bearer [redacted]"
+        );
+    }
+
+    #[test]
+    fn redact_keeps_ordinary_text() {
+        let message = "task-runner hit a rate limit... retry in 2.5s (risk-free).";
+
+        assert_eq!(redact(message, &agent_with_secrets()), message);
+    }
 
     #[test]
     fn mcp_server_name_sanitizes_the_url_host() {

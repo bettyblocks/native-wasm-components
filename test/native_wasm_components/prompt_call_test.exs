@@ -2,7 +2,7 @@ defmodule NativeWasmComponents.PromptCallTest do
   use ExUnit.Case, async: true
 
   @component_path "functions/prompt-call/1.0/prompt_call.wasm"
-  @interface {"betty-blocks:prompt-call/prompt-call@1.1.0", "prompt-call"}
+  @interface {"betty-blocks:prompt-call/prompt-call@1.2.0", "prompt-call"}
 
   defp run_component(args) do
     TestHelper.run_component(@component_path, @interface, args)
@@ -171,16 +171,17 @@ defmodule NativeWasmComponents.PromptCallTest do
                run_component(build_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
-    test "disables every mcp tool when the builder picked none", %{sham: sham, url: url} do
+    test "leaves out an mcp server when the builder picked none of its tools",
+         %{sham: sham, url: url} do
       tools = [mcp_tool({:some, []})]
 
       Sham.expect(sham, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+        decoded = Jason.decode!(body)
 
-        assert [%{"default_config" => %{"enabled" => false}} = toolset] =
-                 Jason.decode!(body)["tools"]
-
-        refute Map.has_key?(toolset, "configs")
+        refute Map.has_key?(decoded, "tools")
+        refute Map.has_key?(decoded, "mcp_servers")
+        assert [] == Plug.Conn.get_req_header(conn, "anthropic-beta")
 
         Plug.Conn.send_resp(conn, 200, anthropic_response("ok"))
       end)
@@ -347,7 +348,7 @@ defmodule NativeWasmComponents.PromptCallTest do
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 401, body) end)
 
       assert {:error,
-              "OpenAI returned status 401 (invalid_api_key): Incorrect API key provided: [redacted]"} ==
+              "OpenAI returned status 401 (invalid_api_key): Incorrect API key provided: [redacted]."} ==
                run_component(openai_args(url))
     end
 

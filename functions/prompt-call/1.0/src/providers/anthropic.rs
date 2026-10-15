@@ -3,7 +3,8 @@ use serde::Deserialize;
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
 use crate::http::HttpClient;
 use crate::providers::{
-    Prompt, Provider, ProviderRequest, ProviderResponse, ensure_configured, mcp_auth_token,
+    Prompt, Provider, ProviderRequest, ProviderResponse, active_tools, ensure_configured,
+    mcp_auth_token,
 };
 
 const DEFAULT_MAX_TOKENS: u32 = 4096;
@@ -54,7 +55,7 @@ impl Provider for Anthropic {
             )
             .await?;
 
-        MessagesResponse::handle(status, &response, &agent.api_key)
+        MessagesResponse::handle(status, &response)
     }
 }
 
@@ -63,12 +64,7 @@ fn messages_url(base_url: &str) -> String {
 }
 
 fn uses_mcp(agent: &BettyAiAgent) -> bool {
-    agent
-        .tools
-        .as_deref()
-        .unwrap_or(&[])
-        .iter()
-        .any(|tool| matches!(tool, BettyAiTool::Mcp(_)))
+    active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_)))
 }
 
 impl ProviderRequest for Anthropic {
@@ -100,14 +96,11 @@ impl ProviderRequest for Anthropic {
         };
 
         toolset["default_config"] = serde_json::json!({ "enabled": false });
-
-        if !selected.is_empty() {
-            toolset["configs"] = selected
-                .iter()
-                .map(|tool| (tool.clone(), serde_json::json!({ "enabled": true })))
-                .collect::<serde_json::Map<String, serde_json::Value>>()
-                .into();
-        }
+        toolset["configs"] = selected
+            .iter()
+            .map(|tool| (tool.clone(), serde_json::json!({ "enabled": true })))
+            .collect::<serde_json::Map<String, serde_json::Value>>()
+            .into();
 
         toolset
     }
@@ -353,17 +346,19 @@ mod tests {
     }
 
     #[test]
-    fn request_body_disables_every_mcp_tool_for_an_empty_selection() {
-        let agent = test_agent_with_tools(vec![mcp_tool_limited_to(
-            "https://mcp.example.com/sse",
-            &[],
-        )]);
+    fn request_body_leaves_out_an_mcp_server_with_an_empty_selection() {
+        let agent = test_agent_with_tools(vec![
+            mcp_tool_limited_to("https://mcp.example.com/sse", &[]),
+            http_search_tool(),
+        ]);
 
         let body: serde_json::Value =
             serde_json::from_slice(&Anthropic::request_body(&agent, &test_prompt("hi"))).unwrap();
 
-        assert_eq!(body["tools"][0]["default_config"]["enabled"], false);
-        assert!(body["tools"][0].get("configs").is_none());
+        assert_eq!(body["tools"].as_array().unwrap().len(), 1);
+        assert_eq!(body["tools"][0]["type"], WEB_SEARCH_TOOL_TYPE);
+        assert!(body.get("mcp_servers").is_none());
+        assert!(!uses_mcp(&agent));
     }
 
     #[test]
@@ -540,8 +535,7 @@ mod tests {
                 .to_string(),
         )]);
 
-        let error = Anthropic
-            .complete(&client, &test_provider(), &test_prompt("hi"))
+        let error = crate::run(&client, &test_provider(), &test_prompt("hi"))
             .await
             .unwrap_err();
 
@@ -556,7 +550,7 @@ mod tests {
         let body = r#"{"type":"error","error":{"type":"rate_limit_error","message":"Number of requests has exceeded your rate limit."}}"#;
 
         assert_eq!(
-            MessagesResponse::handle(429, body.as_bytes(), "test-key").unwrap_err(),
+            MessagesResponse::handle(429, body.as_bytes()).unwrap_err(),
             "Anthropic returned status 429 (rate_limit_error): Number of requests has exceeded your rate limit."
         );
     }
@@ -564,7 +558,7 @@ mod tests {
     #[test]
     fn status_error_does_not_echo_a_body_that_is_not_an_anthropic_error() {
         assert_eq!(
-            MessagesResponse::handle(502, b"<html>Bad gateway</html>", "test-key").unwrap_err(),
+            MessagesResponse::handle(502, b"<html>Bad gateway</html>").unwrap_err(),
             "Anthropic returned status 502"
         );
     }
