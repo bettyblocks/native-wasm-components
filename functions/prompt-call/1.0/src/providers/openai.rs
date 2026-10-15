@@ -1,14 +1,12 @@
 use serde::Deserialize;
 
-use crate::betty_blocks_types::types::types::{BettyAiAgent, McpOptions};
+use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 use crate::providers::{
-    ApiError, Prompt, Provider, ProviderRequest, ProviderResponse, ensure_configured,
-    mcp_auth_token,
+    ApiError, McpServer, Prompt, Provider, ProviderRequest, ProviderResponse, ensure_configured,
+    mcp_auth_token, null_as_empty,
 };
 
-const DEFAULT_MAX_TOKENS: u32 = 4096;
-const RESPONSES_PATH: &str = "responses";
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search";
 
 pub(crate) struct OpenAi;
@@ -16,7 +14,7 @@ pub(crate) struct OpenAi;
 #[derive(Debug, Deserialize)]
 struct ResponsesResponse {
     status: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty")]
     output: Vec<OutputItem>,
     error: Option<ApiError>,
     incomplete_details: Option<IncompleteDetails>,
@@ -31,7 +29,7 @@ struct IncompleteDetails {
 struct OutputItem {
     #[serde(rename = "type")]
     item_type: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty")]
     content: Vec<ContentPart>,
 }
 
@@ -59,7 +57,7 @@ impl Provider for OpenAi {
 
         let (status, response) = client
             .post_json(
-                &responses_url(&agent.url),
+                &Self::endpoint_url(&agent.url),
                 headers,
                 Self::request_body(agent, prompt),
             )
@@ -69,15 +67,13 @@ impl Provider for OpenAi {
     }
 }
 
-fn responses_url(base_url: &str) -> String {
-    format!("{}/{RESPONSES_PATH}", base_url.trim_end_matches('/'))
-}
-
 impl ProviderRequest for OpenAi {
+    const PATH: &'static str = "responses";
+
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
         serde_json::json!({
             "model": agent.ai_model_name,
-            "max_output_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+            "max_output_tokens": prompt.max_tokens(),
             "instructions": prompt.instructions,
             "input": prompt.message,
             "store": false,
@@ -88,10 +84,11 @@ impl ProviderRequest for OpenAi {
         serde_json::json!({ "type": WEB_SEARCH_TOOL_TYPE })
     }
 
-    fn mcp_tool(options: &McpOptions, label: &str) -> serde_json::Value {
+    fn mcp_tool(server: &McpServer) -> serde_json::Value {
+        let options = server.options;
         let mut tool = serde_json::json!({
             "type": "mcp",
-            "server_label": label,
+            "server_label": server.name,
             "server_url": options.url,
             "require_approval": "never",
         });
@@ -181,23 +178,14 @@ mod tests {
     }
 
     #[test]
-    fn responses_url_appends_the_endpoint_to_the_base_url() {
-        assert_eq!(
-            responses_url("https://api.openai.com/v1"),
-            "https://api.openai.com/v1/responses"
-        );
-        assert_eq!(
-            responses_url("https://api.openai.com/v1/"),
-            "https://api.openai.com/v1/responses"
-        );
-    }
-
-    #[test]
     fn request_body_carries_model_prompts_and_default_max_tokens() {
         let body = body_of(&openai_agent(), &test_prompt("Summarise this"));
 
         assert_eq!(body["model"], "gpt-5.4");
-        assert_eq!(body["max_output_tokens"], DEFAULT_MAX_TOKENS);
+        assert_eq!(
+            body["max_output_tokens"],
+            crate::providers::DEFAULT_MAX_TOKENS
+        );
         assert_eq!(body["instructions"], "You are helpful.");
         assert_eq!(body["input"], "Summarise this");
         assert_eq!(body["store"], false);
@@ -370,6 +358,32 @@ mod tests {
         assert_eq!(
             ResponsesResponse::extract_text(response.as_bytes()).unwrap_err(),
             "OpenAI response failed (server_error): The model failed."
+        );
+    }
+
+    #[test]
+    fn extract_text_tolerates_null_content_on_non_message_items() {
+        let response = r#"{
+            "status": "completed",
+            "output": [
+                { "type": "reasoning", "content": null, "summary": [] },
+                { "type": "message", "content": [{ "type": "output_text", "text": "42" }] }
+            ]
+        }"#;
+
+        assert_eq!(
+            ResponsesResponse::extract_text(response.as_bytes()).unwrap(),
+            "42"
+        );
+    }
+
+    #[test]
+    fn extract_text_reads_a_null_output_as_no_text() {
+        let response = r#"{ "status": "completed", "output": null }"#;
+
+        assert_eq!(
+            ResponsesResponse::extract_text(response.as_bytes()).unwrap_err(),
+            "OpenAI response contained no text content"
         );
     }
 

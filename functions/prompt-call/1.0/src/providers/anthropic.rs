@@ -1,15 +1,13 @@
 use serde::Deserialize;
 
-use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
+use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
 use crate::http::HttpClient;
 use crate::providers::{
-    Prompt, Provider, ProviderRequest, ProviderResponse, active_tools, ensure_configured,
-    mcp_auth_token,
+    McpServer, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools,
+    ensure_configured, mcp_auth_token, null_as_empty,
 };
 
-const DEFAULT_MAX_TOKENS: u32 = 4096;
 const API_VERSION: &str = "2023-06-01";
-const MESSAGES_PATH: &str = "messages";
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search_20260318";
 const MCP_CLIENT_BETA: &str = "mcp-client-2025-11-20";
 
@@ -17,7 +15,7 @@ pub(crate) struct Anthropic;
 
 #[derive(Debug, Deserialize)]
 struct MessagesResponse {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty")]
     content: Vec<ContentBlock>,
     stop_reason: Option<String>,
 }
@@ -49,7 +47,7 @@ impl Provider for Anthropic {
 
         let (status, response) = client
             .post_json(
-                &messages_url(&agent.url),
+                &Self::endpoint_url(&agent.url),
                 headers,
                 Self::request_body(agent, prompt),
             )
@@ -59,19 +57,17 @@ impl Provider for Anthropic {
     }
 }
 
-fn messages_url(base_url: &str) -> String {
-    format!("{}/{MESSAGES_PATH}", base_url.trim_end_matches('/'))
-}
-
 fn uses_mcp(agent: &BettyAiAgent) -> bool {
     active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_)))
 }
 
 impl ProviderRequest for Anthropic {
+    const PATH: &'static str = "messages";
+
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
         serde_json::json!({
             "model": agent.ai_model_name,
-            "max_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+            "max_tokens": prompt.max_tokens(),
             "system": prompt.instructions,
             "messages": [{ "role": "user", "content": prompt.message }],
         })
@@ -85,13 +81,13 @@ impl ProviderRequest for Anthropic {
         })
     }
 
-    fn mcp_tool(options: &McpOptions, name: &str) -> serde_json::Value {
+    fn mcp_tool(server: &McpServer) -> serde_json::Value {
         let mut toolset = serde_json::json!({
             "type": "mcp_toolset",
-            "mcp_server_name": name,
+            "mcp_server_name": server.name,
         });
 
-        let Some(selected) = options.enabled_tools.as_deref() else {
+        let Some(selected) = server.options.enabled_tools.as_deref() else {
             return toolset;
         };
 
@@ -105,18 +101,26 @@ impl ProviderRequest for Anthropic {
         toolset
     }
 
-    fn mcp_server(options: &McpOptions, name: &str) -> Option<serde_json::Value> {
-        let mut server = serde_json::json!({
-            "type": "url",
-            "url": options.url,
-            "name": name,
-        });
-
-        if let Some(token) = mcp_auth_token(options) {
-            server["authorization_token"] = token.into();
+    fn finish_body(body: &mut serde_json::Value, servers: &[McpServer]) {
+        if servers.is_empty() {
+            return;
         }
 
-        Some(server)
+        body["mcp_servers"] = servers
+            .iter()
+            .map(|server| {
+                let mut entry = serde_json::json!({
+                    "type": "url",
+                    "url": server.options.url,
+                    "name": server.name,
+                });
+                if let Some(token) = mcp_auth_token(server.options) {
+                    entry["authorization_token"] = token.into();
+                }
+                entry
+            })
+            .collect::<Vec<_>>()
+            .into();
     }
 }
 
@@ -146,26 +150,11 @@ impl ProviderResponse for MessagesResponse {
 mod tests {
     use super::*;
     use crate::betty_blocks_types::types::types::AuthenticationConfig;
+    use crate::betty_blocks_types::types::types::McpOptions;
     use crate::test_helpers::{
         MockHttpClient, anthropic_text_response, http_search_tool, mcp_tool, mcp_tool_limited_to,
         test_agent_with_tools, test_prompt, test_provider,
     };
-
-    #[test]
-    fn messages_url_appends_the_endpoint_to_the_base_url() {
-        assert_eq!(
-            messages_url("https://api.anthropic.com/v1"),
-            "https://api.anthropic.com/v1/messages"
-        );
-    }
-
-    #[test]
-    fn messages_url_does_not_double_the_separator() {
-        assert_eq!(
-            messages_url("https://api.anthropic.com/v1/"),
-            "https://api.anthropic.com/v1/messages"
-        );
-    }
 
     #[test]
     fn request_body_carries_model_prompts_and_default_max_tokens() {
@@ -176,7 +165,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(body["model"], "claude-sonnet-5");
-        assert_eq!(body["max_tokens"], DEFAULT_MAX_TOKENS);
+        assert_eq!(body["max_tokens"], crate::providers::DEFAULT_MAX_TOKENS);
         assert_eq!(body["system"], "You are helpful.");
         assert_eq!(body["messages"][0]["role"], "user");
         assert_eq!(body["messages"][0]["content"], "Summarise this");

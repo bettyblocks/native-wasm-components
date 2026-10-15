@@ -1,17 +1,33 @@
 pub(crate) mod anthropic;
 pub(crate) mod openai;
 
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer};
 
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool, McpOptions};
 use crate::http::HttpClient;
+
+pub(crate) const DEFAULT_MAX_TOKENS: u32 = 4096;
 
 #[derive(Debug)]
 pub(crate) struct Prompt {
     pub(crate) instructions: String,
     pub(crate) message: String,
     pub(crate) max_tokens: Option<u32>,
+}
+
+impl Prompt {
+    pub(crate) fn max_tokens(&self) -> u32 {
+        self.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS)
+    }
+}
+
+pub(crate) fn null_as_empty<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(Option::<Vec<T>>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 pub(crate) trait Provider {
@@ -195,32 +211,41 @@ pub(crate) trait ProviderResponse: DeserializeOwned {
     }
 }
 
+pub(crate) struct McpServer<'a> {
+    pub(crate) options: &'a McpOptions,
+    pub(crate) name: String,
+}
+
 pub(crate) trait ProviderRequest {
+    const PATH: &'static str;
+
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value;
 
     fn web_search_tool() -> serde_json::Value;
 
-    fn mcp_tool(options: &McpOptions, name: &str) -> serde_json::Value;
+    fn mcp_tool(server: &McpServer) -> serde_json::Value;
 
-    fn mcp_server(_options: &McpOptions, _name: &str) -> Option<serde_json::Value> {
-        None
+    fn finish_body(_body: &mut serde_json::Value, _servers: &[McpServer]) {}
+
+    fn endpoint_url(base_url: &str) -> String {
+        format!("{}/{}", base_url.trim_end_matches('/'), Self::PATH)
     }
 
     fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
         let mut body = Self::base_body(agent, prompt);
         let mut tools = Vec::new();
-        let mut mcp_servers = Vec::new();
-        let mut mcp_names: Vec<String> = Vec::new();
+        let mut servers: Vec<McpServer> = Vec::new();
 
         for tool in active_tools(agent) {
             match tool {
                 BettyAiTool::HttpSearch(_) => tools.push(Self::web_search_tool()),
                 BettyAiTool::Mcp(options) => {
-                    let taken: Vec<&str> = mcp_names.iter().map(String::as_str).collect();
-                    let name = unique_mcp_server_name(&options.url, &taken);
-                    tools.push(Self::mcp_tool(options, &name));
-                    mcp_servers.extend(Self::mcp_server(options, &name));
-                    mcp_names.push(name);
+                    let name = unique_mcp_server_name(&options.url, |name| {
+                        servers.iter().any(|server| server.name == name)
+                    });
+                    let server = McpServer { options, name };
+                    tools.push(Self::mcp_tool(&server));
+                    servers.push(server);
                 }
             }
         }
@@ -228,9 +253,7 @@ pub(crate) trait ProviderRequest {
         if !tools.is_empty() {
             body["tools"] = tools.into();
         }
-        if !mcp_servers.is_empty() {
-            body["mcp_servers"] = mcp_servers.into();
-        }
+        Self::finish_body(&mut body, &servers);
         body.to_string().into_bytes()
     }
 }
@@ -245,9 +268,8 @@ pub(crate) fn mcp_auth_token(options: &McpOptions) -> Option<&str> {
 
 const MCP_SERVER_NAME_MAX_LEN: usize = 64;
 
-fn unique_mcp_server_name(url: &str, taken: &[&str]) -> String {
+fn unique_mcp_server_name(url: &str, is_taken: impl Fn(&str) -> bool) -> String {
     let base = mcp_server_name(url);
-    let is_taken = |name: &str| taken.contains(&name);
 
     if !is_taken(&base) {
         return base;
@@ -377,13 +399,40 @@ mod tests {
     }
 
     #[test]
+    fn endpoint_url_joins_the_path_without_doubling_the_separator() {
+        struct Fake;
+        impl ProviderRequest for Fake {
+            const PATH: &'static str = "messages";
+            fn base_body(_: &BettyAiAgent, _: &Prompt) -> serde_json::Value {
+                serde_json::Value::Null
+            }
+            fn web_search_tool() -> serde_json::Value {
+                serde_json::Value::Null
+            }
+            fn mcp_tool(_: &McpServer) -> serde_json::Value {
+                serde_json::Value::Null
+            }
+        }
+
+        assert_eq!(
+            Fake::endpoint_url("https://api.example.com/v1"),
+            "https://api.example.com/v1/messages"
+        );
+        assert_eq!(
+            Fake::endpoint_url("https://api.example.com/v1/"),
+            "https://api.example.com/v1/messages"
+        );
+    }
+
+    #[test]
     fn unique_mcp_server_name_suffixes_a_taken_name() {
         assert_eq!(
-            unique_mcp_server_name("https://mcp.example.com/a", &[]),
+            unique_mcp_server_name("https://mcp.example.com/a", |_| false),
             "mcp-example-com"
         );
         assert_eq!(
-            unique_mcp_server_name("https://mcp.example.com/b", &["mcp-example-com"]),
+            unique_mcp_server_name("https://mcp.example.com/b", |name| name
+                == "mcp-example-com"),
             "mcp-example-com-2"
         );
     }
