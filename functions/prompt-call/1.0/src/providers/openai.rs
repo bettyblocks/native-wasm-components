@@ -404,7 +404,9 @@ mod tests {
         }"#;
 
         assert_eq!(
-            ResponsesResponse::extract_text(response.as_bytes()).unwrap(),
+            ResponsesResponse::extract(response.as_bytes())
+                .unwrap()
+                .text,
             "42"
         );
     }
@@ -414,7 +416,7 @@ mod tests {
         let response = r#"{ "status": "completed", "output": null }"#;
 
         assert_eq!(
-            ResponsesResponse::extract_text(response.as_bytes()).unwrap_err(),
+            ResponsesResponse::extract(response.as_bytes()).unwrap_err(),
             "OpenAI response contained no text content"
         );
     }
