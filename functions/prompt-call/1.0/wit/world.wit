@@ -1,14 +1,19 @@
-package betty-blocks:prompt-call@1.2.0;
+package betty-blocks:prompt-call@1.3.0;
 
 interface prompt-call {
     use betty-blocks-types:types/types@3.2.0.{betty-ai-agent,json-string};
+
+    record betty-flat-output {
+        usage: json-string,
+        %result: string
+    }
 
     prompt-call: func(
         ai-agent: betty-ai-agent,
         system-prompt: string,
         prompt: string,
         max-tokens: option<u32>,
-    ) -> result<string, string>;
+    ) -> result<betty-flat-output, string>;
 }
 
 world main {
