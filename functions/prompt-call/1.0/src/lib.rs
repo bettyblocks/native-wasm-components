@@ -23,7 +23,7 @@ impl prompt_call::Guest for Component {
         system_prompt: String,
         prompt: String,
         max_tokens: Option<u32>,
-    ) -> Result<prompt_call::FlatOutput, String> {
+    ) -> Result<prompt_call::BettyFlatOutput, String> {
         let prompt = Prompt {
             instructions: system_prompt,
             message: prompt,
@@ -32,7 +32,7 @@ impl prompt_call::Guest for Component {
 
         let output = wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))?;
 
-        Ok(prompt_call::FlatOutput {
+        Ok(prompt_call::BettyFlatOutput {
             result: output.text,
             usage: output.usage.to_string(),
         })
