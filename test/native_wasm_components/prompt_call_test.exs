@@ -51,6 +51,22 @@ defmodule NativeWasmComponents.PromptCallTest do
     build_args(url, Map.put(overrides, :provider, provider))
   end
 
+  defp google_response(text) do
+    Jason.encode!(%{
+      candidates: [%{content: %{role: "model", parts: [%{text: text}]}, finishReason: "STOP"}]
+    })
+  end
+
+  defp google_args(url, overrides \\ %{}) do
+    provider =
+      Map.merge(
+        %{"name" => "google", "ai-model-name" => "gemini-pro-latest"},
+        Map.get(overrides, :provider, %{})
+      )
+
+    build_args(url, Map.put(overrides, :provider, provider))
+  end
+
   defp mcp_tool(selected) do
     {:mcp,
      %{
@@ -374,6 +390,87 @@ defmodule NativeWasmComponents.PromptCallTest do
     end
   end
 
+  describe "prompt-call component with google" do
+    setup do
+      sham = Sham.start()
+
+      {:ok, %{sham: sham, url: "http://localhost:#{sham.port}/v1beta"}}
+    end
+
+    test "posts to the model endpoint and returns the candidate text", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn ->
+        assert conn.path_info == ["v1beta", "models", "gemini-pro-latest:generateContent"]
+        assert {"x-goog-api-key", "test-key"} in conn.req_headers
+        assert {"content-type", "application/json"} in conn.req_headers
+
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert %{
+                 "contents" => [%{"role" => "user", "parts" => [%{"text" => "What is 2 + 2?"}]}],
+                 "systemInstruction" => %{"parts" => [%{"text" => "You are helpful."}]},
+                 "generationConfig" => %{"maxOutputTokens" => 4096}
+               } == Jason.decode!(body)
+
+        Plug.Conn.send_resp(conn, 200, google_response("4"))
+      end)
+
+      assert {:ok, "4"} == run_component(google_args(url))
+    end
+
+    test "sends the google search tool", %{sham: sham, url: url} do
+      tools = [{:"http-search", %{"description" => :none}}]
+
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert [%{"googleSearch" => %{}}] == Jason.decode!(body)["tools"]
+
+        Plug.Conn.send_resp(conn, 200, google_response("ok"))
+      end)
+
+      assert {:ok, "ok"} ==
+               run_component(google_args(url, %{provider: %{"tools" => {:some, tools}}}))
+    end
+
+    test "refuses an mcp tool without calling out", %{url: url} do
+      tools = [mcp_tool(:none)]
+
+      assert {:error, "Google does not support MCP tools, configured on agent: google"} ==
+               run_component(google_args(url, %{provider: %{"tools" => {:some, tools}}}))
+    end
+
+    test "reports the google error with the api key redacted", %{sham: sham, url: url} do
+      body =
+        Jason.encode!(%{
+          error: %{
+            code: 400,
+            message: "API key not valid: test-key. Please pass a valid API key.",
+            status: "INVALID_ARGUMENT"
+          }
+        })
+
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 400, body) end)
+
+      assert {:error,
+              "Google returned status 400 (INVALID_ARGUMENT): API key not valid: [redacted]. Please pass a valid API key."} ==
+               run_component(google_args(url))
+    end
+
+    test "does not echo a body that is not a google error", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 502, "bad gateway") end)
+
+      assert {:error, "Google returned status 502"} == run_component(google_args(url))
+    end
+
+    test "reports a prompt blocked by google", %{sham: sham, url: url} do
+      body = Jason.encode!(%{promptFeedback: %{blockReason: "SAFETY"}})
+
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, body) end)
+
+      assert {:error, "Google blocked the prompt (SAFETY)"} == run_component(google_args(url))
+    end
+  end
+
   describe "against the real openai api" do
     @tag :live
     test "completes a prompt" do
@@ -403,6 +500,25 @@ defmodule NativeWasmComponents.PromptCallTest do
       args =
         build_args("https://api.anthropic.com/v1", %{
           provider: %{"api-key" => key},
+          instructions: "Reply with a single word and no punctuation.",
+          message: "Reply with the word pong"
+        })
+
+      assert {:ok, text} = run_component(args)
+      assert text =~ "pong"
+    end
+  end
+
+  describe "against the real google api" do
+    @tag :live
+    test "completes a prompt" do
+      key =
+        System.get_env("GOOGLE_API_KEY") ||
+          flunk("set GOOGLE_API_KEY to run the live test")
+
+      args =
+        google_args("https://generativelanguage.googleapis.com/v1beta", %{
+          provider: %{"api-key" => key, "ai-model-name" => "gemini-flash-latest"},
           instructions: "Reply with a single word and no punctuation.",
           message: "Reply with the word pong"
         })
