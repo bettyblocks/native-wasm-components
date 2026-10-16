@@ -2,13 +2,13 @@ struct Update;
 
 wit_bindgen::generate!({ generate_all });
 use crate::betty_blocks_types::crud::crud::update as crud_update;
-use crate::betty_blocks_types::data_api::data_api::HelperContext;
+use crate::betty_blocks_types::data_api::data_api::DataApi;
 use crate::betty_blocks_types::types::types::BettyPropertyMapping;
 use crate::exports::betty_blocks::update::update::{BettyRecordJson, BettySelectedRecord, Guest};
 
 impl Guest for Update {
     fn update(
-        helper_context: HelperContext,
+        data_api: &DataApi,
         mapping: BettyPropertyMapping,
         selected_record: BettySelectedRecord,
         validates: bool,
@@ -20,7 +20,7 @@ impl Guest for Update {
             };
 
             Ok(crud_update(
-                &helper_context,
+                data_api,
                 &selected_record.model,
                 &data.id.to_string(),
                 &mapping,

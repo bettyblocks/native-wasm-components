@@ -1,13 +1,13 @@
-package betty-blocks:delete@3.0.0;
+package betty-blocks:delete@4.0.0;
 
 interface delete {
-    use betty-blocks-types:data-api/data-api@3.0.0.{helper-context};
+    use betty-blocks-types:data-api/data-api@3.0.0.{data-api};
     use betty-blocks-types:types/types@3.0.0.{betty-selected-record};
 
-    delete: func(helper-context: helper-context, %record: betty-selected-record) -> result<string, string>;
+    delete: func(data-api: borrow<data-api>, %record: betty-selected-record) -> result<string, string>;
 }
 
 world main {
-    import betty-blocks-types:crud/crud@3.0.0;
+    import betty-blocks-types:crud/crud@4.0.0;
     export delete;
 }
