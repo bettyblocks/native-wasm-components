@@ -141,3 +141,23 @@ pub(crate) fn openai_agent() -> BettyAiAgent {
         api_key: "test-key".to_string(),
     }
 }
+
+pub(crate) fn google_text_response(text: &str) -> String {
+    serde_json::json!({
+        "candidates": [{
+            "content": { "role": "model", "parts": [{ "text": text }] },
+            "finishReason": "STOP"
+        }]
+    })
+    .to_string()
+}
+
+pub(crate) fn google_agent() -> BettyAiAgent {
+    BettyAiAgent {
+        name: "google".to_string(),
+        ai_model_name: "gemini-pro-latest".to_string(),
+        url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
+        tools: None,
+        api_key: "test-key".to_string(),
+    }
+}
