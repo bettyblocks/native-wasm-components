@@ -22,9 +22,9 @@ defmodule NativeWasmComponents.PromptCallTest do
       )
 
     [
-      provider,
       Map.get(overrides, :instructions, "You are helpful."),
       Map.get(overrides, :message, {:some, "What is 2 + 2?"}),
+      provider,
       Map.get(overrides, :max_tokens, :none)
     ]
   end
