@@ -5,11 +5,13 @@ on:
     branches: ["main", "acceptance", "edge"]
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: [ci]
     runs-on: ubuntu-24.04
     environment: ${{ github.ref_name }}
-    env:
-      npm_token: ${{ secrets.NPM_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -69,14 +71,6 @@ jobs:
           otp-version: ${{matrix.pair.otp}}
           elixir-version: ${{matrix.pair.elixir}}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install npm dependencies
-        run: bun install --frozen-lockfile
-
       # The committed wkg.toml points at the dev registry (bettyblocksdev) for
       # local dev and PR CI. On release we fetch WIT deps from the environment's
       # registry: secrets.AZURE_REGISTRY is scoped per GitHub environment
@@ -94,33 +88,6 @@ jobs:
         with:
           name: wasm-components
           path: functions/*/*/*.wasm
-
-  push-ghcr:
-    needs: [build]
-    runs-on: ubuntu-24.04
-    environment: ${{ github.ref_name }}
-    env:
-      npm_token: ${{ secrets.NPM_TOKEN }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install npm dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Download wasm artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: wasm-components
-          path: functions
-
-      - name: Publish to Betty Blocks
-        run: bun run publish.ts ${{ secrets.BLOCKSTORE_CLI_SECRET }} ${{ github.ref_name }}
 
   push-azure:
     needs: [build]
