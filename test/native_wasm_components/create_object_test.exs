@@ -6,7 +6,7 @@ defmodule NativeWasmComponents.CreateObjectTest do
   defp run_create_object(key_value_map, schema_model) do
     @component_path
     |> TestHelper.run_component(
-      {"betty-blocks:create-object/create-object@4.0.0", "create-object"},
+      {"betty-blocks:create-object/create-object@5.0.0", "create-object"},
       [Jason.encode!(key_value_map), schema_model]
     )
     |> Jason.decode!()
