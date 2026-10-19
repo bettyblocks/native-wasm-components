@@ -4,7 +4,6 @@ use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
 use crate::http::HttpClient;
 use crate::providers::{Output, Prompt, Provider};
 
-const DEFAULT_MAX_TOKENS: u32 = 4096;
 const CONVERSATIONS_PATH: &str = "conversations";
 
 pub(crate) struct Mistral;
@@ -97,7 +96,7 @@ fn request_body(agent: &BettyAiAgent, prompt: &Prompt, tools: Vec<serde_json::Va
         "model": agent.ai_model_name,
         "inputs": [{ "role": "user", "content": user_content(prompt) }],
         "completion_args": {
-            "max_tokens": prompt.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+            "max_tokens": prompt.max_tokens(),
         },
     });
 
@@ -150,8 +149,8 @@ fn extract_text(response: &[u8]) -> Result<String, String> {
 mod tests {
     use super::*;
     use crate::test_helpers::{
-        MockHttpClient, http_search_tool, mistral_text_response,
-        test_mistral_agent_with_tools, test_mistral_provider, test_prompt,
+        MockHttpClient, http_search_tool, mistral_text_response, test_mistral_agent_with_tools,
+        test_mistral_provider, test_prompt,
     };
 
     #[test]
