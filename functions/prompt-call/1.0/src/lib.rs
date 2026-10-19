@@ -18,9 +18,9 @@ struct Component;
 
 impl prompt_call::Guest for Component {
     fn prompt_call(
-        agent: BettyAiAgent,
         system_prompt: String,
         prompt: Option<String>,
+        agent: BettyAiAgent,
         max_tokens: Option<u32>,
     ) -> Result<String, String> {
         let prompt = build_prompt(system_prompt, prompt, max_tokens)?;
