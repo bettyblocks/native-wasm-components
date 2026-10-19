@@ -86,7 +86,7 @@ impl Provider for Google {
 fn ensure_no_mcp_tools(agent: &BettyAiAgent) -> Result<(), String> {
     if active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_))) {
         return Err(format!(
-            "Google does not support MCP tools, configured on agent: {}",
+            "Gemini does not support server-side MCP tools, configured on agent: {}",
             agent.name
         ));
     }
@@ -119,7 +119,7 @@ impl ProviderRequest for Google {
     }
 
     fn mcp_tool(_server: &McpServer) -> serde_json::Value {
-        unreachable!("Google rejects MCP tools before the request body is built")
+        unreachable!("ensure_no_mcp_tools rejects MCP tools before the request body is built")
     }
 }
 
@@ -420,7 +420,7 @@ mod tests {
                 .complete(&client, &agent, &test_prompt("hi"))
                 .await
                 .unwrap_err(),
-            "Google does not support MCP tools, configured on agent: google"
+            "Gemini does not support server-side MCP tools, configured on agent: google"
         );
         assert!(client.requests().is_empty());
     }

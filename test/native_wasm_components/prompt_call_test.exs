@@ -435,7 +435,8 @@ defmodule NativeWasmComponents.PromptCallTest do
     test "refuses an mcp tool without calling out", %{url: url} do
       tools = [mcp_tool(:none)]
 
-      assert {:error, "Google does not support MCP tools, configured on agent: google"} ==
+      assert {:error,
+              "Gemini does not support server-side MCP tools, configured on agent: google"} ==
                run_component(google_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
