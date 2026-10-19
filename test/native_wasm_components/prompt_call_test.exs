@@ -450,7 +450,24 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, google_response("4"))
       end)
 
-      assert {:ok, "4"} == run_component(google_args(url))
+      assert {:ok, %{result: "4", usage: "{}"}} == run_component(google_args(url))
+    end
+
+    test "returns the usage metadata reported by google", %{sham: sham, url: url} do
+      usage = %{"promptTokenCount" => 12, "candidatesTokenCount" => 3, "totalTokenCount" => 15}
+
+      Sham.expect(sham, fn conn ->
+        response =
+          Jason.encode!(%{
+            candidates: [%{content: %{parts: [%{text: "4"}]}, finishReason: "STOP"}],
+            usageMetadata: usage
+          })
+
+        Plug.Conn.send_resp(conn, 200, response)
+      end)
+
+      assert {:ok, %{result: "4", usage: json}} = run_component(google_args(url))
+      assert usage == Jason.decode!(json)
     end
 
     test "sends the google search tool", %{sham: sham, url: url} do
@@ -464,7 +481,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, google_response("ok"))
       end)
 
-      assert {:ok, "ok"} ==
+      assert {:ok, %{result: "ok"}} =
                run_component(google_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
@@ -562,8 +579,9 @@ defmodule NativeWasmComponents.PromptCallTest do
           message: "Reply with the word pong"
         })
 
-      assert {:ok, text} = run_component(args)
+      assert {:ok, %{result: text, usage: usage}} = run_component(args)
       assert text =~ "pong"
+      assert %{"promptTokenCount" => _, "candidatesTokenCount" => _} = Jason.decode!(usage)
     end
   end
 end

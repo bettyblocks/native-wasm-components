@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
 use crate::http::HttpClient;
 use crate::providers::{
-  Output, McpServer, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools,
+    McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools,
     ensure_configured, mcp_auth_token, null_as_empty,
 };
 

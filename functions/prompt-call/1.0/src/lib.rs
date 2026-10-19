@@ -193,7 +193,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(text, "hello");
+        assert_eq!(text.text, "hello");
         assert!(client.requests()[0].url.ends_with(":generateContent"));
     }
 

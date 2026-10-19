@@ -3,8 +3,8 @@ use serde::Deserialize;
 use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 use crate::providers::{
-    ApiError, McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, ensure_configured,
-    mcp_auth_token, null_as_empty,
+    ApiError, McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse,
+    ensure_configured, mcp_auth_token, null_as_empty,
 };
 
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search";

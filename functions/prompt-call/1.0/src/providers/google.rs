@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
 use crate::http::HttpClient;
 use crate::providers::{
-    McpServer, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools,
+    McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools,
     ensure_configured, null_as_empty,
 };
 
@@ -18,6 +18,7 @@ struct GenerateContentResponse {
     #[serde(default, deserialize_with = "null_as_empty")]
     candidates: Vec<Candidate>,
     prompt_feedback: Option<PromptFeedback>,
+    usage_metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,7 +63,7 @@ impl Provider for Google {
         client: &impl HttpClient,
         agent: &BettyAiAgent,
         prompt: &Prompt,
-    ) -> Result<String, String> {
+    ) -> Result<Output, String> {
         ensure_configured(agent)?;
         ensure_no_mcp_tools(agent)?;
 
@@ -176,6 +177,10 @@ impl ProviderResponse for GenerateContentResponse {
             .unwrap_or_default()
     }
 
+    fn usage(&self) -> Option<&serde_json::Value> {
+        self.usage_metadata.as_ref()
+    }
+
     fn ensure_succeeded(&self) -> Result<(), String> {
         match self.blocked_reason() {
             Some(reason) => Err(format!("Google blocked the prompt ({reason})")),
@@ -284,7 +289,9 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            GenerateContentResponse::extract_text(response.as_bytes()).unwrap(),
+            GenerateContentResponse::extract(response.as_bytes())
+                .unwrap()
+                .text,
             "Hello\n\nworld"
         );
     }
@@ -303,7 +310,9 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            GenerateContentResponse::extract_text(response.as_bytes()).unwrap(),
+            GenerateContentResponse::extract(response.as_bytes())
+                .unwrap()
+                .text,
             "The answer is 42."
         );
     }
@@ -314,7 +323,7 @@ mod tests {
             serde_json::json!({ "promptFeedback": { "blockReason": "SAFETY" } }).to_string();
 
         assert_eq!(
-            GenerateContentResponse::extract_text(response.as_bytes()).unwrap_err(),
+            GenerateContentResponse::extract(response.as_bytes()).unwrap_err(),
             "Google blocked the prompt (SAFETY)"
         );
     }
@@ -327,7 +336,7 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            GenerateContentResponse::extract_text(response.as_bytes()).unwrap_err(),
+            GenerateContentResponse::extract(response.as_bytes()).unwrap_err(),
             "Google stopped before producing any text (MAX_TOKENS)"
         );
     }
@@ -343,7 +352,9 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            GenerateContentResponse::extract_text(response.as_bytes()).unwrap(),
+            GenerateContentResponse::extract(response.as_bytes())
+                .unwrap()
+                .text,
             "partial"
         );
     }
@@ -353,14 +364,50 @@ mod tests {
         let response = r#"{ "candidates": null }"#;
 
         assert_eq!(
-            GenerateContentResponse::extract_text(response.as_bytes()).unwrap_err(),
+            GenerateContentResponse::extract(response.as_bytes()).unwrap_err(),
             "Google response contained no text content"
         );
     }
 
     #[test]
     fn extract_text_rejects_malformed_json() {
-        assert!(GenerateContentResponse::extract_text(b"not json").is_err());
+        assert!(GenerateContentResponse::extract(b"not json").is_err());
+    }
+
+    #[test]
+    fn extract_passes_the_usage_metadata_through() {
+        let usage = serde_json::json!({
+            "promptTokenCount": 12,
+            "candidatesTokenCount": 3,
+            "thoughtsTokenCount": 40,
+            "totalTokenCount": 55,
+            "promptTokensDetails": [{ "modality": "TEXT", "tokenCount": 12 }]
+        });
+        let response = serde_json::json!({
+            "candidates": [{
+                "content": { "parts": [{ "text": "answer" }] },
+                "finishReason": "STOP"
+            }],
+            "usageMetadata": usage
+        })
+        .to_string();
+
+        assert_eq!(
+            GenerateContentResponse::extract(response.as_bytes())
+                .unwrap()
+                .usage,
+            usage
+        );
+    }
+
+    #[test]
+    fn extract_reports_an_empty_usage_when_the_response_has_none() {
+        assert_eq!(
+            GenerateContentResponse::extract(google_text_response("answer").as_bytes())
+                .unwrap()
+                .usage,
+            serde_json::json!({})
+        );
     }
 
     #[test]
@@ -401,7 +448,7 @@ mod tests {
             .unwrap();
 
         let request = &client.requests()[0];
-        assert_eq!(text, "42");
+        assert_eq!(text.text, "42");
         assert_eq!(
             request.url,
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent"
@@ -438,7 +485,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(text, "42");
+        assert_eq!(text.text, "42");
         assert_eq!(
             client.requests()[0].json()["tools"],
             serde_json::json!([{ "googleSearch": {} }])
