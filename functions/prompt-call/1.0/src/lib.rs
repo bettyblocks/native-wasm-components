@@ -20,17 +20,31 @@ impl prompt_call::Guest for Component {
     fn prompt_call(
         agent: BettyAiAgent,
         system_prompt: String,
-        prompt: String,
+        prompt: Option<String>,
         max_tokens: Option<u32>,
     ) -> Result<String, String> {
-        let prompt = Prompt {
-            instructions: system_prompt,
-            message: prompt,
-            max_tokens,
-        };
+        let prompt = build_prompt(system_prompt, prompt, max_tokens)?;
 
         wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))
     }
+}
+
+fn build_prompt(
+    system_prompt: String,
+    prompt: Option<String>,
+    max_tokens: Option<u32>,
+) -> Result<Prompt, String> {
+    let (instructions, message) = match prompt.filter(|prompt| !prompt.trim().is_empty()) {
+        Some(message) => (system_prompt, message),
+        None if !system_prompt.trim().is_empty() => (String::new(), system_prompt),
+        None => return Err("Either a system prompt or a prompt is required".to_string()),
+    };
+
+    Ok(Prompt {
+        instructions,
+        message,
+        max_tokens,
+    })
 }
 
 async fn run(
@@ -176,6 +190,32 @@ mod tests {
 
         assert_eq!(text, "hello");
         assert!(client.requests()[0].url.ends_with("/responses"));
+    }
+
+    #[test]
+    fn build_prompt_keeps_both_prompts_when_given() {
+        let prompt = build_prompt("Be brief.".into(), Some("hi".into()), Some(10)).unwrap();
+
+        assert_eq!(prompt.instructions, "Be brief.");
+        assert_eq!(prompt.message, "hi");
+        assert_eq!(prompt.max_tokens, Some(10));
+    }
+
+    #[test]
+    fn build_prompt_uses_the_system_prompt_as_message_without_a_prompt() {
+        for missing in [None, Some(String::new()), Some("  ".to_string())] {
+            let prompt = build_prompt("Write a haiku.".into(), missing, None).unwrap();
+
+            assert_eq!(prompt.instructions, "");
+            assert_eq!(prompt.message, "Write a haiku.");
+        }
+    }
+
+    #[test]
+    fn build_prompt_rejects_when_both_prompts_are_empty() {
+        let error = build_prompt(" ".into(), None, None).unwrap_err();
+
+        assert_eq!(error, "Either a system prompt or a prompt is required");
     }
 
     #[tokio::test]

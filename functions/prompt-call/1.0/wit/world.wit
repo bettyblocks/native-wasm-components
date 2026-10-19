@@ -4,9 +4,9 @@ interface prompt-call {
     use betty-blocks-types:types/types@3.2.0.{betty-ai-agent,json-string};
 
     prompt-call: func(
-        ai-agent: betty-ai-agent,
         system-prompt: string,
-        prompt: string,
+        prompt: option<string>,
+        ai-agent: betty-ai-agent,
         max-tokens: option<u32>,
     ) -> result<string, string>;
 }

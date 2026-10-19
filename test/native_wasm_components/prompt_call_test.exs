@@ -24,7 +24,7 @@ defmodule NativeWasmComponents.PromptCallTest do
     [
       provider,
       Map.get(overrides, :instructions, "You are helpful."),
-      Map.get(overrides, :message, "What is 2 + 2?"),
+      Map.get(overrides, :message, {:some, "What is 2 + 2?"}),
       Map.get(overrides, :max_tokens, :none)
     ]
   end
@@ -96,6 +96,21 @@ defmodule NativeWasmComponents.PromptCallTest do
       end)
 
       assert {:ok, "4"} == run_component(build_args(url))
+    end
+
+    test "sends the system prompt as the message without a prompt", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert %{
+                 "system" => "",
+                 "messages" => [%{"role" => "user", "content" => "You are helpful."}]
+               } = Jason.decode!(body)
+
+        Plug.Conn.send_resp(conn, 200, anthropic_response("4"))
+      end)
+
+      assert {:ok, "4"} == run_component(build_args(url, %{message: :none}))
     end
 
     test "sends tool calls in the request", %{sham: sham, url: url} do
