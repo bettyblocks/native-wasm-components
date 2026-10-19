@@ -9,4 +9,4 @@ registry = "bettyblocksdev.azurecr.io"
 [[packages.versions]]
 requirement = "=3.1.0"
 version = "3.1.0"
-digest = "sha256:173ee4d29de880e9fa73efee0b29e6a97f9f049e659db2df974b654398e6242f"
+digest = "sha256:7e6ccf749695a8516c5f6ed06630c3deb87c4b5c5d794f4ea32da09391865800"
