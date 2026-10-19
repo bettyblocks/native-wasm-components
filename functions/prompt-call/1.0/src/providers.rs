@@ -241,7 +241,7 @@ pub(crate) trait ProviderRequest {
 
     fn web_search_tool() -> serde_json::Value;
 
-    fn mcp_tool(server: &McpServer) -> serde_json::Value;
+    fn mcp_tool(server: &McpServer) -> Option<serde_json::Value>;
 
     fn finish_body(_body: &mut serde_json::Value, _servers: &[McpServer]) {}
 
@@ -262,8 +262,11 @@ pub(crate) trait ProviderRequest {
                         servers.iter().any(|server| server.name == name)
                     });
                     let server = McpServer { options, name };
-                    tools.push(Self::mcp_tool(&server));
-                    servers.push(server);
+
+                    if let Some(tool) = Self::mcp_tool(&server) {
+                        tools.push(tool);
+                        servers.push(server);
+                    }
                 }
             }
         }
@@ -438,8 +441,8 @@ mod tests {
             fn web_search_tool() -> serde_json::Value {
                 serde_json::Value::Null
             }
-            fn mcp_tool(_: &McpServer) -> serde_json::Value {
-                serde_json::Value::Null
+            fn mcp_tool(_: &McpServer) -> Option<serde_json::Value> {
+                None
             }
         }
 

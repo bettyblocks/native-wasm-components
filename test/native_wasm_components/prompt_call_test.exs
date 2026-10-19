@@ -648,8 +648,25 @@ defmodule NativeWasmComponents.PromptCallTest do
     test "reports a non-success status", %{sham: sham, url: url} do
       Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 429, "slow down") end)
 
-      assert {:error, "Mistral returned status 429: slow down"} ==
+      assert {:error, "Mistral returned status 429"} == run_component(mistral_args(url))
+    end
+
+    test "reports the mistral error with the api key redacted", %{sham: sham, url: url} do
+      body =
+        Jason.encode!(%{
+          error: %{type: "unauthorized", message: "Invalid API key: test-key"}
+        })
+
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 401, body) end)
+
+      assert {:error, "Mistral returned status 401 (unauthorized): Invalid API key: [redacted]"} ==
                run_component(mistral_args(url))
+    end
+
+    test "does not echo a body that is not a mistral error", %{sham: sham, url: url} do
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 502, "bad gateway") end)
+
+      assert {:error, "Mistral returned status 502"} == run_component(mistral_args(url))
     end
 
     test "rejects a provider without an api key", %{url: url} do
