@@ -72,6 +72,25 @@ pub(crate) fn anthropic_text_response(text: &str) -> String {
     serde_json::json!({ "content": [{ "type": "text", "text": text }] }).to_string()
 }
 
+pub(crate) fn anthropic_unknown_tool_response() -> String {
+    serde_json::json!({
+        "stop_reason": "tool_use",
+        "content": [
+            { "type": "thinking", "thinking": "", "signature": "sig" },
+            {
+                "type": "mcp_tool_use",
+                "id": "mcptoolu_code",
+                "name": "get_public_code",
+                "server_name": "mcp-example-com",
+                "input": {}
+            },
+            { "type": "tool_use", "id": "toolu_echo", "name": "mcp-example-com_get_echo", "input": {} },
+            { "type": "tool_use", "id": "toolu_secret", "name": "mcp-example-com_get_secret", "input": {} }
+        ]
+    })
+    .to_string()
+}
+
 pub(crate) fn test_provider() -> BettyAiAgent {
     BettyAiAgent {
         name: "anthropic".to_string(),

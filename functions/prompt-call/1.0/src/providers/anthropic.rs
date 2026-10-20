@@ -10,6 +10,7 @@ use crate::providers::{
 const API_VERSION: &str = "2023-06-01";
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search_20260318";
 const MCP_CLIENT_BETA: &str = "mcp-client-2025-11-20";
+const UNKNOWN_TOOL_MESSAGE: &str = "This tool is not available.";
 
 pub(crate) struct Anthropic;
 
@@ -45,13 +46,17 @@ impl Provider for Anthropic {
             headers.push(("anthropic-beta", MCP_CLIENT_BETA.to_string()));
         }
 
+        let url = Self::endpoint_url(&agent.url);
+        let request = Self::request_body(agent, prompt);
         let (status, response) = client
-            .post_json(
-                &Self::endpoint_url(&agent.url),
-                headers,
-                Self::request_body(agent, prompt),
-            )
+            .post_json(&url, headers.clone(), request.clone())
             .await?;
+        if status == 200
+            && let Some(reply) = build_unknown_tool_reply(&request, &response)
+        {
+            let (status, response) = client.post_json(&url, headers, reply).await?;
+            return MessagesResponse::handle(status, &response);
+        }
 
         MessagesResponse::handle(status, &response)
     }
@@ -59,6 +64,39 @@ impl Provider for Anthropic {
 
 fn uses_mcp(agent: &BettyAiAgent) -> bool {
     active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_)))
+}
+
+fn build_unknown_tool_reply(request: &[u8], response: &[u8]) -> Option<Vec<u8>> {
+    let response: serde_json::Value = serde_json::from_slice(response).ok()?;
+
+    if response["stop_reason"] != "tool_use" {
+        return None;
+    }
+
+    let tool_results: Vec<serde_json::Value> = response["content"]
+        .as_array()?
+        .iter()
+        .filter(|block| block["type"] == "tool_use")
+        .map(|block| {
+            serde_json::json!({
+              "type": "tool_result",
+              "tool_use_id": block["id"],
+              "is_error": true,
+              "content": UNKNOWN_TOOL_MESSAGE,
+            })
+        })
+        .collect();
+
+    if tool_results.is_empty() {
+        return None;
+    }
+
+    let mut request: serde_json::Value = serde_json::from_slice(request).ok()?;
+    let messages = request["messages"].as_array_mut()?;
+    messages.push(serde_json::json!({ "role": "assistant", "content": response["content"] }));
+    messages.push(serde_json::json!({ "role": "user", "content": tool_results }));
+
+    Some(request.to_string().into_bytes())
 }
 
 impl ProviderRequest for Anthropic {
@@ -152,8 +190,8 @@ mod tests {
     use crate::betty_blocks_types::types::types::AuthenticationConfig;
     use crate::betty_blocks_types::types::types::McpOptions;
     use crate::test_helpers::{
-        MockHttpClient, anthropic_text_response, http_search_tool, mcp_tool, mcp_tool_limited_to,
-        test_agent_with_tools, test_prompt, test_provider,
+        MockHttpClient, anthropic_text_response, anthropic_unknown_tool_response, http_search_tool,
+        mcp_tool, mcp_tool_limited_to, test_agent_with_tools, test_prompt, test_provider,
     };
 
     #[test]
@@ -434,6 +472,108 @@ mod tests {
             .unwrap();
 
         assert_eq!(text, "42");
+        assert_eq!(client.requests().len(), 1);
+    }
+
+    #[test]
+    fn build_unknown_tool_reply_answers_every_tool_the_model_invented() {
+        let agent = test_agent_with_tools(vec![mcp_tool_limited_to(
+            "https://mcp.example.com/sse",
+            &["get_public_code"],
+        )]);
+        let request = Anthropic::request_body(&agent, &test_prompt("call all three"));
+        let response = anthropic_unknown_tool_response();
+
+        let reply: serde_json::Value = serde_json::from_slice(
+            &build_unknown_tool_reply(&request, response.as_bytes()).unwrap(),
+        )
+        .unwrap();
+        let original: serde_json::Value = serde_json::from_slice(&request).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+
+        assert_eq!(reply["tools"], original["tools"]);
+        assert_eq!(reply["mcp_servers"], original["mcp_servers"]);
+        assert_eq!(reply["messages"][0], original["messages"][0]);
+        assert_eq!(
+            reply["messages"][1],
+            serde_json::json!({ "role": "assistant", "content": response["content"] })
+        );
+        assert_eq!(
+            reply["messages"][2],
+            serde_json::json!({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_echo",
+                        "is_error": true,
+                        "content": UNKNOWN_TOOL_MESSAGE
+                    },
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_secret",
+                        "is_error": true,
+                        "content": UNKNOWN_TOOL_MESSAGE
+                    }
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn build_unknown_tool_reply_leaves_a_finished_response_alone() {
+        let request = Anthropic::request_body(&test_provider(), &test_prompt("hi"));
+        let response = serde_json::json!({
+            "content": [{ "type": "text", "text": "done" }],
+            "stop_reason": "end_turn"
+        })
+        .to_string();
+
+        assert!(build_unknown_tool_reply(&request, response.as_bytes()).is_none());
+    }
+
+    #[tokio::test]
+    async fn complete_answers_invented_tools_and_returns_the_follow_up_text() {
+        let client = MockHttpClient::new(vec![
+            (200, anthropic_unknown_tool_response()),
+            (200, anthropic_text_response("QA-PUBLIC-ACC")),
+        ]);
+        let agent = test_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
+
+        let text = Anthropic
+            .complete(&client, &agent, &test_prompt("call all three"))
+            .await
+            .unwrap();
+
+        let requests = client.requests();
+        assert_eq!(text, "QA-PUBLIC-ACC");
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[1].url, requests[0].url);
+        assert_eq!(requests[1].header("anthropic-beta"), Some(MCP_CLIENT_BETA));
+        assert_eq!(
+            requests[1].json()["messages"][2]["content"][0]["tool_use_id"],
+            "toolu_echo"
+        );
+    }
+
+    #[tokio::test]
+    async fn complete_reports_a_model_that_invents_tools_again() {
+        let client = MockHttpClient::new(vec![
+            (200, anthropic_unknown_tool_response()),
+            (200, anthropic_unknown_tool_response()),
+        ]);
+        let agent = test_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
+
+        let error = Anthropic
+            .complete(&client, &agent, &test_prompt("call all three"))
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            "Anthropic response was incomplete (tool_use) before producing any text"
+        );
+        assert_eq!(client.requests().len(), 2);
     }
 
     #[tokio::test]
