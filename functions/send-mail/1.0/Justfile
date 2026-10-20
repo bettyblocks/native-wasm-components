@@ -1,5 +1,5 @@
 fetch-wit-deps:
-  WKG_CONFIG_FILE={{justfile_directory()}}/../../../wkg.toml wkg wit fetch
+  WKG_CONFIG_FILE={{env("WKG_CONFIG_FILE", justfile_directory() / "../../../wkg.toml")}} wkg wit fetch
 
 move_wasm_to_root:
   #!/usr/bin/env sh
