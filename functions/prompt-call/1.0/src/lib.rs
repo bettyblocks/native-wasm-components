@@ -30,7 +30,7 @@ impl prompt_call::Guest for Component {
 
         Ok(prompt_call::BettyFlatOutput {
             result: output.text,
-            usage: output.usage.to_string(),
+            usage: Some(output.usage.to_string()),
         })
     }
 }
