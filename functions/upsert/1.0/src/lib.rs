@@ -1,5 +1,5 @@
 use crate::bindings::betty_blocks_types::crud::crud::upsert as crud_upsert;
-use crate::bindings::betty_blocks_types::data_api::data_api::HelperContext;
+use crate::bindings::betty_blocks_types::data_api::data_api::DataApi;
 use crate::bindings::betty_blocks_types::types::types::{
     BettyModel, BettyProperty, BettyPropertyMapping, BettyPropertyPath,
 };
@@ -17,7 +17,7 @@ struct Upsert;
 
 impl Guest for Upsert {
     fn upsert(
-        helper_context: HelperContext,
+        data_api: &DataApi,
         model: BettyModel,
         mapping: BettyPropertyMapping,
         mut unique_by: Vec<BettyPropertyPath>,
@@ -29,7 +29,7 @@ impl Guest for Upsert {
         };
 
         crud_upsert(
-            &helper_context,
+            data_api,
             &model,
             &mapping,
             // There can only ever be one unique by, but it's still passed as a list, so we just pop the only value out here.

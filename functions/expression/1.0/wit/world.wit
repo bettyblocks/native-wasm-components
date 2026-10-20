@@ -1,20 +1,9 @@
-package betty-blocks:expression@3.0.0;
+package betty-blocks:expression@4.0.0;
 
 interface expression {
-    type json-string = string;
+    use betty-blocks-types:types/types@3.1.0.{json-string, betty-expression};
 
-    record output {
-        %result: json-string
-    }
-
-    record input {
-        expression: string,
-        variables: json-string,
-        schema-model: option<string>,
-        debug-logging: option<bool>,
-    }
-
-    expression: func(input: input) -> result<output, string>;
+    expression: func(input: betty-expression) -> result<json-string, string>;
 }
 
 world main {
