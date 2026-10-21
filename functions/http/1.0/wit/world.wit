@@ -1,42 +1,9 @@
-package betty-blocks:http@3.0.0;
+package betty-blocks:http@4.0.0;
 
 interface http {
-    enum scheme {
-        http,
-        https,
-    }
+    use betty-blocks-types:types/types@3.1.0.{betty-http-request, betty-http-response};
 
-    enum method {
-        get,
-        head,
-        post,
-        put,
-        delete,
-        connect,
-        options,
-        trace,
-        patch,
-    }
-
-    type json-string = string;
-
-    record output {
-        response-code: u16,
-        %as: json-string
-    }
-
-    record input {
-        method: method,
-        protocol: scheme,
-        headers: json-string,
-        url: string,
-        url-parameters: json-string,
-        query-parameters: json-string,
-        body: option<string>,
-        body-parameters: json-string,
-    }
-
-    http: func(input: input) -> result<output, string>;
+    http: func(input: betty-http-request) -> result<betty-http-response, string>;
 }
 
 world main {

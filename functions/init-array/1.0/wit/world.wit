@@ -1,9 +1,9 @@
-package betty-blocks:init-array@3.0.0;
+package betty-blocks:init-array@4.0.0;
 
 interface init-array {
-    type json-string = string;
+    use betty-blocks-types:types/types@3.1.0.{betty-array, betty-schema-model};
 
-    init-array: func() -> json-string;
+    init-array: func(schema-model: option<betty-schema-model>) -> betty-array;
 }
 
 world main {

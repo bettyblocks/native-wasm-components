@@ -15,16 +15,17 @@ defmodule NativeWasmComponents.HttpTest do
        ) do
     case TestHelper.run_component(
            @component_path,
-           {"betty-blocks:http/http@3.0.0", "http"},
+           {"betty-blocks:http/http@4.0.0", "http"},
            %{
              "method" => method,
              "protocol" => protocol,
-             "headers" => Jason.encode!(headers),
+             "headers" => optional_json(headers),
              "url" => url,
-             "url-parameters" => Jason.encode!(url_parameters),
+             "url-parameters" => optional_json(url_parameters),
              "body" => {:some, body},
-             "body-parameters" => Jason.encode!(body_parameters),
-             "query-parameters" => Jason.encode!(query_parameters)
+             "body-parameters" => optional_json(body_parameters),
+             "query-parameters" => optional_json(query_parameters),
+             "schema-model" => :none
            }
          ) do
       {:ok, result} ->
@@ -35,6 +36,10 @@ defmodule NativeWasmComponents.HttpTest do
         e
     end
   end
+
+  # The four maps are `option<json-string>`; `nil` leaves a map unset.
+  defp optional_json(nil), do: :none
+  defp optional_json(map), do: {:some, Jason.encode!(map)}
 
   describe "http component" do
     setup do
@@ -48,6 +53,13 @@ defmodule NativeWasmComponents.HttpTest do
 
       assert {:ok, %{"response-code" => 200, as: "works"}} ==
                run_component(:get, host, %{}, "", %{}, %{})
+    end
+
+    test "works without the optional maps", %{host: host, sham: sham} do
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, "works") end)
+
+      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+               run_component(:get, host, nil, "", nil, nil, nil)
     end
 
     test "request returns json object", %{host: host, sham: sham} do
