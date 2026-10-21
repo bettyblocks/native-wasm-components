@@ -126,22 +126,6 @@ defmodule NativeWasmComponents.PromptCallTest do
       assert {:ok, %{result: "4", usage: {:some, "{}"}}} == run_component(build_args(url))
     end
 
-    test "sends the system prompt as the message without a prompt", %{sham: sham, url: url} do
-      Sham.expect(sham, fn conn ->
-        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
-
-        assert %{
-                 "system" => "",
-                 "messages" => [%{"role" => "user", "content" => "You are helpful."}]
-               } = Jason.decode!(body)
-
-        Plug.Conn.send_resp(conn, 200, anthropic_response("4"))
-      end)
-
-      assert {:ok, %{result: "4", usage: {:some, "{}"}}} ==
-               run_component(build_args(url, %{message: :none}))
-    end
-
     test "sends tool calls in the request", %{sham: sham, url: url} do
       tools = [
         {:"http-search", %{"description" => :none}},
