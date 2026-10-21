@@ -24,13 +24,16 @@ impl prompt_call::Guest for Component {
         prompt: Option<String>,
         agent: BettyAiAgent,
         max_tokens: Option<u32>,
+        // Types the `result` Output in the IDE; at run time it carries the schema model as JSON
+        // Schema, which asks the provider for structured output.
+        schema_model: Option<String>,
     ) -> Result<prompt_call::BettyFlatOutput, String> {
-      let prompt = build_prompt(system_prompt, prompt, max_tokens)?;
+      let prompt = build_prompt(system_prompt, prompt, max_tokens, schema_model)?;
 
         let output = wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))?;
 
         Ok(prompt_call::BettyFlatOutput {
-            result: output.text,
+            result: json_result(output.text, &prompt),
             usage: output.usage.to_string(),
         })
     }
@@ -40,6 +43,7 @@ fn build_prompt(
   system_prompt: String,
   prompt: Option<String>,
   max_tokens: Option<u32>,
+  schema_model: Option<String>,
 ) -> Result<Prompt, String> {
   let (instructions, message) = match prompt.filter(|prompt| !prompt.trim().is_empty()) {
     Some(message) => (system_prompt, message),
@@ -51,7 +55,41 @@ fn build_prompt(
     instructions,
     message,
     max_tokens,
+    output_schema: parse_schema_model(schema_model)?,
   })
+}
+
+// `result` is always valid JSON. With a schema model it is the structured output, already
+// checked by `ensure_json`. Without one it is text, even when the text happens to parse as
+// JSON, so the IDE only ever sees an Object or a Text.
+fn json_result(text: String, prompt: &Prompt) -> String {
+    match prompt.output_schema {
+        Some(_) => text,
+        None => serde_json::Value::String(text).to_string(),
+    }
+}
+
+fn parse_schema_model(schema_model: Option<String>) -> Result<Option<serde_json::Value>, String> {
+    let Some(schema) = schema_model.filter(|schema| !schema.trim().is_empty()) else {
+        return Ok(None);
+    };
+
+    match serde_json::from_str::<serde_json::Value>(&schema) {
+        Ok(schema) if schema.is_object() => Ok(Some(schema)),
+        Ok(_) => Err("Schema model must be a JSON Schema object".to_string()),
+        Err(e) => Err(format!("Schema model is not valid JSON Schema: {e}")),
+    }
+}
+
+// A response cut off by max tokens still carries text, but not a complete JSON document.
+fn ensure_json(output: Output, prompt: &Prompt) -> Result<Output, String> {
+    if prompt.output_schema.is_none()
+        || serde_json::from_str::<serde_json::Value>(&output.text).is_ok()
+    {
+        return Ok(output);
+    }
+
+    Err("Response is not valid JSON; it may have been cut off by max tokens".to_string())
 }
 
 async fn run(
@@ -68,7 +106,9 @@ async fn run(
         other => Err(format!("Unsupported provider: {other}")),
     };
 
-    result.map_err(|error| redact(&error, agent))
+    result
+        .and_then(|output| ensure_json(output, &prompt))
+        .map_err(|error| redact(&error, agent))
 }
 
 fn with_tool_descriptions(agent: &BettyAiAgent, prompt: &Prompt) -> Prompt {
@@ -100,6 +140,7 @@ fn with_tool_descriptions(agent: &BettyAiAgent, prompt: &Prompt) -> Prompt {
         instructions,
         message: prompt.message.clone(),
         max_tokens: prompt.max_tokens,
+        output_schema: prompt.output_schema.clone(),
     }
 }
 
@@ -268,5 +309,84 @@ mod tests {
 
         assert!(error.contains("unknown"));
         assert!(client.requests().is_empty());
+    }
+
+    #[test]
+    fn json_result_wraps_any_text_as_a_json_string_without_a_schema_model() {
+        let prompt = test_prompt("hi");
+
+        assert_eq!(
+            json_result("Hello \"world\"\n".into(), &prompt),
+            r#""Hello \"world\"\n""#
+        );
+        assert_eq!(json_result("4".into(), &prompt), r#""4""#);
+        assert_eq!(
+            json_result(r#"{"a": 1}"#.into(), &prompt),
+            r#""{\"a\": 1}""#
+        );
+    }
+
+    #[test]
+    fn json_result_passes_the_json_through_with_a_schema_model() {
+        assert_eq!(
+            json_result(r#"{"a": 1}"#.into(), &schema_prompt()),
+            r#"{"a": 1}"#
+        );
+    }
+
+    #[test]
+    fn parse_schema_model_reads_the_json_schema() {
+        let schema = r#"{"type":"object","properties":{"answer":{"type":"string"}}}"#;
+
+        assert_eq!(
+            parse_schema_model(Some(schema.into())).unwrap(),
+            Some(serde_json::from_str(schema).unwrap())
+        );
+    }
+
+    #[test]
+    fn parse_schema_model_ignores_a_missing_or_blank_schema_model() {
+        assert_eq!(parse_schema_model(None).unwrap(), None);
+        assert_eq!(parse_schema_model(Some("  ".into())).unwrap(), None);
+    }
+
+    #[test]
+    fn parse_schema_model_rejects_a_schema_model_that_is_not_a_json_schema_object() {
+        let invalid = parse_schema_model(Some("{".into())).unwrap_err();
+        let not_object = parse_schema_model(Some("[]".into())).unwrap_err();
+
+        assert!(invalid.starts_with("Schema model is not valid JSON Schema"));
+        assert_eq!(not_object, "Schema model must be a JSON Schema object");
+    }
+
+    fn schema_prompt() -> Prompt {
+        let mut prompt = test_prompt("hi");
+        prompt.output_schema = Some(serde_json::json!({ "type": "object" }));
+        prompt
+    }
+
+    #[tokio::test]
+    async fn returns_the_json_text_when_a_schema_model_is_given() {
+        let client = MockHttpClient::new(vec![(200, anthropic_text_response(r#"{"a":1}"#))]);
+
+        let output = run(&client, &test_provider(), &schema_prompt())
+            .await
+            .unwrap();
+
+        assert_eq!(output.text, r#"{"a":1}"#);
+    }
+
+    #[tokio::test]
+    async fn rejects_text_that_is_not_json_when_a_schema_model_is_given() {
+        let client = MockHttpClient::new(vec![(200, anthropic_text_response(r#"{"a":"#))]);
+
+        let error = run(&client, &test_provider(), &schema_prompt())
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            "Response is not valid JSON; it may have been cut off by max tokens"
+        );
     }
 }

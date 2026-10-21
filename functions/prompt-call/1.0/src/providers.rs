@@ -16,6 +16,7 @@ pub(crate) struct Prompt {
     pub(crate) instructions: String,
     pub(crate) message: String,
     pub(crate) max_tokens: Option<u32>,
+    pub(crate) output_schema: Option<serde_json::Value>,
 }
 
 #[derive(Debug, PartialEq)]

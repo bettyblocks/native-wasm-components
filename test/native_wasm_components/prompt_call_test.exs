@@ -25,7 +25,8 @@ defmodule NativeWasmComponents.PromptCallTest do
       Map.get(overrides, :instructions, "You are helpful."),
       Map.get(overrides, :message, {:some, "What is 2 + 2?"}),
       provider,
-      Map.get(overrides, :max_tokens, :none)
+      Map.get(overrides, :max_tokens, :none),
+      Map.get(overrides, :schema_model, :none)
     ]
   end
 
@@ -104,7 +105,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, anthropic_response("4"))
       end)
 
-      assert {:ok, %{result: "4", usage: "{}"}} == run_component(build_args(url))
+      assert {:ok, %{result: ~s("4"), usage: "{}"}} == run_component(build_args(url))
     end
 
     test "returns the usage reported by anthropic", %{sham: sham, url: url} do
@@ -115,7 +116,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, response)
       end)
 
-      assert {:ok, %{result: "4", usage: json}} = run_component(build_args(url))
+      assert {:ok, %{result: ~s("4"), usage: json}} = run_component(build_args(url))
       assert usage == Jason.decode!(json)
     end
 
@@ -138,7 +139,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, anthropic_response("4"))
       end)
 
-      assert {:ok, %{result: "4", usage: "{}"}} == run_component(build_args(url))
+      assert {:ok, %{result: ~s("4"), usage: "{}"}} == run_component(build_args(url))
     end
 
     test "sends the system prompt as the message without a prompt", %{sham: sham, url: url} do
@@ -201,7 +202,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, anthropic_response("ok"))
       end)
 
-      assert {:ok, %{result: "ok", usage: "{}"}} ==
+      assert {:ok, %{result: ~s("ok"), usage: "{}"}} ==
                run_component(build_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
@@ -226,7 +227,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, anthropic_response("ok"))
       end)
 
-      assert {:ok, %{result: "ok", usage: "{}"}} ==
+      assert {:ok, %{result: ~s("ok"), usage: "{}"}} ==
                run_component(build_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
@@ -245,7 +246,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, anthropic_response("ok"))
       end)
 
-      assert {:ok, %{result: "ok", usage: "{}"}} ==
+      assert {:ok, %{result: ~s("ok"), usage: "{}"}} ==
                run_component(build_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
@@ -258,8 +259,33 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, anthropic_response("ok"))
       end)
 
-      assert {:ok, %{result: "ok", usage: "{}"}} ==
+      assert {:ok, %{result: ~s("ok"), usage: "{}"}} ==
                run_component(build_args(url, %{max_tokens: {:some, 256}}))
+    end
+
+    test "sends the schema model as output schema and returns the JSON text", %{
+      sham: sham,
+      url: url
+    } do
+      schema = %{"type" => "object", "properties" => %{"sum" => %{"type" => "integer"}}}
+
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert %{
+                 "output_config" => %{"format" => %{"type" => "json_schema", "schema" => ^schema}}
+               } = Jason.decode!(body)
+
+        Plug.Conn.resp(conn, 200, anthropic_response(~s({"sum":4})))
+      end)
+
+      assert {:ok, %{result: ~s({"sum":4}), usage: {:some, "{}"}}} ==
+               run_component(build_args(url, %{schema_model: {:some, Jason.encode!(schema)}}))
+    end
+
+    test "rejects a schema model that is not valid JSON Schema" do
+      assert {:error, "Schema model is not valid JSON Schema" <> _} =
+               run_component(build_args("http://unused", %{schema_model: {:some, "{"}}))
     end
 
     test "joins multiple text blocks", %{sham: sham, url: url} do
@@ -268,7 +294,7 @@ defmodule NativeWasmComponents.PromptCallTest do
 
       Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 200, response) end)
 
-      assert {:ok, %{result: "2 + 2 =\n\n4", usage: "{}"}} ==
+      assert {:ok, %{result: Jason.encode!("2 + 2 =\n\n4"), usage: "{}"}} ==
                run_component(build_args(url))
     end
 
@@ -337,7 +363,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, openai_response("4"))
       end)
 
-      assert {:ok, %{result: "4", usage: "{}"}} == run_component(openai_args(url))
+      assert {:ok, %{result: ~s("4"), usage: "{}"}} == run_component(openai_args(url))
     end
 
     test "returns the usage reported by openai", %{sham: sham, url: url} do
@@ -359,7 +385,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, response)
       end)
 
-      assert {:ok, %{result: "4", usage: json}} = run_component(openai_args(url))
+      assert {:ok, %{result: ~s("4"), usage: json}} = run_component(openai_args(url))
       assert usage == Jason.decode!(json)
     end
 
@@ -392,7 +418,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, openai_response("ok"))
       end)
 
-      assert {:ok, %{result: "ok", usage: "{}"}} ==
+      assert {:ok, %{result: ~s("ok"), usage: "{}"}} ==
                run_component(openai_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
@@ -415,7 +441,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, openai_response("ok"))
       end)
 
-      assert {:ok, %{result: "ok", usage: "{}"}} ==
+      assert {:ok, %{result: ~s("ok"), usage: "{}"}} ==
                run_component(openai_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
@@ -482,7 +508,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, google_response("4"))
       end)
 
-      assert {:ok, %{result: "4", usage: "{}"}} == run_component(google_args(url))
+      assert {:ok, %{result: ~s("4"), usage: "{}"}} == run_component(google_args(url))
     end
 
     test "returns the usage metadata reported by google", %{sham: sham, url: url} do
@@ -498,7 +524,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, response)
       end)
 
-      assert {:ok, %{result: "4", usage: json}} = run_component(google_args(url))
+      assert {:ok, %{result: ~s("4"), usage: json}} = run_component(google_args(url))
       assert usage == Jason.decode!(json)
     end
 
@@ -513,7 +539,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, google_response("ok"))
       end)
 
-      assert {:ok, %{result: "ok"}} =
+      assert {:ok, %{result: ~s("ok")}} =
                run_component(google_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 
