@@ -138,7 +138,8 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, anthropic_response("4"))
       end)
 
-      assert {:ok, %{usage: {:some, "{}"}, result: "4"}} == run_component(build_args(url, %{message: :none}))
+      assert {:ok, %{usage: {:some, "{}"}, result: "4"}} ==
+               run_component(build_args(url, %{message: :none}))
     end
 
     test "sends tool calls in the request", %{sham: sham, url: url} do
