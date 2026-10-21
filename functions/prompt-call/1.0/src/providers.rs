@@ -1,4 +1,5 @@
 pub(crate) mod anthropic;
+pub(crate) mod google;
 pub(crate) mod openai;
 
 use serde::de::DeserializeOwned;
@@ -243,8 +244,8 @@ pub(crate) trait ProviderRequest {
 
     fn finish_body(_body: &mut serde_json::Value, _servers: &[McpServer]) {}
 
-    fn endpoint_url(base_url: &str) -> String {
-        format!("{}/{}", base_url.trim_end_matches('/'), Self::PATH)
+    fn endpoint_url(agent: &BettyAiAgent) -> String {
+        format!("{}/{}", agent.url.trim_end_matches('/'), Self::PATH)
     }
 
     fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
@@ -339,8 +340,19 @@ fn mcp_server_name(url: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::anthropic::Anthropic;
+    use super::google::Google;
+    use super::openai::OpenAi;
     use super::*;
-    use crate::test_helpers::{mcp_tool, test_agent_with_tools};
+    use crate::test_helpers::{
+        MockHttpClient, mcp_tool, test_agent_with_tools, test_prompt, test_provider,
+    };
+
+    fn agent_with_url(url: &str) -> BettyAiAgent {
+        let mut agent = test_provider();
+        agent.url = url.to_string();
+        agent
+    }
 
     fn agent_with_secrets() -> BettyAiAgent {
         let mut agent = test_agent_with_tools(vec![mcp_tool(
@@ -431,13 +443,45 @@ mod tests {
         }
 
         assert_eq!(
-            Fake::endpoint_url("https://api.example.com/v1"),
+            Fake::endpoint_url(&agent_with_url("https://api.example.com/v1")),
             "https://api.example.com/v1/messages"
         );
         assert_eq!(
-            Fake::endpoint_url("https://api.example.com/v1/"),
+            Fake::endpoint_url(&agent_with_url("https://api.example.com/v1/")),
             "https://api.example.com/v1/messages"
         );
+    }
+
+    async fn assert_rejects_without_calling_out(provider: &impl Provider, agent: &BettyAiAgent) {
+        let client = MockHttpClient::new(Vec::new());
+
+        assert!(
+            provider
+                .complete(&client, agent, &test_prompt("hi"))
+                .await
+                .is_err()
+        );
+        assert!(client.requests().is_empty());
+    }
+
+    #[tokio::test]
+    async fn every_provider_rejects_an_agent_without_an_api_key() {
+        let mut agent = test_provider();
+        agent.api_key = String::new();
+
+        assert_rejects_without_calling_out(&Anthropic, &agent).await;
+        assert_rejects_without_calling_out(&OpenAi, &agent).await;
+        assert_rejects_without_calling_out(&Google, &agent).await;
+    }
+
+    #[tokio::test]
+    async fn every_provider_rejects_an_agent_without_a_url() {
+        let mut agent = test_provider();
+        agent.url = String::new();
+
+        assert_rejects_without_calling_out(&Anthropic, &agent).await;
+        assert_rejects_without_calling_out(&OpenAi, &agent).await;
+        assert_rejects_without_calling_out(&Google, &agent).await;
     }
 
     #[test]

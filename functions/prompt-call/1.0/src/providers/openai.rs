@@ -58,7 +58,7 @@ impl Provider for OpenAi {
 
         let (status, response) = client
             .post_json(
-                &Self::endpoint_url(&agent.url),
+                &Self::endpoint_url(agent),
                 headers,
                 Self::request_body(agent, prompt),
             )
@@ -514,36 +514,6 @@ mod tests {
         assert_eq!(request.url, "https://api.openai.com/v1/responses");
         assert_eq!(request.header("authorization"), Some("Bearer test-key"));
         assert_eq!(request.header("content-type"), Some("application/json"));
-    }
-
-    #[tokio::test]
-    async fn complete_rejects_an_empty_api_key_without_calling_out() {
-        let client = MockHttpClient::new(vec![(200, openai_text_response("unused"))]);
-        let mut agent = openai_agent();
-        agent.api_key = String::new();
-
-        assert!(
-            OpenAi
-                .complete(&client, &agent, &test_prompt("hi"))
-                .await
-                .is_err()
-        );
-        assert!(client.requests().is_empty());
-    }
-
-    #[tokio::test]
-    async fn complete_rejects_an_empty_url_without_calling_out() {
-        let client = MockHttpClient::new(vec![(200, openai_text_response("unused"))]);
-        let mut agent = openai_agent();
-        agent.url = String::new();
-
-        assert!(
-            OpenAi
-                .complete(&client, &agent, &test_prompt("hi"))
-                .await
-                .is_err()
-        );
-        assert!(client.requests().is_empty());
     }
 
     #[tokio::test]

@@ -48,7 +48,7 @@ impl Provider for Anthropic {
 
         let (status, response) = client
             .post_json(
-                &Self::endpoint_url(&agent.url),
+                &Self::endpoint_url(agent),
                 headers,
                 Self::request_body(agent, prompt),
             )
@@ -521,36 +521,6 @@ mod tests {
             client.requests()[0].header("anthropic-beta"),
             Some(MCP_CLIENT_BETA)
         );
-    }
-
-    #[tokio::test]
-    async fn complete_rejects_an_empty_api_key_without_calling_out() {
-        let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
-        let mut agent = test_provider();
-        agent.api_key = String::new();
-
-        assert!(
-            Anthropic
-                .complete(&client, &agent, &test_prompt("hi"))
-                .await
-                .is_err()
-        );
-        assert!(client.requests().is_empty());
-    }
-
-    #[tokio::test]
-    async fn complete_rejects_an_empty_url_without_calling_out() {
-        let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
-        let mut agent = test_provider();
-        agent.url = String::new();
-
-        assert!(
-            Anthropic
-                .complete(&client, &agent, &test_prompt("hi"))
-                .await
-                .is_err()
-        );
-        assert!(client.requests().is_empty());
     }
 
     #[tokio::test]
