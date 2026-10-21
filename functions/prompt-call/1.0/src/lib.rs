@@ -9,8 +9,9 @@ use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
 use crate::exports::betty_blocks::prompt_call::prompt_call;
 use crate::http::HttpClient;
 use crate::providers::anthropic::Anthropic;
+use crate::providers::google::Google;
 use crate::providers::openai::OpenAi;
-use crate::providers::{Prompt, Provider, active_tools, redact};
+use crate::providers::{Output, Prompt, Provider, active_tools, redact};
 
 wit_bindgen::generate!({ generate_all });
 
@@ -22,40 +23,46 @@ impl prompt_call::Guest for Component {
         prompt: Option<String>,
         agent: BettyAiAgent,
         max_tokens: Option<u32>,
-    ) -> Result<String, String> {
-        let prompt = build_prompt(system_prompt, prompt, max_tokens)?;
+    ) -> Result<prompt_call::BettyFlatOutput, String> {
+      let prompt = build_prompt(system_prompt, prompt, max_tokens)?;
 
-        wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))
+        let output = wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))?;
+
+        Ok(prompt_call::BettyFlatOutput {
+            result: output.text,
+            usage: Some(output.usage.to_string()),
+        })
     }
 }
 
 fn build_prompt(
-    system_prompt: String,
-    prompt: Option<String>,
-    max_tokens: Option<u32>,
+  system_prompt: String,
+  prompt: Option<String>,
+  max_tokens: Option<u32>,
 ) -> Result<Prompt, String> {
-    let (instructions, message) = match prompt.filter(|prompt| !prompt.trim().is_empty()) {
-        Some(message) => (system_prompt, message),
-        None if !system_prompt.trim().is_empty() => (String::new(), system_prompt),
-        None => return Err("Either a system prompt or a prompt is required".to_string()),
-    };
+  let (instructions, message) = match prompt.filter(|prompt| !prompt.trim().is_empty()) {
+    Some(message) => (system_prompt, message),
+    None if !system_prompt.trim().is_empty() => (String::new(), system_prompt),
+    None => return Err("Either a system prompt or a prompt is required".to_string()),
+  };
 
-    Ok(Prompt {
-        instructions,
-        message,
-        max_tokens,
-    })
+  Ok(Prompt {
+    instructions,
+    message,
+    max_tokens,
+  })
 }
 
 async fn run(
     client: &impl HttpClient,
     agent: &BettyAiAgent,
     prompt: &Prompt,
-) -> Result<String, String> {
+) -> Result<Output, String> {
     let prompt = with_tool_descriptions(agent, prompt);
     let result = match agent.name.as_str() {
         "anthropic" => Anthropic.complete(client, agent, &prompt).await,
         "openai" => OpenAi.complete(client, agent, &prompt).await,
+        "google" => Google.complete(client, agent, &prompt).await,
         other => Err(format!("Unsupported provider: {other}")),
     };
 
@@ -101,8 +108,8 @@ mod tests {
     use super::*;
     use crate::betty_blocks_types::types::types::{AuthenticationConfig, McpOptions};
     use crate::test_helpers::{
-        MockHttpClient, anthropic_text_response, openai_agent, openai_text_response, test_prompt,
-        test_provider,
+        MockHttpClient, anthropic_text_response, google_agent, google_text_response, openai_agent,
+        openai_text_response, test_prompt, test_provider,
     };
 
     #[tokio::test]
@@ -176,7 +183,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(text, "hello");
+        assert_eq!(text.text, "hello");
         assert_eq!(client.requests().len(), 1);
     }
 
@@ -188,7 +195,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(text, "hello");
+        assert_eq!(text.text, "hello");
         assert!(client.requests()[0].url.ends_with("/responses"));
     }
 
@@ -216,6 +223,18 @@ mod tests {
         let error = build_prompt(" ".into(), None, None).unwrap_err();
 
         assert_eq!(error, "Either a system prompt or a prompt is required");
+    }
+
+    #[tokio::test]
+    async fn dispatches_google_to_the_google_provider() {
+        let client = MockHttpClient::new(vec![(200, google_text_response("hello"))]);
+
+        let text = run(&client, &google_agent(), &test_prompt("hi"))
+            .await
+            .unwrap();
+
+        assert_eq!(text.text, "hello");
+        assert!(client.requests()[0].url.ends_with(":generateContent"));
     }
 
     #[tokio::test]

@@ -15,16 +15,17 @@ defmodule NativeWasmComponents.HttpTest do
        ) do
     case TestHelper.run_component(
            @component_path,
-           {"betty-blocks:http/http@3.0.0", "http"},
+           {"betty-blocks:http/http@4.0.0", "http"},
            %{
              "method" => method,
              "protocol" => protocol,
-             "headers" => Jason.encode!(headers),
+             "headers" => optional_json(headers),
              "url" => url,
-             "url-parameters" => Jason.encode!(url_parameters),
+             "url-parameters" => optional_json(url_parameters),
              "body" => {:some, body},
-             "body-parameters" => Jason.encode!(body_parameters),
-             "query-parameters" => Jason.encode!(query_parameters)
+             "body-parameters" => optional_json(body_parameters),
+             "query-parameters" => optional_json(query_parameters),
+             "schema-model" => :none
            }
          ) do
       {:ok, result} ->
@@ -36,6 +37,10 @@ defmodule NativeWasmComponents.HttpTest do
     end
   end
 
+  # The four maps are `option<json-string>`; `nil` leaves a map unset.
+  defp optional_json(nil), do: :none
+  defp optional_json(map), do: {:some, Jason.encode!(map)}
+
   describe "http component" do
     setup do
       sham = Sham.start()
@@ -44,35 +49,42 @@ defmodule NativeWasmComponents.HttpTest do
     end
 
     test "simple", %{host: host, sham: sham} do
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, "works") end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 200, "works") end)
 
       assert {:ok, %{"response-code" => 200, as: "works"}} ==
                run_component(:get, host, %{}, "", %{}, %{})
     end
 
+    test "works without the optional maps", %{host: host, sham: sham} do
+      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, "works") end)
+
+      assert {:ok, %{"response-code" => 200, as: "works"}} ==
+               run_component(:get, host, nil, "", nil, nil, nil)
+    end
+
     test "request returns json object", %{host: host, sham: sham} do
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, ~s|{"test": 1}|) end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 200, ~s|{"test": 1}|) end)
 
       assert {:ok, %{"response-code" => 200, as: %{"test" => 1}}} ==
                run_component(:get, host, %{}, "", %{}, %{})
     end
 
     test "request returns json number", %{host: host, sham: sham} do
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, ~s|1|) end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 200, ~s|1|) end)
 
       assert {:ok, %{"response-code" => 200, as: 1}} ==
                run_component(:get, host, %{}, "", %{}, %{})
     end
 
     test "request returns json string", %{host: host, sham: sham} do
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 200, ~s|"works"|) end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 200, ~s|"works"|) end)
 
       assert {:ok, %{"response-code" => 200, as: "works"}} ==
                run_component(:get, host, %{}, "", %{}, %{})
     end
 
     test "status code 404", %{host: host, sham: sham} do
-      Sham.expect(sham, fn conn -> Plug.Conn.send_resp(conn, 404, "not found") end)
+      Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 404, "not found") end)
 
       assert {:ok, %{"response-code" => 404, as: "not found"}} ==
                run_component(:get, host, %{}, "", %{}, %{})
@@ -83,7 +95,7 @@ defmodule NativeWasmComponents.HttpTest do
         {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
         assert "testing" == body
 
-        Plug.Conn.send_resp(conn, 200, "works")
+        Plug.Conn.resp(conn, 200, "works")
       end)
 
       assert {:ok, %{"response-code" => 200, as: "works"}} ==
@@ -93,7 +105,7 @@ defmodule NativeWasmComponents.HttpTest do
     test "format liquid url", %{host: host, sham: sham} do
       Sham.expect(sham, fn conn ->
         assert conn.path_info == ["hello", "bye"]
-        Plug.Conn.send_resp(conn, 200, "works")
+        Plug.Conn.resp(conn, 200, "works")
       end)
 
       assert {:ok, %{"response-code" => 200, as: "works"}} ==
@@ -114,7 +126,7 @@ defmodule NativeWasmComponents.HttpTest do
         assert %{"search" => "true"} == conn.query_params
         assert "search=true" == conn.query_string
 
-        Plug.Conn.send_resp(conn, 200, "works")
+        Plug.Conn.resp(conn, 200, "works")
       end)
 
       assert {:ok, %{"response-code" => 200, as: "works"}} ==
@@ -132,7 +144,7 @@ defmodule NativeWasmComponents.HttpTest do
       Sham.expect(sham, fn conn ->
         assert {"content-type", "application/json"} in conn.req_headers
 
-        Plug.Conn.send_resp(conn, 200, "works")
+        Plug.Conn.resp(conn, 200, "works")
       end)
 
       assert {:ok, %{"response-code" => 200, as: "works"}} ==
@@ -149,7 +161,9 @@ defmodule NativeWasmComponents.HttpTest do
 
     test "works without scheme set in url, http", %{port: port, sham: sham} do
       Sham.expect(sham, fn conn ->
-        Plug.Conn.send_resp(conn, 200, "works")
+        # drain the body so Bandit doesn't close the socket while the component is still writing it
+        {:ok, _body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+        Plug.Conn.resp(conn, 200, "works")
       end)
 
       assert {:ok, %{"response-code" => 200, as: "works"}} ==

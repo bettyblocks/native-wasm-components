@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Serialize)]
 pub struct SendMailOutput {
@@ -21,11 +20,6 @@ impl From<crate::betty_blocks::smtp::client::SendResult> for SendResult {
             message_id: r.message_id,
         }
     }
-}
-
-#[derive(Deserialize)]
-pub struct CollectionData {
-    pub data: Vec<HashMap<String, FileInfo>>,
 }
 
 #[derive(Deserialize)]

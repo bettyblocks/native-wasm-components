@@ -3,7 +3,11 @@ use std::collections::HashMap;
 use url::Url;
 use waki::{header::HeaderMap, Client};
 
-use crate::exports::betty_blocks::http::http::{self, Input, Method, Output, Scheme};
+use crate::betty_blocks_types::types::types::{
+    BettyHttpMethod as Method, BettyHttpProtocol as Scheme, BettyHttpRequest as Input,
+    BettyHttpResponse as Output,
+};
+use crate::exports::betty_blocks::http::http;
 
 wit_bindgen::generate!({ with: {
     "wasi:io/streams@0.2.6": ::wasi::io::streams,
@@ -12,6 +16,7 @@ wit_bindgen::generate!({ with: {
     "wasi:io/poll@0.2.6": ::wasi::io::poll,
     "wasi:http/types@0.2.6": ::wasi::http::types,
     "wasi:http/outgoing-handler@0.2.6": ::wasi::http::outgoing_handler,
+    "betty-blocks-types:types/types@3.1.0": generate,
     }
 });
 
@@ -86,6 +91,11 @@ fn generate_url(
     Ok(url_parts.to_string())
 }
 
+// An optional map that is not set is an empty map.
+fn map_json(map: &Option<String>) -> &str {
+    map.as_deref().unwrap_or("{}")
+}
+
 fn to_waki_method(method: &Method) -> waki::Method {
     match method {
         Method::Get => waki::Method::Get,
@@ -93,9 +103,7 @@ fn to_waki_method(method: &Method) -> waki::Method {
         Method::Post => waki::Method::Post,
         Method::Put => waki::Method::Put,
         Method::Delete => waki::Method::Delete,
-        Method::Connect => waki::Method::Connect,
         Method::Options => waki::Method::Options,
-        Method::Trace => waki::Method::Trace,
         Method::Patch => waki::Method::Patch,
     }
 }
@@ -103,13 +111,13 @@ fn to_waki_method(method: &Method) -> waki::Method {
 impl http::Guest for HttpSender {
     fn http(input: Input) -> Result<Output, String> {
         let url_vars: serde_json::Value =
-            serde_json::from_str(&input.url_parameters).map_err(|e| e.to_string())?;
+            serde_json::from_str(map_json(&input.url_parameters)).map_err(|e| e.to_string())?;
         let body_vars: serde_json::Value =
-            serde_json::from_str(&input.body_parameters).map_err(|e| e.to_string())?;
+            serde_json::from_str(map_json(&input.body_parameters)).map_err(|e| e.to_string())?;
         let query_vars: SerdeJsonObject =
-            serde_json::from_str(&input.query_parameters).map_err(|e| e.to_string())?;
+            serde_json::from_str(map_json(&input.query_parameters)).map_err(|e| e.to_string())?;
         let headers: HashMap<String, String> =
-            serde_json::from_str(&input.headers).map_err(|e| e.to_string())?;
+            serde_json::from_str(map_json(&input.headers)).map_err(|e| e.to_string())?;
         let headers: HeaderMap<String> = match (&headers).try_into() {
             Ok(headers) => headers,
             Err(e) => return Err(e.to_string()),
@@ -197,4 +205,10 @@ fn generate_url_applies_query_params_with_odd_values() {
         "https://example.com/?arr=1%2C2%2C3%2C4&obj=%7B%22get%22%3A1%7D",
         url
     );
+}
+
+#[test]
+fn map_json_treats_a_missing_map_as_empty() {
+    assert_eq!(map_json(&None), "{}");
+    assert_eq!(map_json(&Some(r#"{"a":1}"#.to_string())), r#"{"a":1}"#);
 }
