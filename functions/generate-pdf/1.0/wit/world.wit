@@ -1,0 +1,24 @@
+package betty-blocks:generate-pdf@1.0.0;
+
+interface generate-pdf {
+    use betty-blocks-types:data-api/data-api@3.1.0.{helper-context};
+    use betty-blocks-types:types/types@3.2.0.{betty-map, betty-model, betty-property};
+
+    generate-pdf: func(
+        helper-context: helper-context,
+        html: string,
+        variables: option<betty-map>,
+        model: betty-model,
+        property: list<betty-property>,
+        file-name: string,
+    ) -> result<string, string>;
+}
+
+world main {
+    import wasi:http/outgoing-handler@0.2.0;
+    import betty-blocks-types:data-api/data-api@3.1.0;
+    import betty-blocks-types:types/types@3.2.0;
+    import betty-blocks-types:upload-file/upload-file@4.1.0;
+
+    export generate-pdf;
+}
