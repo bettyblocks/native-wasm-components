@@ -229,4 +229,5 @@ skill when writing Elixir code:
 
 ## Coding Standards & Guidelines
 
+@AGENTS.md
 @.claude/standards/CLAUDE.md
