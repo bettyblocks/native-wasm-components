@@ -30,3 +30,6 @@ erl_crash.dump
 *.wasm
 
 !/functions/upload-file/1.0/test/fixtures/*.wasm
+
+# Local proof screenshots (may contain customer templates)
+.proof/
