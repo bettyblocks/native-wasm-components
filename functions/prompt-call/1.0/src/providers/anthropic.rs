@@ -4,7 +4,7 @@ use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
 use crate::http::HttpClient;
 use crate::providers::{
     McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools,
-    ensure_configured, mcp_auth_token, null_as_empty,
+    complete_request, mcp_auth_token, null_as_empty,
 };
 
 const API_VERSION: &str = "2023-06-01";
@@ -14,7 +14,7 @@ const MCP_CLIENT_BETA: &str = "mcp-client-2025-11-20";
 pub(crate) struct Anthropic;
 
 #[derive(Debug, Deserialize)]
-struct MessagesResponse {
+pub(crate) struct MessagesResponse {
     #[serde(default, deserialize_with = "null_as_empty")]
     content: Vec<ContentBlock>,
     stop_reason: Option<String>,
@@ -53,26 +53,7 @@ impl Provider for Anthropic {
         agent: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<Output, String> {
-        ensure_configured(agent)?;
-
-        let mut headers = vec![
-            ("x-api-key", agent.api_key.clone()),
-            ("anthropic-version", API_VERSION.to_string()),
-            ("content-type", "application/json".to_string()),
-        ];
-        if uses_mcp(agent) {
-            headers.push(("anthropic-beta", MCP_CLIENT_BETA.to_string()));
-        }
-
-        let (status, response) = client
-            .post_json(
-                &Self::endpoint_url(agent),
-                headers,
-                Self::request_body(agent, prompt),
-            )
-            .await?;
-
-        MessagesResponse::handle(status, &response)
+        complete_request::<Anthropic>(client, agent, prompt).await
     }
 }
 
@@ -81,7 +62,21 @@ fn uses_mcp(agent: &BettyAiAgent) -> bool {
 }
 
 impl ProviderRequest for Anthropic {
+    type Response = MessagesResponse;
+
     const PATH: &'static str = "messages";
+
+    fn headers(agent: &BettyAiAgent) -> Vec<(&'static str, String)> {
+        let mut headers = vec![
+            ("x-api-key", agent.api_key.clone()),
+            ("anthropic-version", API_VERSION.to_string()),
+            ("content-type", "application/json".to_string()),
+        ];
+        if uses_mcp(agent) {
+            headers.push(("anthropic-beta", MCP_CLIENT_BETA.to_string()));
+        }
+        headers
+    }
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
         serde_json::json!({

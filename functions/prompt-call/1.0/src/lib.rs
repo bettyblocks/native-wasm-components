@@ -10,6 +10,7 @@ use crate::exports::betty_blocks::prompt_call::prompt_call;
 use crate::http::HttpClient;
 use crate::providers::anthropic::Anthropic;
 use crate::providers::google::Google;
+use crate::providers::mistral::Mistral;
 use crate::providers::openai::OpenAi;
 use crate::providers::{Output, Prompt, Provider, active_tools, redact};
 
@@ -63,6 +64,7 @@ async fn run(
         "anthropic" => Anthropic.complete(client, agent, &prompt).await,
         "openai" => OpenAi.complete(client, agent, &prompt).await,
         "google" => Google.complete(client, agent, &prompt).await,
+        "mistral" => Mistral.complete(client, agent, &prompt).await,
         other => Err(format!("Unsupported provider: {other}")),
     };
 
@@ -108,8 +110,9 @@ mod tests {
     use super::*;
     use crate::betty_blocks_types::types::types::{AuthenticationConfig, McpOptions};
     use crate::test_helpers::{
-        MockHttpClient, anthropic_text_response, google_agent, google_text_response, openai_agent,
-        openai_text_response, test_prompt, test_provider,
+        MockHttpClient, anthropic_text_response, google_agent, google_text_response,
+        mistral_text_response, openai_agent, openai_text_response, test_mistral_provider,
+        test_prompt, test_provider,
     };
 
     #[tokio::test]
@@ -238,16 +241,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dispatches_mistral_to_the_mistral_provider() {
+        let client = MockHttpClient::new(vec![(200, mistral_text_response("hello"))]);
+
+        let text = run(&client, &test_mistral_provider(), &test_prompt("hi"))
+            .await
+            .unwrap();
+
+        assert_eq!(text.text, "hello");
+        assert_eq!(client.requests().len(), 1);
+        assert_eq!(
+            client.requests()[0].url,
+            "https://api.mistral.ai/v1/conversations"
+        );
+    }
+
+    #[tokio::test]
     async fn rejects_an_unsupported_provider_without_calling_out() {
         let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
         let mut provider = test_provider();
-        provider.name = "mistral".to_string();
+        provider.name = "unknown".to_string();
 
         let error = run(&client, &provider, &test_prompt("hi"))
             .await
             .unwrap_err();
 
-        assert!(error.contains("mistral"));
+        assert!(error.contains("unknown"));
         assert!(client.requests().is_empty());
     }
 }
