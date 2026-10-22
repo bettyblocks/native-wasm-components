@@ -138,7 +138,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, anthropic_response("4"))
       end)
 
-      assert {:ok, %{result: "4", usage: "{}"}} ==
+      assert {:ok, %{usage: "{}", result: "4"}} ==
                run_component(build_args(url, %{message: :none}))
     end
 
@@ -253,7 +253,8 @@ defmodule NativeWasmComponents.PromptCallTest do
 
       Sham.expect(sham, fn conn -> Plug.Conn.resp(conn, 200, response) end)
 
-      assert {:ok, %{result: "2 + 2 =\n\n4", usage: "{}"}} == run_component(build_args(url))
+      assert {:ok, %{result: "2 + 2 =\n\n4", usage: "{}"}} ==
+               run_component(build_args(url))
     end
 
     test "reports the anthropic error with the api key redacted", %{sham: sham, url: url} do
@@ -319,6 +320,28 @@ defmodule NativeWasmComponents.PromptCallTest do
                } == Jason.decode!(body)
 
         Plug.Conn.resp(conn, 200, openai_response("4"))
+      end)
+
+      assert {:ok, %{result: "4", usage: "{}"}} == run_component(openai_args(url))
+    end
+
+    test "returns the usage reported by openai", %{sham: sham, url: url} do
+      usage = %{
+        "input_tokens" => 12,
+        "input_tokens_details" => %{"cached_tokens" => 0},
+        "output_tokens" => 3,
+        "output_tokens_details" => %{"reasoning_tokens" => 0},
+        "total_tokens" => 15
+      }
+
+      Sham.expect(sham, fn conn ->
+        response =
+          Jason.encode!(%{
+            output: [%{type: "message", content: [%{type: "output_text", text: "4"}]}],
+            usage: usage
+          })
+
+        Plug.Conn.resp(conn, 200, response)
       end)
 
       assert {:ok, %{result: "4", usage: "{}"}} == run_component(openai_args(url))

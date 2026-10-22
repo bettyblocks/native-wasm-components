@@ -24,7 +24,7 @@ impl prompt_call::Guest for Component {
         agent: BettyAiAgent,
         max_tokens: Option<u32>,
     ) -> Result<prompt_call::BettyFlatOutput, String> {
-        let prompt = build_prompt(system_prompt, prompt, max_tokens)?;
+      let prompt = build_prompt(system_prompt, prompt, max_tokens)?;
 
         let output = wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))?;
 
@@ -36,21 +36,21 @@ impl prompt_call::Guest for Component {
 }
 
 fn build_prompt(
-    system_prompt: String,
-    prompt: Option<String>,
-    max_tokens: Option<u32>,
+  system_prompt: String,
+  prompt: Option<String>,
+  max_tokens: Option<u32>,
 ) -> Result<Prompt, String> {
-    let (instructions, message) = match prompt.filter(|prompt| !prompt.trim().is_empty()) {
-        Some(message) => (system_prompt, message),
-        None if !system_prompt.trim().is_empty() => (String::new(), system_prompt),
-        None => return Err("Either a system prompt or a prompt is required".to_string()),
-    };
+  let (instructions, message) = match prompt.filter(|prompt| !prompt.trim().is_empty()) {
+    Some(message) => (system_prompt, message),
+    None if !system_prompt.trim().is_empty() => (String::new(), system_prompt),
+    None => return Err("Either a system prompt or a prompt is required".to_string()),
+  };
 
-    Ok(Prompt {
-        instructions,
-        message,
-        max_tokens,
-    })
+  Ok(Prompt {
+    instructions,
+    message,
+    max_tokens,
+  })
 }
 
 async fn run(
