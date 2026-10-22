@@ -80,7 +80,8 @@ impl ProviderRequest for Mistral {
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
         serde_json::json!({
             "model": agent.ai_model_name,
-            "inputs": [{ "role": "user", "content": user_content(prompt) }],
+            "instructions": prompt.instructions,
+            "inputs": [{ "role": "user", "content": prompt.message }],
             "completion_args": { "max_tokens": prompt.max_tokens() },
         })
     }
@@ -106,16 +107,6 @@ impl ProviderResponse for ConversationsResponse {
     }
 }
 
-// The Conversations API only accepts user and assistant input roles, so the
-// system prompt travels inside the user message.
-fn user_content(prompt: &Prompt) -> String {
-    if prompt.instructions.is_empty() {
-        return prompt.message.clone();
-    }
-
-    format!("{}\n\n{}", prompt.instructions, prompt.message)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,10 +130,8 @@ mod tests {
         );
         assert_eq!(body["inputs"].as_array().unwrap().len(), 1);
         assert_eq!(body["inputs"][0]["role"], "user");
-        assert_eq!(
-            body["inputs"][0]["content"],
-            "You are helpful.\n\nSummarise this"
-        );
+        assert_eq!(body["inputs"][0]["content"], "Summarise this");
+        assert_eq!(body["instructions"], "You are helpful.");
         assert!(body.get("tools").is_none());
     }
 
@@ -158,11 +147,14 @@ mod tests {
     }
 
     #[test]
-    fn user_content_leaves_the_prompt_alone_without_instructions() {
+    fn request_body_carries_empty_instructions_without_a_placeholder() {
         let mut prompt = test_prompt("hi");
         prompt.instructions = String::new();
 
-        assert_eq!(user_content(&prompt), "hi");
+        let body = body_of(&test_mistral_provider(), &prompt);
+
+        assert_eq!(body["instructions"], "");
+        assert_eq!(body["inputs"][0]["content"], "hi");
     }
 
     #[test]

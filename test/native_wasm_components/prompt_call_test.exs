@@ -599,9 +599,10 @@ defmodule NativeWasmComponents.PromptCallTest do
 
         assert %{
                  "model" => "mistral-large-latest",
+                 "instructions" => "You are helpful.",
                  "completion_args" => %{"max_tokens" => 4096},
                  "inputs" => [
-                   %{"role" => "user", "content" => "You are helpful.\n\nWhat is 2 + 2?"}
+                   %{"role" => "user", "content" => "What is 2 + 2?"}
                  ]
                } == Jason.decode!(body)
 
