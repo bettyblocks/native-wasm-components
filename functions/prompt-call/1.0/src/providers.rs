@@ -287,9 +287,7 @@ pub(crate) trait ProviderRequest {
 
     fn web_search_tool() -> serde_json::Value;
 
-    fn mcp_tool(_server: &McpServer) -> Option<serde_json::Value> {
-        None
-    }
+    fn mcp_tool(server: &McpServer) -> serde_json::Value;
 
     fn finish_body(_body: &mut serde_json::Value, _servers: &[McpServer]) {}
 
@@ -310,11 +308,8 @@ pub(crate) trait ProviderRequest {
                         servers.iter().any(|server| server.name == name)
                     });
                     let server = McpServer { options, name };
-
-                    if let Some(tool) = Self::mcp_tool(&server) {
-                        tools.push(tool);
-                        servers.push(server);
-                    }
+                    tools.push(Self::mcp_tool(&server));
+                    servers.push(server);
                 }
             }
         }
@@ -396,8 +391,11 @@ mod tests {
     use super::google::Google;
     use super::openai::OpenAi;
     use super::*;
-    use crate::test_helpers::{
-        MockHttpClient, mcp_tool, test_agent_with_tools, test_prompt, test_provider,
+    use crate::{
+        providers::mistral::Mistral,
+        test_helpers::{
+            MockHttpClient, mcp_tool, test_agent_with_tools, test_prompt, test_provider,
+        },
     };
 
     fn agent_with_url(url: &str) -> BettyAiAgent {
@@ -501,6 +499,9 @@ mod tests {
             fn web_search_tool() -> serde_json::Value {
                 serde_json::Value::Null
             }
+            fn mcp_tool(_: &McpServer) -> serde_json::Value {
+                unreachable!("mcp tools are not exercised by this test")
+            }
         }
 
         assert_eq!(
@@ -533,6 +534,7 @@ mod tests {
         assert_rejects_without_calling_out(&Anthropic, &agent).await;
         assert_rejects_without_calling_out(&OpenAi, &agent).await;
         assert_rejects_without_calling_out(&Google, &agent).await;
+        assert_rejects_without_calling_out(&Mistral, &agent).await;
     }
 
     #[tokio::test]
@@ -543,6 +545,7 @@ mod tests {
         assert_rejects_without_calling_out(&Anthropic, &agent).await;
         assert_rejects_without_calling_out(&OpenAi, &agent).await;
         assert_rejects_without_calling_out(&Google, &agent).await;
+        assert_rejects_without_calling_out(&Mistral, &agent).await;
     }
 
     #[test]

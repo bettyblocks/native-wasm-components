@@ -72,7 +72,7 @@ impl ProviderRequest for OpenAi {
         serde_json::json!({ "type": WEB_SEARCH_TOOL_TYPE })
     }
 
-    fn mcp_tool(server: &McpServer) -> Option<serde_json::Value> {
+    fn mcp_tool(server: &McpServer) -> serde_json::Value {
         let options = server.options;
         let mut tool = serde_json::json!({
             "type": "mcp",
@@ -89,7 +89,7 @@ impl ProviderRequest for OpenAi {
             tool["allowed_tools"] = selected.into();
         }
 
-        Some(tool)
+        tool
     }
 }
 

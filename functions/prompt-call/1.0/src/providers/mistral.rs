@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 use crate::providers::{
-    Output, Prompt, Provider, ProviderRequest, ProviderResponse, complete_request,
+    McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, complete_request,
     ensure_no_mcp_tools, null_as_empty,
 };
 
@@ -89,6 +89,10 @@ impl ProviderRequest for Mistral {
 
     fn web_search_tool() -> serde_json::Value {
         serde_json::json!({ "type": "web_search" })
+    }
+
+    fn mcp_tool(_server: &McpServer) -> serde_json::Value {
+        unreachable!("ensure_tools_supported rejects MCP tools before the request body is built")
     }
 }
 

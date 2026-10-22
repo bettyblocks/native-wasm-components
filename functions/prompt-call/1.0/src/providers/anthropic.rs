@@ -77,14 +77,14 @@ impl ProviderRequest for Anthropic {
         })
     }
 
-    fn mcp_tool(server: &McpServer) -> Option<serde_json::Value> {
+    fn mcp_tool(server: &McpServer) -> serde_json::Value {
         let mut toolset = serde_json::json!({
             "type": "mcp_toolset",
             "mcp_server_name": server.name,
         });
 
         let Some(selected) = server.options.enabled_tools.as_deref() else {
-            return Some(toolset);
+            return toolset;
         };
 
         toolset["default_config"] = serde_json::json!({ "enabled": false });
@@ -94,7 +94,7 @@ impl ProviderRequest for Anthropic {
             .collect::<serde_json::Map<String, serde_json::Value>>()
             .into();
 
-        Some(toolset)
+        toolset
     }
 
     fn finish_body(body: &mut serde_json::Value, servers: &[McpServer]) {
