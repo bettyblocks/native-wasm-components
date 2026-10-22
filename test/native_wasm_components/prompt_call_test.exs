@@ -572,6 +572,23 @@ defmodule NativeWasmComponents.PromptCallTest do
       assert {:ok, %{result: "4", usage: "{}"}} == run_component(mistral_args(url))
     end
 
+    test "returns the usage reported by mistral", %{sham: sham, url: url} do
+      usage = %{"prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15}
+
+      Sham.expect(sham, fn conn ->
+        response =
+          Jason.encode!(%{
+            outputs: [%{type: "message.output", content: "4"}],
+            usage: usage
+          })
+
+        Plug.Conn.send_resp(conn, 200, response)
+      end)
+
+      assert {:ok, %{result: "4", usage: json}} = run_component(mistral_args(url))
+      assert usage == Jason.decode!(json)
+    end
+
     test "appends the conversations endpoint to the provider base url", %{sham: sham, url: url} do
       Sham.expect(sham, fn conn ->
         assert conn.path_info == ["v1", "conversations"]
@@ -723,11 +740,15 @@ defmodule NativeWasmComponents.PromptCallTest do
         mistral_args("https://api.mistral.ai/v1", %{
           provider: %{"api-key" => key},
           instructions: "Reply with a single word and no punctuation.",
-          message: "Reply with the word pong"
+          message: {:some, "Reply with the word pong"}
         })
 
-      assert {:ok, text} = run_component(args)
-      assert text =~ "pong"
+      assert {:ok, %{result: text, usage: usage}} = run_component(args)
+
+      assert %{"completion_tokens" => _, "prompt_tokens" => _, "total_tokens" => _} =
+               Jason.decode!(usage)
+
+      assert String.downcase(text) =~ "pong"
     end
   end
 end

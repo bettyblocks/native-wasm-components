@@ -13,6 +13,7 @@ pub(crate) struct Mistral;
 pub(crate) struct ConversationsResponse {
     #[serde(default, deserialize_with = "null_as_empty")]
     outputs: Vec<OutputItem>,
+    usage: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,7 +109,7 @@ impl ProviderResponse for ConversationsResponse {
     }
 
     fn usage(&self) -> Option<&serde_json::Value> {
-        None
+        self.usage.as_ref()
     }
 }
 
@@ -234,6 +235,37 @@ mod tests {
         let response = serde_json::json!({ "outputs": [] }).to_string();
 
         assert!(ConversationsResponse::extract(response.as_bytes()).is_err());
+    }
+
+    #[test]
+    fn extract_passes_the_usage_through() {
+        let usage = serde_json::json!({
+            "prompt_tokens": 12,
+            "completion_tokens": 3,
+            "total_tokens": 15
+        });
+        let response = serde_json::json!({
+            "outputs": [{ "type": "message.output", "content": "answer" }],
+            "usage": usage
+        })
+        .to_string();
+
+        assert_eq!(
+            ConversationsResponse::extract(response.as_bytes())
+                .unwrap()
+                .usage,
+            usage
+        );
+    }
+
+    #[test]
+    fn extract_reports_an_empty_usage_when_the_response_has_none() {
+        assert_eq!(
+            ConversationsResponse::extract(mistral_text_response("answer").as_bytes())
+                .unwrap()
+                .usage,
+            serde_json::json!({})
+        );
     }
 
     #[test]
