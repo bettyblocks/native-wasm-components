@@ -91,6 +91,17 @@ pub(crate) fn ensure_configured(agent: &BettyAiAgent) -> Result<(), String> {
     Ok(())
 }
 
+pub(crate) fn ensure_no_mcp_tools(provider: &str, agent: &BettyAiAgent) -> Result<(), String> {
+    if active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_))) {
+        return Err(format!(
+            "{provider} does not support server-side MCP tools, configured on agent: {}",
+            agent.name
+        ));
+    }
+
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct ApiError {
     message: Option<String>,

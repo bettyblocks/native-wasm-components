@@ -1,10 +1,10 @@
 use serde::Deserialize;
 
-use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
+use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 use crate::providers::{
-    McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools,
-    ensure_configured, null_as_empty,
+    McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, complete_request,
+    ensure_no_mcp_tools, null_as_empty,
 };
 
 const API_KEY_HEADER: &str = "x-goog-api-key";
@@ -64,41 +64,27 @@ impl Provider for Google {
         agent: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<Output, String> {
-        ensure_configured(agent)?;
-        ensure_no_mcp_tools(agent)?;
-
-        let headers = vec![
-            (API_KEY_HEADER, agent.api_key.clone()),
-            ("content-type", "application/json".to_string()),
-        ];
-
-        let (status, response) = client
-            .post_json(
-                &Self::endpoint_url(agent),
-                headers,
-                Self::request_body(agent, prompt),
-            )
-            .await?;
-
-        GenerateContentResponse::handle(status, &response)
+        complete_request::<Google>(client, agent, prompt).await
     }
-}
-
-fn ensure_no_mcp_tools(agent: &BettyAiAgent) -> Result<(), String> {
-    if active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_))) {
-        return Err(format!(
-            "Gemini does not support server-side MCP tools, configured on agent: {}",
-            agent.name
-        ));
-    }
-
-    Ok(())
 }
 
 impl ProviderRequest for Google {
     type Response = GenerateContentResponse;
 
     const PATH: &'static str = "generateContent";
+
+    // Gemini has no server-side MCP support, so agents relying on MCP tools
+    // are rejected instead of silently losing them in the request.
+    fn ensure_tools_supported(agent: &BettyAiAgent) -> Result<(), String> {
+        ensure_no_mcp_tools("Gemini", agent)
+    }
+
+    fn headers(agent: &BettyAiAgent) -> Vec<(&'static str, String)> {
+        vec![
+            (API_KEY_HEADER, agent.api_key.clone()),
+            ("content-type", "application/json".to_string()),
+        ]
+    }
 
     fn endpoint_url(agent: &BettyAiAgent) -> String {
         format!(
@@ -122,7 +108,7 @@ impl ProviderRequest for Google {
     }
 
     fn mcp_tool(_server: &McpServer) -> Option<serde_json::Value> {
-        unreachable!("ensure_no_mcp_tools rejects MCP tools before the request body is built")
+        unreachable!("ensure_tools_supported rejects MCP tools before the request body is built")
     }
 }
 
@@ -210,6 +196,7 @@ impl ProviderResponse for GenerateContentResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::betty_blocks_types::types::types::BettyAiTool;
     use crate::test_helpers::{
         MockHttpClient, google_agent, google_text_response, http_search_tool,
         mcp_tool as betty_mcp_tool, mcp_tool_limited_to, test_prompt,

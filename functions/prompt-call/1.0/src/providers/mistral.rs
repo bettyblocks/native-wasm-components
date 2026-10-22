@@ -1,10 +1,10 @@
 use serde::Deserialize;
 
-use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
+use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 use crate::providers::{
-    Output, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools, complete_request,
-    null_as_empty,
+    Output, Prompt, Provider, ProviderRequest, ProviderResponse, complete_request,
+    ensure_no_mcp_tools, null_as_empty,
 };
 
 pub(crate) struct Mistral;
@@ -74,14 +74,7 @@ impl ProviderRequest for Mistral {
     // The Conversations API has no MCP support, so agents relying on MCP tools
     // are rejected instead of silently losing them in the request.
     fn ensure_tools_supported(agent: &BettyAiAgent) -> Result<(), String> {
-        if active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_))) {
-            return Err(format!(
-                "Mistral does not support server-side MCP tools, configured on agent: {}",
-                agent.name
-            ));
-        }
-
-        Ok(())
+        ensure_no_mcp_tools("Mistral", agent)
     }
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
