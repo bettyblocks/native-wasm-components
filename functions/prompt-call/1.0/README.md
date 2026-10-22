@@ -31,8 +31,7 @@ parameters under `completion_args` in the Conversations API; the component
 always sends `max_tokens` there.
 
 Tool descriptions (http-search, mcp servers) are appended to the system prompt
-for every provider. The Conversations API only accepts `user` and `assistant`
-input roles, so for Mistral the system prompt travels inside the user message.
+for every provider. 
 
 Anthropic additionally registers the tools server-side (`tools` /
 `mcp_servers`) in the request body. Mistral executes tools server-side on the
