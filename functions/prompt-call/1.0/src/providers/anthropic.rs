@@ -79,12 +79,20 @@ impl ProviderRequest for Anthropic {
     }
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
-        serde_json::json!({
+        let mut body = serde_json::json!({
             "model": agent.ai_model_name,
             "max_tokens": prompt.max_tokens(),
             "system": prompt.instructions,
             "messages": [{ "role": "user", "content": prompt.message }],
-        })
+        });
+
+        if let Some(schema) = &prompt.output_schema {
+            body["output_config"] = serde_json::json!({
+                "format": { "type": "json_schema", "schema": schema }
+            });
+        }
+
+        body
     }
 
     fn web_search_tool() -> serde_json::Value {
@@ -199,6 +207,32 @@ mod tests {
             serde_json::from_slice(&Anthropic::request_body(&test_provider(), &prompt)).unwrap();
 
         assert_eq!(body["max_tokens"], 256);
+    }
+
+    #[test]
+    fn request_body_carries_an_output_schema_as_an_output_format() {
+        let schema = serde_json::json!({ "type": "object" });
+        let mut prompt = test_prompt("hi");
+        prompt.output_schema = Some(schema.clone());
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&Anthropic::request_body(&test_provider(), &prompt)).unwrap();
+
+        assert_eq!(
+            body["output_config"],
+            serde_json::json!({ "format": { "type": "json_schema", "schema": schema } })
+        );
+    }
+
+    #[test]
+    fn request_body_omits_the_output_config_without_an_output_schema() {
+        let body: serde_json::Value = serde_json::from_slice(&Anthropic::request_body(
+            &test_provider(),
+            &test_prompt("hi"),
+        ))
+        .unwrap();
+
+        assert!(body.get("output_config").is_none());
     }
 
     #[test]
