@@ -7,6 +7,8 @@ use crate::providers::{
     ensure_no_mcp_tools, null_as_empty,
 };
 
+const OUTPUT_SCHEMA_NAME: &str = "output";
+
 pub(crate) struct Mistral;
 
 #[derive(Debug, Deserialize)]
@@ -78,13 +80,26 @@ impl ProviderRequest for Mistral {
     }
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
-        serde_json::json!({
+        let mut body = serde_json::json!({
             "model": agent.ai_model_name,
             "instructions": prompt.instructions,
             "inputs": [{ "role": "user", "content": prompt.message }],
             "completion_args": { "max_tokens": prompt.max_tokens() },
             "store": false,
-        })
+        });
+
+        if let Some(schema) = &prompt.output_schema {
+            body["completion_args"]["response_format"] = serde_json::json!({
+                "type": "json_schema",
+                "json_schema": {
+                    "name": OUTPUT_SCHEMA_NAME,
+                    "schema": schema,
+                    "strict": true,
+                }
+            });
+        }
+
+        body
     }
 
     fn web_search_tool() -> serde_json::Value {
@@ -150,6 +165,34 @@ mod tests {
             body_of(&test_mistral_provider(), &prompt)["completion_args"]["max_tokens"],
             256
         );
+    }
+
+    #[test]
+    fn request_body_carries_an_output_schema_as_a_strict_json_schema_response_format() {
+        let schema = serde_json::json!({ "type": "object" });
+        let mut prompt = test_prompt("hi");
+        prompt.output_schema = Some(schema.clone());
+
+        let completion_args = &body_of(&test_mistral_provider(), &prompt)["completion_args"];
+
+        assert_eq!(
+            completion_args["response_format"],
+            serde_json::json!({
+                "type": "json_schema",
+                "json_schema": { "name": "output", "schema": schema, "strict": true }
+            })
+        );
+        assert_eq!(
+            completion_args["max_tokens"],
+            crate::providers::DEFAULT_MAX_TOKENS
+        );
+    }
+
+    #[test]
+    fn request_body_omits_the_response_format_without_an_output_schema() {
+        let body = body_of(&test_mistral_provider(), &test_prompt("hi"));
+
+        assert!(body["completion_args"].get("response_format").is_none());
     }
 
     #[test]

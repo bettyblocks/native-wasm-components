@@ -28,7 +28,7 @@ impl prompt_call::Guest for Component {
         // Schema, which asks the provider for structured output.
         schema_model: Option<String>,
     ) -> Result<prompt_call::BettyFlatOutput, String> {
-      let prompt = build_prompt(system_prompt, prompt, max_tokens, schema_model)?;
+        let prompt = build_prompt(system_prompt, prompt, max_tokens, schema_model)?;
 
         let output = wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))?;
 
@@ -40,23 +40,23 @@ impl prompt_call::Guest for Component {
 }
 
 fn build_prompt(
-  system_prompt: String,
-  prompt: Option<String>,
-  max_tokens: Option<u32>,
-  schema_model: Option<String>,
+    system_prompt: String,
+    prompt: Option<String>,
+    max_tokens: Option<u32>,
+    schema_model: Option<String>,
 ) -> Result<Prompt, String> {
-  let (instructions, message) = match prompt.filter(|prompt| !prompt.trim().is_empty()) {
-    Some(message) => (system_prompt, message),
-    None if !system_prompt.trim().is_empty() => (String::new(), system_prompt),
-    None => return Err("Either a system prompt or a prompt is required".to_string()),
-  };
+    let (instructions, message) = match prompt.filter(|prompt| !prompt.trim().is_empty()) {
+        Some(message) => (system_prompt, message),
+        None if !system_prompt.trim().is_empty() => (String::new(), system_prompt),
+        None => return Err("Either a system prompt or a prompt is required".to_string()),
+    };
 
-  Ok(Prompt {
-    instructions,
-    message,
-    max_tokens,
-    output_schema: parse_schema_model(schema_model)?,
-  })
+    Ok(Prompt {
+        instructions,
+        message,
+        max_tokens,
+        output_schema: parse_schema_model(schema_model)?,
+    })
 }
 
 // `result` is always valid JSON. With a schema model it is the structured output, already
@@ -245,17 +245,41 @@ mod tests {
 
     #[test]
     fn build_prompt_keeps_both_prompts_when_given() {
-        let prompt = build_prompt("Be brief.".into(), Some("hi".into()), Some(10)).unwrap();
+        let prompt = build_prompt("Be brief.".into(), Some("hi".into()), Some(10), None).unwrap();
 
         assert_eq!(prompt.instructions, "Be brief.");
         assert_eq!(prompt.message, "hi");
         assert_eq!(prompt.max_tokens, Some(10));
+        assert_eq!(prompt.output_schema, None);
+    }
+
+    #[test]
+    fn build_prompt_takes_the_output_schema_from_the_schema_model() {
+        let prompt = build_prompt(
+            "Be brief.".into(),
+            Some("hi".into()),
+            None,
+            Some(r#"{"type":"object"}"#.into()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            prompt.output_schema,
+            Some(serde_json::json!({ "type": "object" }))
+        );
+    }
+
+    #[test]
+    fn build_prompt_rejects_an_invalid_schema_model() {
+        let error = build_prompt("hi".into(), None, None, Some("{".into())).unwrap_err();
+
+        assert!(error.starts_with("Schema model is not valid JSON Schema"));
     }
 
     #[test]
     fn build_prompt_uses_the_system_prompt_as_message_without_a_prompt() {
         for missing in [None, Some(String::new()), Some("  ".to_string())] {
-            let prompt = build_prompt("Write a haiku.".into(), missing, None).unwrap();
+            let prompt = build_prompt("Write a haiku.".into(), missing, None, None).unwrap();
 
             assert_eq!(prompt.instructions, "");
             assert_eq!(prompt.message, "Write a haiku.");
@@ -264,7 +288,7 @@ mod tests {
 
     #[test]
     fn build_prompt_rejects_when_both_prompts_are_empty() {
-        let error = build_prompt(" ".into(), None, None).unwrap_err();
+        let error = build_prompt(" ".into(), None, None, None).unwrap_err();
 
         assert_eq!(error, "Either a system prompt or a prompt is required");
     }

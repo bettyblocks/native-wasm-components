@@ -154,7 +154,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, anthropic_response("4"))
       end)
 
-      assert {:ok, %{usage: "{}", result: "4"}} ==
+      assert {:ok, %{usage: "{}", result: ~s("4")}} ==
                run_component(build_args(url, %{message: :none}))
     end
 
@@ -279,7 +279,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, anthropic_response(~s({"sum":4})))
       end)
 
-      assert {:ok, %{result: ~s({"sum":4}), usage: {:some, "{}"}}} ==
+      assert {:ok, %{result: ~s({"sum":4}), usage: "{}"}} ==
                run_component(build_args(url, %{schema_model: {:some, Jason.encode!(schema)}}))
     end
 
@@ -595,7 +595,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, mistral_response("4"))
       end)
 
-      assert {:ok, %{result: "4", usage: "{}"}} == run_component(mistral_args(url))
+      assert {:ok, %{result: ~s("4"), usage: "{}"}} == run_component(mistral_args(url))
     end
 
     test "returns the usage reported by mistral", %{sham: sham, url: url} do
@@ -611,7 +611,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, response)
       end)
 
-      assert {:ok, %{result: "4", usage: json}} = run_component(mistral_args(url))
+      assert {:ok, %{result: ~s("4"), usage: json}} = run_component(mistral_args(url))
       assert usage == Jason.decode!(json)
     end
 
@@ -636,7 +636,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, mistral_response("4"))
       end)
 
-      assert {:ok, %{result: "4", usage: "{}"}} == run_component(mistral_args(url))
+      assert {:ok, %{result: ~s("4"), usage: "{}"}} == run_component(mistral_args(url))
     end
 
     test "refuses an mcp tool without calling out", %{url: url} do
@@ -656,8 +656,33 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, mistral_response("ok"))
       end)
 
-      assert {:ok, %{result: "ok", usage: "{}"}} ==
+      assert {:ok, %{result: ~s("ok"), usage: "{}"}} ==
                run_component(mistral_args(url, %{max_tokens: {:some, 256}}))
+    end
+
+    test "sends the schema model as response format and returns the JSON text", %{
+      sham: sham,
+      url: url
+    } do
+      schema = %{"type" => "object", "properties" => %{"sum" => %{"type" => "integer"}}}
+
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
+
+        assert %{
+                 "completion_args" => %{
+                   "response_format" => %{
+                     "type" => "json_schema",
+                     "json_schema" => %{"name" => "output", "schema" => ^schema, "strict" => true}
+                   }
+                 }
+               } = Jason.decode!(body)
+
+        Plug.Conn.send_resp(conn, 200, mistral_response(~s({"sum":4})))
+      end)
+
+      assert {:ok, %{result: ~s({"sum":4}), usage: "{}"}} ==
+               run_component(mistral_args(url, %{schema_model: {:some, Jason.encode!(schema)}}))
     end
 
     test "reports a non-success status", %{sham: sham, url: url} do
