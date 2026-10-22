@@ -4,7 +4,7 @@ interface prompt-call {
     use betty-blocks-types:types/types@3.2.0.{betty-ai-agent,json-string};
 
     record betty-flat-output {
-        usage: option<json-string>,
+        usage: json-string,
         %result: string
     }
 
