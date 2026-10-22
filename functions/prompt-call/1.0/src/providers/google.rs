@@ -107,7 +107,7 @@ impl ProviderRequest for Google {
         serde_json::json!({ "googleSearch": {} })
     }
 
-    fn mcp_tool(_server: &McpServer) -> Option<serde_json::Value> {
+    fn mcp_tool(_server: &McpServer) -> serde_json::Value {
         unreachable!("ensure_tools_supported rejects MCP tools before the request body is built")
     }
 }

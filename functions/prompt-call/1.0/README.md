@@ -3,7 +3,7 @@
 Calls an AI model from a Prompt Call action. Takes a provider configuration, a
 system prompt and a prompt, and returns the model's text.
 
-Anthropic, Mistral, and OpenAI are supported. Providers are dispatched on `provider.name`, so
+Anthropic, Mistral, Google and OpenAI are supported. Providers are dispatched on `provider.name`, so
 adding one is a module in `src/providers/` implementing the `Provider` trait,
 plus a match arm in `lib.rs`. Outbound HTTP goes through the `HttpClient` trait, which keeps provider
 modules testable without a wasm runtime.
@@ -37,7 +37,7 @@ input roles, so for Mistral the system prompt travels inside the user message.
 Anthropic additionally registers the tools server-side (`tools` /
 `mcp_servers`) in the request body. Mistral executes tools server-side on the
 Conversations API: an http-search tool becomes the built-in
-`{"type": "web_search"}` tool. MCP servers are not sent to Mistral.
+`{"type": "web_search"}` tool.
 
 ## Building
 
