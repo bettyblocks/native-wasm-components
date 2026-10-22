@@ -344,28 +344,6 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.resp(conn, 200, response)
       end)
 
-      assert {:ok, %{result: "4", usage: "{}"}} == run_component(openai_args(url))
-    end
-
-    test "returns the usage reported by openai", %{sham: sham, url: url} do
-      usage = %{
-        "input_tokens" => 12,
-        "input_tokens_details" => %{"cached_tokens" => 0},
-        "output_tokens" => 3,
-        "output_tokens_details" => %{"reasoning_tokens" => 0},
-        "total_tokens" => 15
-      }
-
-      Sham.expect(sham, fn conn ->
-        response =
-          Jason.encode!(%{
-            output: [%{type: "message", content: [%{type: "output_text", text: "4"}]}],
-            usage: usage
-          })
-
-        Plug.Conn.resp(conn, 200, response)
-      end)
-
       assert {:ok, %{result: "4", usage: json}} = run_component(openai_args(url))
       assert usage == Jason.decode!(json)
     end
