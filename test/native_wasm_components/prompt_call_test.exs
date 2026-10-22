@@ -569,7 +569,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, mistral_response("4"))
       end)
 
-      assert {:ok, %{result: "4", usage: {:some, "{}"}}} == run_component(mistral_args(url))
+      assert {:ok, %{result: "4", usage: "{}"}} == run_component(mistral_args(url))
     end
 
     test "appends the conversations endpoint to the provider base url", %{sham: sham, url: url} do
@@ -591,7 +591,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, mistral_response("4"))
       end)
 
-      assert {:ok, %{result: "4", usage: {:some, "{}"}}} == run_component(mistral_args(url))
+      assert {:ok, %{result: "4", usage: "{}"}} == run_component(mistral_args(url))
     end
 
     test "refuses an mcp tool without calling out", %{url: url} do
@@ -611,7 +611,7 @@ defmodule NativeWasmComponents.PromptCallTest do
         Plug.Conn.send_resp(conn, 200, mistral_response("ok"))
       end)
 
-      assert {:ok, %{result: "ok", usage: {:some, "{}"}}} ==
+      assert {:ok, %{result: "ok", usage: "{}"}} ==
                run_component(mistral_args(url, %{max_tokens: {:some, 256}}))
     end
 
