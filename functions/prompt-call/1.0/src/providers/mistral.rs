@@ -3,14 +3,14 @@ use serde::Deserialize;
 use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 use crate::providers::{
-    McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, ensure_configured,
+    McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, complete_request,
     null_as_empty,
 };
 
 pub(crate) struct Mistral;
 
 #[derive(Debug, Deserialize)]
-struct ConversationsResponse {
+pub(crate) struct ConversationsResponse {
     #[serde(default, deserialize_with = "null_as_empty")]
     outputs: Vec<OutputItem>,
 }
@@ -61,26 +61,13 @@ impl Provider for Mistral {
         agent: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<Output, String> {
-        ensure_configured(agent)?;
-
-        let headers = vec![
-            ("authorization", format!("Bearer {}", agent.api_key)),
-            ("content-type", "application/json".to_string()),
-        ];
-
-        let (status, response) = client
-            .post_json(
-                &Self::endpoint_url(agent),
-                headers,
-                Self::request_body(agent, prompt),
-            )
-            .await?;
-
-        ConversationsResponse::handle(status, &response)
+        complete_request::<Mistral>(client, agent, prompt).await
     }
 }
 
 impl ProviderRequest for Mistral {
+    type Response = ConversationsResponse;
+
     const PATH: &'static str = "conversations";
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
@@ -330,5 +317,23 @@ mod tests {
                 .is_err()
         );
         assert!(client.requests().is_empty());
+    }
+
+    #[test]
+    fn status_error_includes_the_type_and_message() {
+        let body = r#"{"error":{"type":"rate_limit_error","message":"Too many requests."}}"#;
+
+        assert_eq!(
+            ConversationsResponse::handle(429, body.as_bytes()).unwrap_err(),
+            "Mistral returned status 429 (rate_limit_error): Too many requests."
+        );
+    }
+
+    #[test]
+    fn status_error_does_not_echo_a_body_that_is_not_a_mistral_error() {
+        assert_eq!(
+            ConversationsResponse::handle(502, b"bad gateway").unwrap_err(),
+            "Mistral returned status 502"
+        );
     }
 }

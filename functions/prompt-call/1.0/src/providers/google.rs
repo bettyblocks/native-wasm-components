@@ -14,7 +14,7 @@ pub(crate) struct Google;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GenerateContentResponse {
+pub(crate) struct GenerateContentResponse {
     #[serde(default, deserialize_with = "null_as_empty")]
     candidates: Vec<Candidate>,
     prompt_feedback: Option<PromptFeedback>,
@@ -96,6 +96,8 @@ fn ensure_no_mcp_tools(agent: &BettyAiAgent) -> Result<(), String> {
 }
 
 impl ProviderRequest for Google {
+    type Response = GenerateContentResponse;
+
     const PATH: &'static str = "generateContent";
 
     fn endpoint_url(agent: &BettyAiAgent) -> String {

@@ -47,6 +47,27 @@ pub(crate) trait Provider {
     ) -> Result<Output, String>;
 }
 
+pub(crate) async fn complete_request<R>(
+    client: &impl HttpClient,
+    agent: &BettyAiAgent,
+    prompt: &Prompt,
+) -> Result<Output, String>
+where
+    R: ProviderRequest,
+{
+    ensure_configured(agent)?;
+
+    let (status, response) = client
+        .post_json(
+            &R::endpoint_url(agent),
+            R::headers(agent),
+            R::request_body(agent, prompt),
+        )
+        .await?;
+
+    R::Response::handle(status, &response)
+}
+
 pub(crate) fn active_tools(agent: &BettyAiAgent) -> impl Iterator<Item = &BettyAiTool> {
     agent.tools.iter().flatten().filter(|tool| match tool {
         BettyAiTool::Mcp(options) => options
@@ -235,7 +256,16 @@ pub(crate) struct McpServer<'a> {
 }
 
 pub(crate) trait ProviderRequest {
+    type Response: ProviderResponse;
+
     const PATH: &'static str;
+
+    fn headers(agent: &BettyAiAgent) -> Vec<(&'static str, String)> {
+        vec![
+            ("authorization", format!("Bearer {}", agent.api_key)),
+            ("content-type", "application/json".to_string()),
+        ]
+    }
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value;
 
@@ -433,7 +463,19 @@ mod tests {
     #[test]
     fn endpoint_url_joins_the_path_without_doubling_the_separator() {
         struct Fake;
+        #[derive(Deserialize)]
+        struct FakeResponse;
+        impl ProviderResponse for FakeResponse {
+            const PROVIDER: &'static str = "Fake";
+            fn text_parts(&self) -> Vec<&str> {
+                Vec::new()
+            }
+            fn usage(&self) -> Option<&serde_json::Value> {
+                None
+            }
+        }
         impl ProviderRequest for Fake {
+            type Response = FakeResponse;
             const PATH: &'static str = "messages";
             fn base_body(_: &BettyAiAgent, _: &Prompt) -> serde_json::Value {
                 serde_json::Value::Null
