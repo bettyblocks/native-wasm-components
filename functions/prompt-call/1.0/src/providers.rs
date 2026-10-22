@@ -1,5 +1,6 @@
 pub(crate) mod anthropic;
 pub(crate) mod google;
+pub(crate) mod mistral;
 pub(crate) mod openai;
 
 use serde::de::DeserializeOwned;
@@ -46,6 +47,28 @@ pub(crate) trait Provider {
     ) -> Result<Output, String>;
 }
 
+pub(crate) async fn complete_request<R>(
+    client: &impl HttpClient,
+    agent: &BettyAiAgent,
+    prompt: &Prompt,
+) -> Result<Output, String>
+where
+    R: ProviderRequest,
+{
+    ensure_configured(agent)?;
+    R::ensure_tools_supported(agent)?;
+
+    let (status, response) = client
+        .post_json(
+            &R::endpoint_url(agent),
+            R::headers(agent),
+            R::request_body(agent, prompt),
+        )
+        .await?;
+
+    R::Response::handle(status, &response)
+}
+
 pub(crate) fn active_tools(agent: &BettyAiAgent) -> impl Iterator<Item = &BettyAiTool> {
     agent.tools.iter().flatten().filter(|tool| match tool {
         BettyAiTool::Mcp(options) => options
@@ -63,6 +86,17 @@ pub(crate) fn ensure_configured(agent: &BettyAiAgent) -> Result<(), String> {
 
     if agent.url.is_empty() {
         return Err(format!("No URL configured for agent: {}", agent.name));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn ensure_no_mcp_tools(provider: &str, agent: &BettyAiAgent) -> Result<(), String> {
+    if active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_))) {
+        return Err(format!(
+            "{provider} does not support server-side MCP tools, configured on agent: {}",
+            agent.name
+        ));
     }
 
     Ok(())
@@ -234,7 +268,20 @@ pub(crate) struct McpServer<'a> {
 }
 
 pub(crate) trait ProviderRequest {
+    type Response: ProviderResponse;
+
     const PATH: &'static str;
+
+    fn ensure_tools_supported(_agent: &BettyAiAgent) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn headers(agent: &BettyAiAgent) -> Vec<(&'static str, String)> {
+        vec![
+            ("authorization", format!("Bearer {}", agent.api_key)),
+            ("content-type", "application/json".to_string()),
+        ]
+    }
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value;
 
@@ -344,8 +391,11 @@ mod tests {
     use super::google::Google;
     use super::openai::OpenAi;
     use super::*;
-    use crate::test_helpers::{
-        MockHttpClient, mcp_tool, test_agent_with_tools, test_prompt, test_provider,
+    use crate::{
+        providers::mistral::Mistral,
+        test_helpers::{
+            MockHttpClient, mcp_tool, test_agent_with_tools, test_prompt, test_provider,
+        },
     };
 
     fn agent_with_url(url: &str) -> BettyAiAgent {
@@ -429,7 +479,19 @@ mod tests {
     #[test]
     fn endpoint_url_joins_the_path_without_doubling_the_separator() {
         struct Fake;
+        #[derive(Deserialize)]
+        struct FakeResponse;
+        impl ProviderResponse for FakeResponse {
+            const PROVIDER: &'static str = "Fake";
+            fn text_parts(&self) -> Vec<&str> {
+                Vec::new()
+            }
+            fn usage(&self) -> Option<&serde_json::Value> {
+                None
+            }
+        }
         impl ProviderRequest for Fake {
+            type Response = FakeResponse;
             const PATH: &'static str = "messages";
             fn base_body(_: &BettyAiAgent, _: &Prompt) -> serde_json::Value {
                 serde_json::Value::Null
@@ -438,7 +500,7 @@ mod tests {
                 serde_json::Value::Null
             }
             fn mcp_tool(_: &McpServer) -> serde_json::Value {
-                serde_json::Value::Null
+                unreachable!("mcp tools are not exercised by this test")
             }
         }
 
@@ -472,6 +534,7 @@ mod tests {
         assert_rejects_without_calling_out(&Anthropic, &agent).await;
         assert_rejects_without_calling_out(&OpenAi, &agent).await;
         assert_rejects_without_calling_out(&Google, &agent).await;
+        assert_rejects_without_calling_out(&Mistral, &agent).await;
     }
 
     #[tokio::test]
@@ -482,6 +545,7 @@ mod tests {
         assert_rejects_without_calling_out(&Anthropic, &agent).await;
         assert_rejects_without_calling_out(&OpenAi, &agent).await;
         assert_rejects_without_calling_out(&Google, &agent).await;
+        assert_rejects_without_calling_out(&Mistral, &agent).await;
     }
 
     #[test]

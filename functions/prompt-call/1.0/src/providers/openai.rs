@@ -4,7 +4,7 @@ use crate::betty_blocks_types::types::types::BettyAiAgent;
 use crate::http::HttpClient;
 use crate::providers::{
     ApiError, McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse,
-    ensure_configured, mcp_auth_token, null_as_empty,
+    complete_request, mcp_auth_token, null_as_empty,
 };
 
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search";
@@ -12,7 +12,7 @@ const WEB_SEARCH_TOOL_TYPE: &str = "web_search";
 pub(crate) struct OpenAi;
 
 #[derive(Debug, Deserialize)]
-struct ResponsesResponse {
+pub(crate) struct ResponsesResponse {
     status: Option<String>,
     #[serde(default, deserialize_with = "null_as_empty")]
     output: Vec<OutputItem>,
@@ -49,26 +49,13 @@ impl Provider for OpenAi {
         agent: &BettyAiAgent,
         prompt: &Prompt,
     ) -> Result<Output, String> {
-        ensure_configured(agent)?;
-
-        let headers = vec![
-            ("authorization", format!("Bearer {}", agent.api_key)),
-            ("content-type", "application/json".to_string()),
-        ];
-
-        let (status, response) = client
-            .post_json(
-                &Self::endpoint_url(agent),
-                headers,
-                Self::request_body(agent, prompt),
-            )
-            .await?;
-
-        ResponsesResponse::handle(status, &response)
+        complete_request::<OpenAi>(client, agent, prompt).await
     }
 }
 
 impl ProviderRequest for OpenAi {
+    type Response = ResponsesResponse;
+
     const PATH: &'static str = "responses";
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
