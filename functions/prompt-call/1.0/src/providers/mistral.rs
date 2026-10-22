@@ -83,6 +83,7 @@ impl ProviderRequest for Mistral {
             "instructions": prompt.instructions,
             "inputs": [{ "role": "user", "content": prompt.message }],
             "completion_args": { "max_tokens": prompt.max_tokens() },
+            "store": false,
         })
     }
 
@@ -132,6 +133,7 @@ mod tests {
         assert_eq!(body["inputs"][0]["role"], "user");
         assert_eq!(body["inputs"][0]["content"], "Summarise this");
         assert_eq!(body["instructions"], "You are helpful.");
+        assert_eq!(body["store"], false);
         assert!(body.get("tools").is_none());
     }
 

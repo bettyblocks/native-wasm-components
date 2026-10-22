@@ -601,6 +601,7 @@ defmodule NativeWasmComponents.PromptCallTest do
                  "model" => "mistral-large-latest",
                  "instructions" => "You are helpful.",
                  "completion_args" => %{"max_tokens" => 4096},
+                 "store" => false,
                  "inputs" => [
                    %{"role" => "user", "content" => "What is 2 + 2?"}
                  ]
