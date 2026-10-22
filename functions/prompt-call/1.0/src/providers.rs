@@ -1,4 +1,6 @@
 pub(crate) mod anthropic;
+pub(crate) mod google;
+pub(crate) mod mistral;
 pub(crate) mod openai;
 
 use serde::de::DeserializeOwned;
@@ -14,6 +16,12 @@ pub(crate) struct Prompt {
     pub(crate) instructions: String,
     pub(crate) message: String,
     pub(crate) max_tokens: Option<u32>,
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) struct Output {
+    pub(crate) text: String,
+    pub(crate) usage: serde_json::Value,
 }
 
 impl Prompt {
@@ -36,7 +44,29 @@ pub(crate) trait Provider {
         client: &impl HttpClient,
         provider: &BettyAiAgent,
         prompt: &Prompt,
-    ) -> Result<String, String>;
+    ) -> Result<Output, String>;
+}
+
+pub(crate) async fn complete_request<R>(
+    client: &impl HttpClient,
+    agent: &BettyAiAgent,
+    prompt: &Prompt,
+) -> Result<Output, String>
+where
+    R: ProviderRequest,
+{
+    ensure_configured(agent)?;
+    R::ensure_tools_supported(agent)?;
+
+    let (status, response) = client
+        .post_json(
+            &R::endpoint_url(agent),
+            R::headers(agent),
+            R::request_body(agent, prompt),
+        )
+        .await?;
+
+    R::Response::handle(status, &response)
 }
 
 pub(crate) fn active_tools(agent: &BettyAiAgent) -> impl Iterator<Item = &BettyAiTool> {
@@ -56,6 +86,17 @@ pub(crate) fn ensure_configured(agent: &BettyAiAgent) -> Result<(), String> {
 
     if agent.url.is_empty() {
         return Err(format!("No URL configured for agent: {}", agent.name));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn ensure_no_mcp_tools(provider: &str, agent: &BettyAiAgent) -> Result<(), String> {
+    if active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_))) {
+        return Err(format!(
+            "{provider} does not support server-side MCP tools, configured on agent: {}",
+            agent.name
+        ));
     }
 
     Ok(())
@@ -157,6 +198,8 @@ pub(crate) trait ProviderResponse: DeserializeOwned {
 
     fn text_parts(&self) -> Vec<&str>;
 
+    fn usage(&self) -> Option<&serde_json::Value>;
+
     fn ensure_succeeded(&self) -> Result<(), String> {
         Ok(())
     }
@@ -187,8 +230,16 @@ pub(crate) trait ProviderResponse: DeserializeOwned {
         Ok(text)
     }
 
-    fn extract_text(response: &[u8]) -> Result<String, String> {
-        Self::parse(response)?.text()
+    fn extract(response: &[u8]) -> Result<Output, String> {
+        let response = Self::parse(response)?;
+
+        Ok(Output {
+            text: response.text()?,
+            usage: response
+                .usage()
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({})),
+        })
     }
 
     fn status_error(status: u16, response: &[u8]) -> String {
@@ -202,9 +253,9 @@ pub(crate) trait ProviderResponse: DeserializeOwned {
         }
     }
 
-    fn handle(status: u16, response: &[u8]) -> Result<String, String> {
+    fn handle(status: u16, response: &[u8]) -> Result<Output, String> {
         if status == 200 {
-            Self::extract_text(response)
+            Self::extract(response)
         } else {
             Err(Self::status_error(status, response))
         }
@@ -217,7 +268,20 @@ pub(crate) struct McpServer<'a> {
 }
 
 pub(crate) trait ProviderRequest {
+    type Response: ProviderResponse;
+
     const PATH: &'static str;
+
+    fn ensure_tools_supported(_agent: &BettyAiAgent) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn headers(agent: &BettyAiAgent) -> Vec<(&'static str, String)> {
+        vec![
+            ("authorization", format!("Bearer {}", agent.api_key)),
+            ("content-type", "application/json".to_string()),
+        ]
+    }
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value;
 
@@ -227,8 +291,8 @@ pub(crate) trait ProviderRequest {
 
     fn finish_body(_body: &mut serde_json::Value, _servers: &[McpServer]) {}
 
-    fn endpoint_url(base_url: &str) -> String {
-        format!("{}/{}", base_url.trim_end_matches('/'), Self::PATH)
+    fn endpoint_url(agent: &BettyAiAgent) -> String {
+        format!("{}/{}", agent.url.trim_end_matches('/'), Self::PATH)
     }
 
     fn request_body(agent: &BettyAiAgent, prompt: &Prompt) -> Vec<u8> {
@@ -323,8 +387,22 @@ fn mcp_server_name(url: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::anthropic::Anthropic;
+    use super::google::Google;
+    use super::openai::OpenAi;
     use super::*;
-    use crate::test_helpers::{mcp_tool, test_agent_with_tools};
+    use crate::{
+        providers::mistral::Mistral,
+        test_helpers::{
+            MockHttpClient, mcp_tool, test_agent_with_tools, test_prompt, test_provider,
+        },
+    };
+
+    fn agent_with_url(url: &str) -> BettyAiAgent {
+        let mut agent = test_provider();
+        agent.url = url.to_string();
+        agent
+    }
 
     fn agent_with_secrets() -> BettyAiAgent {
         let mut agent = test_agent_with_tools(vec![mcp_tool(
@@ -401,7 +479,19 @@ mod tests {
     #[test]
     fn endpoint_url_joins_the_path_without_doubling_the_separator() {
         struct Fake;
+        #[derive(Deserialize)]
+        struct FakeResponse;
+        impl ProviderResponse for FakeResponse {
+            const PROVIDER: &'static str = "Fake";
+            fn text_parts(&self) -> Vec<&str> {
+                Vec::new()
+            }
+            fn usage(&self) -> Option<&serde_json::Value> {
+                None
+            }
+        }
         impl ProviderRequest for Fake {
+            type Response = FakeResponse;
             const PATH: &'static str = "messages";
             fn base_body(_: &BettyAiAgent, _: &Prompt) -> serde_json::Value {
                 serde_json::Value::Null
@@ -410,18 +500,52 @@ mod tests {
                 serde_json::Value::Null
             }
             fn mcp_tool(_: &McpServer) -> serde_json::Value {
-                serde_json::Value::Null
+                unreachable!("mcp tools are not exercised by this test")
             }
         }
 
         assert_eq!(
-            Fake::endpoint_url("https://api.example.com/v1"),
+            Fake::endpoint_url(&agent_with_url("https://api.example.com/v1")),
             "https://api.example.com/v1/messages"
         );
         assert_eq!(
-            Fake::endpoint_url("https://api.example.com/v1/"),
+            Fake::endpoint_url(&agent_with_url("https://api.example.com/v1/")),
             "https://api.example.com/v1/messages"
         );
+    }
+
+    async fn assert_rejects_without_calling_out(provider: &impl Provider, agent: &BettyAiAgent) {
+        let client = MockHttpClient::new(Vec::new());
+
+        assert!(
+            provider
+                .complete(&client, agent, &test_prompt("hi"))
+                .await
+                .is_err()
+        );
+        assert!(client.requests().is_empty());
+    }
+
+    #[tokio::test]
+    async fn every_provider_rejects_an_agent_without_an_api_key() {
+        let mut agent = test_provider();
+        agent.api_key = String::new();
+
+        assert_rejects_without_calling_out(&Anthropic, &agent).await;
+        assert_rejects_without_calling_out(&OpenAi, &agent).await;
+        assert_rejects_without_calling_out(&Google, &agent).await;
+        assert_rejects_without_calling_out(&Mistral, &agent).await;
+    }
+
+    #[tokio::test]
+    async fn every_provider_rejects_an_agent_without_a_url() {
+        let mut agent = test_provider();
+        agent.url = String::new();
+
+        assert_rejects_without_calling_out(&Anthropic, &agent).await;
+        assert_rejects_without_calling_out(&OpenAi, &agent).await;
+        assert_rejects_without_calling_out(&Google, &agent).await;
+        assert_rejects_without_calling_out(&Mistral, &agent).await;
     }
 
     #[test]

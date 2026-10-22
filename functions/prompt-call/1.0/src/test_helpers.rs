@@ -58,18 +58,29 @@ impl HttpClient for MockHttpClient {
             body,
         });
 
-        let (status, response) = self
-            .responses
-            .borrow_mut()
-            .pop_front()
-            .ok_or_else(|| "MockHttpClient has no queued response".to_string())?;
-
-        Ok((status, response.into_bytes()))
+        pop_response(self)
     }
+}
+
+fn pop_response(client: &MockHttpClient) -> Result<(u16, Vec<u8>), String> {
+    let (status, response) = client
+        .responses
+        .borrow_mut()
+        .pop_front()
+        .ok_or_else(|| "MockHttpClient has no queued response".to_string())?;
+
+    Ok((status, response.into_bytes()))
 }
 
 pub(crate) fn anthropic_text_response(text: &str) -> String {
     serde_json::json!({ "content": [{ "type": "text", "text": text }] }).to_string()
+}
+
+pub(crate) fn mistral_text_response(text: &str) -> String {
+    serde_json::json!({
+        "outputs": [{ "type": "message.output", "content": text }]
+    })
+    .to_string()
 }
 
 pub(crate) fn test_provider() -> BettyAiAgent {
@@ -82,8 +93,24 @@ pub(crate) fn test_provider() -> BettyAiAgent {
     }
 }
 
+pub(crate) fn test_mistral_provider() -> BettyAiAgent {
+    BettyAiAgent {
+        name: "mistral".to_string(),
+        ai_model_name: "mistral-large-latest".to_string(),
+        url: "https://api.mistral.ai/v1".to_string(),
+        tools: None,
+        api_key: "test-key".to_string(),
+    }
+}
+
 pub(crate) fn test_agent_with_tools(tools: Vec<BettyAiTool>) -> BettyAiAgent {
     let mut agent = test_provider();
+    agent.tools = Some(tools);
+    agent
+}
+
+pub(crate) fn test_mistral_agent_with_tools(tools: Vec<BettyAiTool>) -> BettyAiAgent {
+    let mut agent = test_mistral_provider();
     agent.tools = Some(tools);
     agent
 }
@@ -137,6 +164,26 @@ pub(crate) fn openai_agent() -> BettyAiAgent {
         name: "openai".to_string(),
         ai_model_name: "gpt-5.4".to_string(),
         url: "https://api.openai.com/v1".to_string(),
+        tools: None,
+        api_key: "test-key".to_string(),
+    }
+}
+
+pub(crate) fn google_text_response(text: &str) -> String {
+    serde_json::json!({
+        "candidates": [{
+            "content": { "role": "model", "parts": [{ "text": text }] },
+            "finishReason": "STOP"
+        }]
+    })
+    .to_string()
+}
+
+pub(crate) fn google_agent() -> BettyAiAgent {
+    BettyAiAgent {
+        name: "google".to_string(),
+        ai_model_name: "gemini-pro-latest".to_string(),
+        url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
         tools: None,
         api_key: "test-key".to_string(),
     }
