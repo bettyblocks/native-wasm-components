@@ -26,6 +26,24 @@ struct ContentBlock {
     #[serde(rename = "type")]
     block_type: String,
     text: Option<String>,
+    name: Option<String>,
+}
+
+impl MessagesResponse {
+    fn requested_tools(&self) -> String {
+        let names: Vec<&str> = self
+            .content
+            .iter()
+            .filter(|block| block.block_type == "tool_use")
+            .filter_map(|block| block.name.as_deref())
+            .collect();
+
+        if names.is_empty() {
+            return String::new();
+        }
+
+        format!(". Requested tools: {}", names.join(", "))
+    }
 }
 
 impl Provider for Anthropic {
@@ -143,9 +161,10 @@ impl ProviderResponse for MessagesResponse {
     fn no_text_error(&self) -> String {
         match self.stop_reason.as_deref() {
             Some("refusal") => "Anthropic refused the request".to_string(),
-            Some(reason) if !matches!(reason, "end_turn" | "stop_sequence") => {
-                format!("Anthropic response was incomplete ({reason}) before producing any text")
-            }
+            Some(reason) if !matches!(reason, "end_turn" | "stop_sequence") => format!(
+                "Anthropic response was incomplete ({reason}) before producing any text{}",
+                self.requested_tools()
+            ),
             _ => "Anthropic response contained no text content".to_string(),
         }
     }
@@ -566,6 +585,32 @@ mod tests {
         assert_eq!(
             MessagesResponse::extract(response.as_bytes()).unwrap_err(),
             "Anthropic refused the request"
+        );
+    }
+
+    #[test]
+    fn extract_names_the_tools_requested_before_any_text() {
+        let response = serde_json::json!({
+            "content": [
+                { "type": "thinking", "thinking": "", "signature": "sig" },
+                {
+                    "type": "mcp_tool_use",
+                    "id": "mcptoolu_code",
+                    "name": "get_public_code",
+                    "server_name": "mcp-example-com",
+                    "input": {}
+                },
+                { "type": "tool_use", "id": "toolu_echo", "name": "mcp-example-com_get_echo", "input": {} },
+                { "type": "tool_use", "id": "toolu_secret", "name": "mcp-example-com_get_secret", "input": {} }
+            ],
+            "stop_reason": "tool_use"
+        })
+        .to_string();
+
+        assert_eq!(
+            MessagesResponse::extract(response.as_bytes()).unwrap_err(),
+            "Anthropic response was incomplete (tool_use) before producing any text. \
+             Requested tools: mcp-example-com_get_echo, mcp-example-com_get_secret"
         );
     }
 
