@@ -594,41 +594,11 @@ defmodule NativeWasmComponents.PromptCallTest do
       assert {:ok, %{result: "4", usage: {:some, "{}"}}} == run_component(mistral_args(url))
     end
 
-    test "sends the web search tool and leaves mcp servers out of the request", %{
-      sham: sham,
-      url: url
-    } do
-      tools = [
-        {:"http-search", %{"description" => :none}},
-        {:mcp,
-         %{
-           "description" => {:some, "call this tool if the prompt contain \"mcp call\""},
-           "url" => "https://gateway.mcpservers.org/yahoo-finance/mcp",
-           "authentication" => %{"kind" => "access_token", "value" => {:some, "secret-token"}},
-           "enabled-tools" => :none
-         }}
-      ]
+    test "refuses an mcp tool without calling out", %{url: url} do
+      tools = [mcp_tool(:none)]
 
-      Sham.expect(sham, fn conn ->
-        assert conn.path_info == ["v1", "conversations"]
-
-        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 1_000_000)
-        request = Jason.decode!(body)
-
-        assert [%{"type" => "web_search"}] == request["tools"]
-
-        assert [%{"role" => "user", "content" => user}] = request["inputs"]
-
-        assert user =~ "Tools:"
-        assert user =~ "You are helpful."
-
-        assert user =~
-                 ~s|- mcp-server https://gateway.mcpservers.org/yahoo-finance/mcp: call this tool if the prompt contain "mcp call"|
-
-        Plug.Conn.send_resp(conn, 200, mistral_response("ok"))
-      end)
-
-      assert {:ok, %{result: "ok", usage: {:some, "{}"}}} ==
+      assert {:error,
+              "Mistral does not support server-side MCP tools, configured on agent: mistral"} ==
                run_component(mistral_args(url, %{provider: %{"tools" => {:some, tools}}}))
     end
 

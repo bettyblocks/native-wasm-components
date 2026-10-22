@@ -56,6 +56,7 @@ where
     R: ProviderRequest,
 {
     ensure_configured(agent)?;
+    R::ensure_tools_supported(agent)?;
 
     let (status, response) = client
         .post_json(
@@ -260,6 +261,10 @@ pub(crate) trait ProviderRequest {
 
     const PATH: &'static str;
 
+    fn ensure_tools_supported(_agent: &BettyAiAgent) -> Result<(), String> {
+        Ok(())
+    }
+
     fn headers(agent: &BettyAiAgent) -> Vec<(&'static str, String)> {
         vec![
             ("authorization", format!("Bearer {}", agent.api_key)),
@@ -271,7 +276,9 @@ pub(crate) trait ProviderRequest {
 
     fn web_search_tool() -> serde_json::Value;
 
-    fn mcp_tool(server: &McpServer) -> Option<serde_json::Value>;
+    fn mcp_tool(_server: &McpServer) -> Option<serde_json::Value> {
+        None
+    }
 
     fn finish_body(_body: &mut serde_json::Value, _servers: &[McpServer]) {}
 
@@ -482,9 +489,6 @@ mod tests {
             }
             fn web_search_tool() -> serde_json::Value {
                 serde_json::Value::Null
-            }
-            fn mcp_tool(_: &McpServer) -> Option<serde_json::Value> {
-                None
             }
         }
 

@@ -1,9 +1,9 @@
 use serde::Deserialize;
 
-use crate::betty_blocks_types::types::types::BettyAiAgent;
+use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
 use crate::http::HttpClient;
 use crate::providers::{
-    McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, complete_request,
+    Output, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools, complete_request,
     null_as_empty,
 };
 
@@ -70,6 +70,19 @@ impl ProviderRequest for Mistral {
 
     const PATH: &'static str = "conversations";
 
+    // The Conversations API has no MCP support, so agents relying on MCP tools
+    // are rejected instead of silently losing them in the request.
+    fn ensure_tools_supported(agent: &BettyAiAgent) -> Result<(), String> {
+        if active_tools(agent).any(|tool| matches!(tool, BettyAiTool::Mcp(_))) {
+            return Err(format!(
+                "Mistral does not support server-side MCP tools, configured on agent: {}",
+                agent.name
+            ));
+        }
+
+        Ok(())
+    }
+
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
         serde_json::json!({
             "model": agent.ai_model_name,
@@ -80,11 +93,6 @@ impl ProviderRequest for Mistral {
 
     fn web_search_tool() -> serde_json::Value {
         serde_json::json!({ "type": "web_search" })
-    }
-
-    // The Conversations API has no MCP support, so MCP servers are left out.
-    fn mcp_tool(_server: &McpServer) -> Option<serde_json::Value> {
-        None
     }
 }
 
@@ -118,8 +126,8 @@ fn user_content(prompt: &Prompt) -> String {
 mod tests {
     use super::*;
     use crate::test_helpers::{
-        MockHttpClient, http_search_tool, mcp_tool, mistral_text_response,
-        test_mistral_agent_with_tools, test_mistral_provider, test_prompt,
+        MockHttpClient, mcp_tool, mistral_text_response, test_mistral_agent_with_tools,
+        test_mistral_provider, test_prompt,
     };
 
     fn body_of(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
@@ -161,18 +169,6 @@ mod tests {
         prompt.instructions = String::new();
 
         assert_eq!(user_content(&prompt), "hi");
-    }
-
-    #[test]
-    fn request_body_offers_web_search_but_no_mcp_servers() {
-        let agent = test_mistral_agent_with_tools(vec![
-            http_search_tool(),
-            mcp_tool("https://mcp.example.com/sse", None),
-        ]);
-
-        let body = body_of(&agent, &test_prompt("hi"));
-
-        assert_eq!(body["tools"], serde_json::json!([{ "type": "web_search" }]));
     }
 
     #[test]
@@ -246,6 +242,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn complete_rejects_an_mcp_tool_without_calling_out() {
+        let client = MockHttpClient::new(vec![(200, mistral_text_response("unused"))]);
+        let agent =
+            test_mistral_agent_with_tools(vec![mcp_tool("https://mcp.example.com/sse", None)]);
+
+        let error = Mistral
+            .complete(&client, &agent, &test_prompt("hi"))
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            "Mistral does not support server-side MCP tools, configured on agent: mistral"
+        );
+        assert!(client.requests().is_empty());
+    }
+
+    #[tokio::test]
     async fn complete_returns_the_assistant_text() {
         let client = MockHttpClient::new(vec![(200, mistral_text_response("42"))]);
 
@@ -287,36 +301,6 @@ mod tests {
         assert_eq!(request.header("authorization"), Some("Bearer test-key"));
         assert_eq!(request.header("content-type"), Some("application/json"));
         assert_eq!(request.json()["model"], "mistral-large-latest");
-    }
-
-    #[tokio::test]
-    async fn complete_rejects_an_empty_api_key_without_calling_out() {
-        let client = MockHttpClient::new(vec![(200, mistral_text_response("unused"))]);
-        let mut agent = test_mistral_provider();
-        agent.api_key = String::new();
-
-        assert!(
-            Mistral
-                .complete(&client, &agent, &test_prompt("hi"))
-                .await
-                .is_err()
-        );
-        assert!(client.requests().is_empty());
-    }
-
-    #[tokio::test]
-    async fn complete_rejects_an_empty_url_without_calling_out() {
-        let client = MockHttpClient::new(vec![(200, mistral_text_response("unused"))]);
-        let mut agent = test_mistral_provider();
-        agent.url = String::new();
-
-        assert!(
-            Mistral
-                .complete(&client, &agent, &test_prompt("hi"))
-                .await
-                .is_err()
-        );
-        assert!(client.requests().is_empty());
     }
 
     #[test]
