@@ -3,8 +3,8 @@ use serde::Deserialize;
 use crate::betty_blocks_types::types::types::{BettyAiAgent, BettyAiTool};
 use crate::http::HttpClient;
 use crate::providers::{
-    McpServer, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools,
-    ensure_configured, mcp_auth_token, null_as_empty,
+    McpServer, Output, Prompt, Provider, ProviderRequest, ProviderResponse, active_tools,
+    complete_request, mcp_auth_token, null_as_empty,
 };
 
 const API_VERSION: &str = "2023-06-01";
@@ -14,10 +14,11 @@ const MCP_CLIENT_BETA: &str = "mcp-client-2025-11-20";
 pub(crate) struct Anthropic;
 
 #[derive(Debug, Deserialize)]
-struct MessagesResponse {
+pub(crate) struct MessagesResponse {
     #[serde(default, deserialize_with = "null_as_empty")]
     content: Vec<ContentBlock>,
     stop_reason: Option<String>,
+    usage: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,6 +26,24 @@ struct ContentBlock {
     #[serde(rename = "type")]
     block_type: String,
     text: Option<String>,
+    name: Option<String>,
+}
+
+impl MessagesResponse {
+    fn requested_tools(&self) -> String {
+        let names: Vec<&str> = self
+            .content
+            .iter()
+            .filter(|block| block.block_type == "tool_use")
+            .filter_map(|block| block.name.as_deref())
+            .collect();
+
+        if names.is_empty() {
+            return String::new();
+        }
+
+        format!(". Requested tools: {}", names.join(", "))
+    }
 }
 
 impl Provider for Anthropic {
@@ -33,27 +52,8 @@ impl Provider for Anthropic {
         client: &impl HttpClient,
         agent: &BettyAiAgent,
         prompt: &Prompt,
-    ) -> Result<String, String> {
-        ensure_configured(agent)?;
-
-        let mut headers = vec![
-            ("x-api-key", agent.api_key.clone()),
-            ("anthropic-version", API_VERSION.to_string()),
-            ("content-type", "application/json".to_string()),
-        ];
-        if uses_mcp(agent) {
-            headers.push(("anthropic-beta", MCP_CLIENT_BETA.to_string()));
-        }
-
-        let (status, response) = client
-            .post_json(
-                &Self::endpoint_url(&agent.url),
-                headers,
-                Self::request_body(agent, prompt),
-            )
-            .await?;
-
-        MessagesResponse::handle(status, &response)
+    ) -> Result<Output, String> {
+        complete_request::<Anthropic>(client, agent, prompt).await
     }
 }
 
@@ -62,7 +62,21 @@ fn uses_mcp(agent: &BettyAiAgent) -> bool {
 }
 
 impl ProviderRequest for Anthropic {
+    type Response = MessagesResponse;
+
     const PATH: &'static str = "messages";
+
+    fn headers(agent: &BettyAiAgent) -> Vec<(&'static str, String)> {
+        let mut headers = vec![
+            ("x-api-key", agent.api_key.clone()),
+            ("anthropic-version", API_VERSION.to_string()),
+            ("content-type", "application/json".to_string()),
+        ];
+        if uses_mcp(agent) {
+            headers.push(("anthropic-beta", MCP_CLIENT_BETA.to_string()));
+        }
+        headers
+    }
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
         serde_json::json!({
@@ -135,12 +149,17 @@ impl ProviderResponse for MessagesResponse {
             .collect()
     }
 
+    fn usage(&self) -> Option<&serde_json::Value> {
+        self.usage.as_ref()
+    }
+
     fn no_text_error(&self) -> String {
         match self.stop_reason.as_deref() {
             Some("refusal") => "Anthropic refused the request".to_string(),
-            Some(reason) if !matches!(reason, "end_turn" | "stop_sequence") => {
-                format!("Anthropic response was incomplete ({reason}) before producing any text")
-            }
+            Some(reason) if !matches!(reason, "end_turn" | "stop_sequence") => format!(
+                "Anthropic response was incomplete ({reason}) before producing any text{}",
+                self.requested_tools()
+            ),
             _ => "Anthropic response contained no text content".to_string(),
         }
     }
@@ -381,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_text_joins_consecutive_text_blocks() {
+    fn extract_joins_consecutive_text_blocks() {
         let response = serde_json::json!({
             "content": [
                 { "type": "text", "text": "Hello " },
@@ -391,13 +410,13 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            MessagesResponse::extract_text(response.as_bytes()).unwrap(),
+            MessagesResponse::extract(response.as_bytes()).unwrap().text,
             "Hello\n\nworld"
         );
     }
 
     #[test]
-    fn extract_text_skips_blocks_that_are_not_text() {
+    fn extract_skips_blocks_that_are_not_text() {
         let response = serde_json::json!({
             "content": [
                 { "type": "thinking", "thinking": "hmm" },
@@ -407,21 +426,53 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            MessagesResponse::extract_text(response.as_bytes()).unwrap(),
+            MessagesResponse::extract(response.as_bytes()).unwrap().text,
             "answer"
         );
     }
 
     #[test]
-    fn extract_text_rejects_a_response_carrying_no_text() {
+    fn extract_rejects_a_response_carrying_no_text() {
         let response = serde_json::json!({ "content": [] }).to_string();
 
-        assert!(MessagesResponse::extract_text(response.as_bytes()).is_err());
+        assert!(MessagesResponse::extract(response.as_bytes()).is_err());
     }
 
     #[test]
-    fn extract_text_rejects_malformed_json() {
-        assert!(MessagesResponse::extract_text(b"not json").is_err());
+    fn extract_passes_the_usage_through() {
+        let usage = serde_json::json!({
+            "input_tokens": 12,
+            "output_tokens": 3,
+            "cache_read_input_tokens": 0,
+            "server_tool_use": { "web_search_requests": 1 }
+        });
+        let response = serde_json::json!({
+            "content": [{ "type": "text", "text": "answer" }],
+            "usage": usage
+        })
+        .to_string();
+
+        assert_eq!(
+            MessagesResponse::extract(response.as_bytes())
+                .unwrap()
+                .usage,
+            usage
+        );
+    }
+
+    #[test]
+    fn extract_reports_an_empty_usage_when_the_response_has_none() {
+        assert_eq!(
+            MessagesResponse::extract(anthropic_text_response("answer").as_bytes())
+                .unwrap()
+                .usage,
+            serde_json::json!({})
+        );
+    }
+
+    #[test]
+    fn extract_rejects_malformed_json() {
+        assert!(MessagesResponse::extract(b"not json").is_err());
     }
 
     #[tokio::test]
@@ -433,7 +484,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(text, "42");
+        assert_eq!(text.text, "42");
     }
 
     #[tokio::test]
@@ -487,36 +538,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn complete_rejects_an_empty_api_key_without_calling_out() {
-        let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
-        let mut agent = test_provider();
-        agent.api_key = String::new();
-
-        assert!(
-            Anthropic
-                .complete(&client, &agent, &test_prompt("hi"))
-                .await
-                .is_err()
-        );
-        assert!(client.requests().is_empty());
-    }
-
-    #[tokio::test]
-    async fn complete_rejects_an_empty_url_without_calling_out() {
-        let client = MockHttpClient::new(vec![(200, anthropic_text_response("unused"))]);
-        let mut agent = test_provider();
-        agent.url = String::new();
-
-        assert!(
-            Anthropic
-                .complete(&client, &agent, &test_prompt("hi"))
-                .await
-                .is_err()
-        );
-        assert!(client.requests().is_empty());
-    }
-
-    #[tokio::test]
     async fn complete_reports_a_non_success_status_with_a_redacted_error() {
         let client = MockHttpClient::new(vec![(
             401,
@@ -553,17 +574,43 @@ mod tests {
     }
 
     #[test]
-    fn extract_text_reports_a_refusal() {
+    fn extract_reports_a_refusal() {
         let response = serde_json::json!({ "content": [], "stop_reason": "refusal" }).to_string();
 
         assert_eq!(
-            MessagesResponse::extract_text(response.as_bytes()).unwrap_err(),
+            MessagesResponse::extract(response.as_bytes()).unwrap_err(),
             "Anthropic refused the request"
         );
     }
 
     #[test]
-    fn extract_text_reports_a_response_that_ran_out_of_tokens() {
+    fn extract_names_the_tools_requested_before_any_text() {
+        let response = serde_json::json!({
+            "content": [
+                { "type": "thinking", "thinking": "", "signature": "sig" },
+                {
+                    "type": "mcp_tool_use",
+                    "id": "mcptoolu_code",
+                    "name": "get_public_code",
+                    "server_name": "mcp-example-com",
+                    "input": {}
+                },
+                { "type": "tool_use", "id": "toolu_echo", "name": "mcp-example-com_get_echo", "input": {} },
+                { "type": "tool_use", "id": "toolu_secret", "name": "mcp-example-com_get_secret", "input": {} }
+            ],
+            "stop_reason": "tool_use"
+        })
+        .to_string();
+
+        assert_eq!(
+            MessagesResponse::extract(response.as_bytes()).unwrap_err(),
+            "Anthropic response was incomplete (tool_use) before producing any text. \
+             Requested tools: mcp-example-com_get_echo, mcp-example-com_get_secret"
+        );
+    }
+
+    #[test]
+    fn extract_reports_a_response_that_ran_out_of_tokens() {
         let response = serde_json::json!({
             "content": [{ "type": "thinking", "thinking": "hmm" }],
             "stop_reason": "max_tokens"
@@ -571,13 +618,13 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            MessagesResponse::extract_text(response.as_bytes()).unwrap_err(),
+            MessagesResponse::extract(response.as_bytes()).unwrap_err(),
             "Anthropic response was incomplete (max_tokens) before producing any text"
         );
     }
 
     #[test]
-    fn extract_text_keeps_partial_text_from_a_response_that_ran_out_of_tokens() {
+    fn extract_keeps_partial_text_from_a_response_that_ran_out_of_tokens() {
         let response = serde_json::json!({
             "content": [{ "type": "text", "text": "partial" }],
             "stop_reason": "max_tokens"
@@ -585,7 +632,7 @@ mod tests {
         .to_string();
 
         assert_eq!(
-            MessagesResponse::extract_text(response.as_bytes()).unwrap(),
+            MessagesResponse::extract(response.as_bytes()).unwrap().text,
             "partial"
         );
     }

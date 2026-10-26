@@ -32,6 +32,13 @@ mix deps.get
 
 building the wasm components can be done via `mix build`. This will call `just build` in each component folder. This will output the components in the `target/wasm32-wasip2/release` folder.
 
+### WIT dependency locks
+
+Each component commits a `wkg.lock`. Builds that target `edge` ignore it and re-resolve from the
+registry, because `wasm-base-components`' `dev` overwrites version tags on publish. Run
+`just refresh-wit-locks` to rewrite every lock, for example before promoting to `acceptance`. See
+[ADR 002](docs/decisions/002-edge-builds-re-resolve-wit-locks.md).
+
 ### Testing
 
 component tests are ran via Elixir Wasmex.

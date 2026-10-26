@@ -36,7 +36,9 @@ WORKDIR /app
 
 COPY . .
 
-RUN just build
+# "true" re-resolves WIT deps instead of verifying wkg.lock (docs/decisions/002).
+ARG REFRESH_WIT_LOCKS=false
+RUN REFRESH_WIT_LOCKS=$REFRESH_WIT_LOCKS just build
 RUN just clean
 
 FROM oven/bun:1.3-alpine
