@@ -3,7 +3,7 @@ defmodule NativeWasmComponents.GeneratePdfTest do
 
   @component_path "functions/generate-pdf/1.0/generate_pdf.wasm"
   @interface {"betty-blocks:generate-pdf/generate-pdf@1.0.0", "generate-pdf"}
-  @upload_interface "betty-blocks-types:upload-file/upload-file@4.1.0"
+  @upload_interface "betty-blocks-types:upload-file/upload-file@4.0.0"
 
   @stylesheet "@font-face { font-family: Brand; src: url(../fonts/brand.ttf); }\nbody { font-family: Brand; }"
   @font File.read!("functions/generate-pdf/1.0/fonts/LiberationSerif-BoldItalic.ttf")
