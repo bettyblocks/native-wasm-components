@@ -1,0 +1,18 @@
+fetch-wit-deps:
+  if [ "${REFRESH_WIT_LOCKS:-}" = "true" ]; then rm -rf wkg.lock wit/deps; fi
+  WKG_CONFIG_FILE={{env("WKG_CONFIG_FILE", justfile_directory() / "../../../wkg.toml")}} wash wit fetch
+
+move_wasm_to_root:
+  #!/usr/bin/env sh
+  for wasm in ./target/wasm32-wasip2/release/*.wasm; do
+    [ -e "$wasm" ] || continue
+    rm -f "./${wasm##*/}"
+    mv "$wasm" .
+  done
+
+build: fetch-wit-deps
+  wash build --skip-fetch
+  just move_wasm_to_root
+
+test:
+  cargo test
