@@ -1,14 +1,18 @@
 # Call API
 
 Stub for the Call API action. It takes a `betty-blocks-types:types.betty-api`
-(`id`, `software-name`) and, for now, only echoes it back as JSON:
+(`software-name`, `api-name`, `base-url`, `path`, `method`, `authentication`)
+and, for now, only describes the call as JSON:
 
 ```json
-{"id": "1", "softwareName": "Exact"}
+{"softwareName": "Exact", "apiName": "Get a user", "method": "get",
+ "url": "https://api.example.com/users/{id}", "authentication": "none"}
 ```
 
-A blank `software-name` returns `Err("No API selected")`. No HTTP call is made
-yet; the component exists to pin down the WIT and Rust types.
+`url` is `base-url` and `path` joined with exactly one slash. `authentication`
+is only the kind (`none`, `api-key` or `oauth2`); secrets are never returned.
+An empty `base-url` or `path` returns an error. No HTTP call is made yet; the
+component exists to pin down the WIT and Rust types.
 
 ## Building
 
