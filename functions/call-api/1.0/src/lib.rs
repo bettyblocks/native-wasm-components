@@ -1,13 +1,13 @@
 use serde::Serialize;
 
-use crate::betty_blocks_types::types::types::{BettyApi, BettyApiAuthentication, BettyHttpMethod};
+use crate::betty_blocks_types::types::types::{BettyApi, BettyHttpMethod};
 use crate::exports::betty_blocks::call_api::call_api;
 
 wit_bindgen::generate!({ generate_all });
 
 struct Component;
 
-/// What the stub returns. Carries only the kind of authentication, never its secrets.
+/// What the stub returns.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ApiOutput<'a> {
@@ -15,7 +15,6 @@ struct ApiOutput<'a> {
     api_name: &'a str,
     method: &'static str,
     url: String,
-    authentication: &'static str,
 }
 
 impl call_api::Guest for Component {
@@ -38,7 +37,6 @@ fn describe(api: &BettyApi) -> Result<String, String> {
         api_name: &api.api_name,
         method: method_name(api.method),
         url: join_url(&api.base_url, &api.path),
-        authentication: authentication_kind(&api.authentication),
     })
     .map_err(|error| format!("Failed to serialize API: {error}"))
 }
@@ -64,50 +62,20 @@ fn method_name(method: BettyHttpMethod) -> &'static str {
     }
 }
 
-fn authentication_kind(authentication: &BettyApiAuthentication) -> &'static str {
-    match authentication {
-        BettyApiAuthentication::None => "none",
-        BettyApiAuthentication::ApiKey(_) => "api-key",
-        BettyApiAuthentication::Oauth2(_) => "oauth2",
-    }
-}
-
 export!(Component);
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::betty_blocks_types::types::types::{
-        BettyApiKeyAuthentication, BettyApiKeyLocation, BettyApiOauth2Authentication,
-    };
 
-    fn api(base_url: &str, path: &str, authentication: BettyApiAuthentication) -> BettyApi {
+    fn api(base_url: &str, path: &str) -> BettyApi {
         BettyApi {
             software_name: "Exact".to_string(),
             api_name: "Get a user".to_string(),
             base_url: base_url.to_string(),
             path: path.to_string(),
             method: BettyHttpMethod::Get,
-            authentication,
         }
-    }
-
-    fn api_key() -> BettyApiAuthentication {
-        BettyApiAuthentication::ApiKey(BettyApiKeyAuthentication {
-            location: BettyApiKeyLocation::Header,
-            name: "Authorization".to_string(),
-            prefix: Some("Bearer ".to_string()),
-            value: "super-secret-key".to_string(),
-        })
-    }
-
-    fn oauth2() -> BettyApiAuthentication {
-        BettyApiAuthentication::Oauth2(BettyApiOauth2Authentication {
-            token_url: "https://auth.example.com/token".to_string(),
-            client_id: "client-id".to_string(),
-            client_secret: "super-secret-client".to_string(),
-            scopes: Some(vec!["read".to_string()]),
-        })
     }
 
     fn parse(json: &str) -> serde_json::Value {
@@ -116,12 +84,7 @@ mod tests {
 
     #[test]
     fn returns_the_api_as_json() {
-        let json = describe(&api(
-            "https://api.example.com",
-            "/users/{id}",
-            BettyApiAuthentication::None,
-        ))
-        .unwrap();
+        let json = describe(&api("https://api.example.com", "/users/{id}")).unwrap();
 
         assert_eq!(
             parse(&json),
@@ -129,8 +92,7 @@ mod tests {
                 "softwareName": "Exact",
                 "apiName": "Get a user",
                 "method": "get",
-                "url": "https://api.example.com/users/{id}",
-                "authentication": "none"
+                "url": "https://api.example.com/users/{id}"
             })
         );
     }
@@ -163,26 +125,9 @@ mod tests {
     }
 
     #[test]
-    fn reports_the_api_key_kind_without_the_secret() {
-        let json = describe(&api("https://a.com", "/x", api_key())).unwrap();
-
-        assert_eq!(parse(&json)["authentication"], "api-key");
-        assert!(!json.contains("super-secret-key"));
-    }
-
-    #[test]
-    fn reports_the_oauth2_kind_without_the_secret() {
-        let json = describe(&api("https://a.com", "/x", oauth2())).unwrap();
-
-        assert_eq!(parse(&json)["authentication"], "oauth2");
-        assert!(!json.contains("super-secret-client"));
-        assert!(!json.contains("client-id"));
-    }
-
-    #[test]
     fn rejects_an_empty_base_url() {
         assert_eq!(
-            describe(&api(" ", "/x", BettyApiAuthentication::None)),
+            describe(&api(" ", "/x")),
             Err("The API has no base url".to_string())
         );
     }
@@ -190,7 +135,7 @@ mod tests {
     #[test]
     fn rejects_an_empty_path() {
         assert_eq!(
-            describe(&api("https://a.com", "", BettyApiAuthentication::None)),
+            describe(&api("https://a.com", "")),
             Err("The API has no path".to_string())
         );
     }

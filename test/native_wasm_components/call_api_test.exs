@@ -15,8 +15,7 @@ defmodule NativeWasmComponents.CallApiTest do
         "api-name" => "Get a user",
         "base-url" => "https://api.example.com/",
         "path" => "/users/{id}",
-        "method" => :get,
-        "authentication" => :none
+        "method" => :get
       },
       overrides
     )
@@ -29,42 +28,13 @@ defmodule NativeWasmComponents.CallApiTest do
              "softwareName" => "Exact",
              "apiName" => "Get a user",
              "method" => "get",
-             "url" => "https://api.example.com/users/{id}",
-             "authentication" => "none"
+             "url" => "https://api.example.com/users/{id}"
            }
   end
 
-  test "reports api-key authentication without the secret" do
-    authentication =
-      {:"api-key",
-       %{
-         "location" => :header,
-         "name" => "Authorization",
-         "prefix" => {:some, "Bearer "},
-         "value" => "super-secret-key"
-       }}
-
-    assert {:ok, json} =
-             run_component([build_api(%{"method" => :post, "authentication" => authentication})])
-
-    assert %{"method" => "post", "authentication" => "api-key"} = Jason.decode!(json)
-    refute json =~ "super-secret-key"
-  end
-
-  test "reports oauth2 authentication without the secret" do
-    authentication =
-      {:oauth2,
-       %{
-         "token-url" => "https://auth.example.com/token",
-         "client-id" => "client-id",
-         "client-secret" => "super-secret-client",
-         "scopes" => {:some, ["read"]}
-       }}
-
-    assert {:ok, json} = run_component([build_api(%{"authentication" => authentication})])
-
-    assert %{"authentication" => "oauth2"} = Jason.decode!(json)
-    refute json =~ "super-secret-client"
+  test "returns the method in lowercase" do
+    assert {:ok, json} = run_component([build_api(%{"method" => :post})])
+    assert %{"method" => "post"} = Jason.decode!(json)
   end
 
   test "returns an error when the base url is empty" do
