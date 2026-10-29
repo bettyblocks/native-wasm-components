@@ -2,7 +2,7 @@ defmodule NativeWasmComponents.PromptCallTest do
   use ExUnit.Case, async: true
 
   @component_path "functions/prompt-call/1.0/prompt_call.wasm"
-  @interface {"betty-blocks:prompt-call/prompt-call@1.2.0", "prompt-call"}
+  @interface {"betty-blocks:prompt-call/prompt-call@2.0.0", "prompt-call"}
 
   defp run_component(args) do
     TestHelper.run_component(@component_path, @interface, args)
