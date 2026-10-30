@@ -1,6 +1,6 @@
 # Call API
 
-Stub for the Call API action. It takes a `betty-blocks-types:types.betty-api`
+Stub for the Call API action. It takes a `betty-blocks-types:types.betty-software-api`
 (`software-name`, `api-name`, `base-url`, `path`, `method`)
 and, for now, only describes the call as JSON:
 

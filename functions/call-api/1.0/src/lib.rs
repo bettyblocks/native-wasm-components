@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::betty_blocks_types::types::types::{BettyApi, BettyHttpMethod};
+use crate::betty_blocks_types::types::types::{BettySoftwareApi, BettyHttpMethod};
 use crate::exports::betty_blocks::call_api::call_api;
 
 wit_bindgen::generate!({ generate_all });
@@ -18,13 +18,13 @@ struct ApiOutput<'a> {
 }
 
 impl call_api::Guest for Component {
-    fn call_api(api: BettyApi) -> Result<String, String> {
+    fn call_api(api: BettySoftwareApi) -> Result<String, String> {
         describe(&api)
     }
 }
 
 /// Stub: describes the resolved API call as JSON. No HTTP call is made yet.
-fn describe(api: &BettyApi) -> Result<String, String> {
+fn describe(api: &BettySoftwareApi) -> Result<String, String> {
     if api.base_url.trim().is_empty() {
         return Err("The API has no base url".to_string());
     }
@@ -68,8 +68,8 @@ export!(Component);
 mod tests {
     use super::*;
 
-    fn api(base_url: &str, path: &str) -> BettyApi {
-        BettyApi {
+    fn api(base_url: &str, path: &str) -> BettySoftwareApi {
+        BettySoftwareApi {
             software_name: "Exact".to_string(),
             api_name: "Get a user".to_string(),
             base_url: base_url.to_string(),
