@@ -24,11 +24,10 @@ impl prompt_call::Guest for Component {
         prompt: Option<String>,
         agent: BettyAiAgent,
         max_tokens: Option<u32>,
-        // Types the `result` Output in the IDE; at run time it carries the schema model as JSON
-        // Schema, which asks the provider for structured output.
-        schema_model: Option<String>,
+        _usage_schema_model: Option<String>,
+        result_schema_model: Option<String>,
     ) -> Result<prompt_call::BettyFlatOutput, String> {
-        let prompt = build_prompt(system_prompt, prompt, max_tokens, schema_model)?;
+        let prompt = build_prompt(system_prompt, prompt, max_tokens, result_schema_model)?;
 
         let output = wstd::runtime::block_on(run(&Client::new(), &agent, &prompt))?;
 

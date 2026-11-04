@@ -13,7 +13,8 @@ interface prompt-call {
         prompt: option<string>,
         ai-agent: betty-ai-agent,
         max-tokens: option<u32>,
-        schema-model: option<betty-schema-model>,
+        usage-schema-model: option<betty-schema-model>,
+        result-schema-model: option<betty-schema-model>,
     ) -> result<betty-flat-output, string>;
 }
 
