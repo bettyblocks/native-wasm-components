@@ -26,7 +26,8 @@ defmodule NativeWasmComponents.PromptCallTest do
       Map.get(overrides, :message, {:some, "What is 2 + 2?"}),
       provider,
       Map.get(overrides, :max_tokens, :none),
-      Map.get(overrides, :schema_model, :none)
+      Map.get(overrides, :usage_schema_model, :none),
+      Map.get(overrides, :result_schema_model, :none)
     ]
   end
 
@@ -280,12 +281,14 @@ defmodule NativeWasmComponents.PromptCallTest do
       end)
 
       assert {:ok, %{result: ~s({"sum":4}), usage: "{}"}} ==
-               run_component(build_args(url, %{schema_model: {:some, Jason.encode!(schema)}}))
+               run_component(
+                 build_args(url, %{result_schema_model: {:some, Jason.encode!(schema)}})
+               )
     end
 
     test "rejects a schema model that is not valid JSON Schema" do
       assert {:error, "Schema model is not valid JSON Schema" <> _} =
-               run_component(build_args("http://unused", %{schema_model: {:some, "{"}}))
+               run_component(build_args("http://unused", %{result_schema_model: {:some, "{"}}))
     end
 
     test "joins multiple text blocks", %{sham: sham, url: url} do
@@ -682,7 +685,9 @@ defmodule NativeWasmComponents.PromptCallTest do
       end)
 
       assert {:ok, %{result: ~s({"sum":4}), usage: "{}"}} ==
-               run_component(mistral_args(url, %{schema_model: {:some, Jason.encode!(schema)}}))
+               run_component(
+                 mistral_args(url, %{result_schema_model: {:some, Jason.encode!(schema)}})
+               )
     end
 
     test "reports a non-success status", %{sham: sham, url: url} do
