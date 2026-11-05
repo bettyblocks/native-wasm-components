@@ -1,4 +1,4 @@
-package betty-blocks:prompt-call@2.0.0;
+package betty-blocks:prompt-call@2.0.1;
 
 interface prompt-call {
     use betty-blocks-types:types/types@3.2.0.{betty-ai-agent,betty-schema-model,json-string};
