@@ -28,7 +28,7 @@ pub fn render_body(
         .map_err(|e| format!("Failed to render Liquid template: {e}"))
 }
 
-fn decode_json_string(value: &str) -> String {
+pub fn decode_json_string(value: &str) -> String {
     match serde_json::from_str::<String>(value) {
         Ok(decoded) => decoded,
         Err(_) => value.to_string(),
