@@ -27,7 +27,10 @@ impl HttpClient for Client {
             .body(Body::from(body))
             .map_err(|error| error.to_string())?;
 
-        let response = self.send(request).await.map_err(|error| error.to_string())?;
+        let response = self
+            .send(request)
+            .await
+            .map_err(|error| error.to_string())?;
         let status = response.status().as_u16();
         let (_, mut response_body) = response.into_parts();
         let bytes = response_body

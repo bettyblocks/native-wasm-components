@@ -1,7 +1,7 @@
-package betty-blocks:call-api@1.1.0;
+package betty-blocks:call-api@1.2.0;
 
 interface call-api {
-    use betty-blocks-types:types/types@3.3.0.{betty-software-api, json-string};
+    use betty-blocks-types:types/types@3.4.0.{betty-software-api, json-string};
 
     call-api: func(api: betty-software-api) -> result<json-string, string>;
 }
