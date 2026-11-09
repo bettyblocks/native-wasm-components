@@ -20,11 +20,19 @@ pub fn render_body(
 
     let mut globals = liquid::Object::new();
     for (key, value) in vars {
+        let value = decode_json_string(&value);
         globals.insert(key.into(), liquid::model::Value::scalar(value));
     }
 
     tmpl.render(&globals)
         .map_err(|e| format!("Failed to render Liquid template: {e}"))
+}
+
+fn decode_json_string(value: &str) -> String {
+    match serde_json::from_str::<String>(value) {
+        Ok(decoded) => decoded,
+        Err(_) => value.to_string(),
+    }
 }
 
 #[cfg(test)]
@@ -43,5 +51,29 @@ mod tests {
         let body = "Hello {{ name }}!".to_string();
         let vars = vec![("name".to_string(), "World".to_string())];
         assert_eq!(render_body(body, Some(vars)).unwrap(), "Hello World!");
+    }
+
+    #[test]
+    fn render_decodes_json_encoded_string_variables() {
+        let body = "Hello {{ name }}, {{ quote }}!".to_string();
+        let vars = vec![
+            ("name".to_string(), r#""John""#.to_string()),
+            ("quote".to_string(), r#""say \"hi\"""#.to_string()),
+        ];
+        assert_eq!(
+            render_body(body, Some(vars)).unwrap(),
+            r#"Hello John, say "hi"!"#
+        );
+    }
+
+    #[test]
+    fn render_keeps_values_that_are_not_json_strings() {
+        let body = "{{ count }} {{ flag }} {{ obj }}".to_string();
+        let vars = vec![
+            ("count".to_string(), "42".to_string()),
+            ("flag".to_string(), "true".to_string()),
+            ("obj".to_string(), r#"{"a":1}"#.to_string()),
+        ];
+        assert_eq!(render_body(body, Some(vars)).unwrap(), r#"42 true {"a":1}"#);
     }
 }
