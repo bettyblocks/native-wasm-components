@@ -2,7 +2,7 @@ defmodule NativeWasmComponents.CallApiTest do
   use ExUnit.Case, async: true
 
   @component_path "functions/call-api/1.0/call_api.wasm"
-  @interface {"betty-blocks:call-api/call-api@1.1.0", "call-api"}
+  @interface {"betty-blocks:call-api/call-api@1.2.0", "call-api"}
 
   defp run_component(args) do
     TestHelper.run_component(@component_path, @interface, args)
@@ -15,7 +15,10 @@ defmodule NativeWasmComponents.CallApiTest do
         "api-name" => "Get users",
         "base-url" => base_url,
         "path" => "/users",
-        "method" => :get
+        "method" => :get,
+        "headers" => :none,
+        "query-parameters" => :none,
+        "body-parameters" => :none
       },
       overrides
     )
@@ -71,6 +74,50 @@ defmodule NativeWasmComponents.CallApiTest do
       end)
 
       assert {:error, "The API responded with status 401"} = run_component([build_api(base_url)])
+    end
+
+    test "sends the query parameters in the url", %{sham: sham, base_url: base_url} do
+      Sham.expect(sham, fn conn ->
+        assert conn.request_path == "/users"
+        assert conn.query_string == "name=Jane+Doe&page=2"
+
+        Plug.Conn.resp(conn, 200, "{}")
+      end)
+
+      api =
+        build_api(base_url, %{"query-parameters" => {:some, ~s|{"page": 2, "name": "Jane Doe"}|}})
+
+      assert {:ok, "{}"} = run_component([api])
+    end
+
+    test "sends the headers", %{sham: sham, base_url: base_url} do
+      Sham.expect(sham, fn conn ->
+        assert {"authorization", "Bearer abc"} in conn.req_headers
+
+        Plug.Conn.resp(conn, 200, "{}")
+      end)
+
+      api = build_api(base_url, %{"headers" => {:some, ~s|{"Authorization": "Bearer abc"}|}})
+
+      assert {:ok, "{}"} = run_component([api])
+    end
+
+    test "sends the body parameters as json", %{sham: sham, base_url: base_url} do
+      Sham.expect(sham, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        assert Jason.decode!(body) == %{"name" => "Jane"}
+        assert {"content-type", "application/json"} in conn.req_headers
+
+        Plug.Conn.resp(conn, 201, "{}")
+      end)
+
+      api =
+        build_api(base_url, %{
+          "method" => :post,
+          "body-parameters" => {:some, ~s|{"name": "Jane"}|}
+        })
+
+      assert {:ok, "{}"} = run_component([api])
     end
   end
 
