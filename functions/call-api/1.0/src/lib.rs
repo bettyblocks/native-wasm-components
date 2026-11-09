@@ -1,30 +1,44 @@
-use serde::Serialize;
+mod http;
+#[cfg(test)]
+mod test_helpers;
 
-use crate::betty_blocks_types::types::types::{BettySoftwareApi, BettyHttpMethod};
+use wstd::http::{Client, Method};
+
+use crate::betty_blocks_types::types::types::{BettyHttpMethod, BettySoftwareApi};
 use crate::exports::betty_blocks::call_api::call_api;
+use crate::http::HttpClient;
 
 wit_bindgen::generate!({ generate_all });
 
 struct Component;
 
-/// What the stub returns.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ApiOutput<'a> {
-    software_name: &'a str,
-    api_name: &'a str,
-    method: &'static str,
-    url: String,
-}
-
 impl call_api::Guest for Component {
     fn call_api(api: BettySoftwareApi) -> Result<String, String> {
-        describe(&api)
+        wstd::runtime::block_on(call(&Client::new(), &api))
     }
 }
 
-/// Stub: describes the resolved API call as JSON. No HTTP call is made yet.
-fn describe(api: &BettySoftwareApi) -> Result<String, String> {
+async fn call(client: &impl HttpClient, api: &BettySoftwareApi) -> Result<String, String> {
+    validate_api(api)?;
+
+    let (status, body) = client
+        .send_request(
+            to_http_method(api.method),
+            &join_url(&api.base_url, &api.path),
+            Vec::new(),
+            Vec::new(),
+        )
+        .await
+        .map_err(|error| format!("The API request failed: {error}"))?;
+
+    if !(200..300).contains(&status) {
+        return Err(format!("The API responded with status {status}"));
+    }
+
+    Ok(to_json_string(&body))
+}
+
+fn validate_api(api: &BettySoftwareApi) -> Result<(), String> {
     if api.base_url.trim().is_empty() {
         return Err("The API has no base url".to_string());
     }
@@ -32,13 +46,7 @@ fn describe(api: &BettySoftwareApi) -> Result<String, String> {
         return Err("The API has no path".to_string());
     }
 
-    serde_json::to_string(&ApiOutput {
-        software_name: &api.software_name,
-        api_name: &api.api_name,
-        method: method_name(api.method),
-        url: join_url(&api.base_url, &api.path),
-    })
-    .map_err(|error| format!("Failed to serialize API: {error}"))
+    Ok(())
 }
 
 /// Joins a base url and a path with exactly one slash between them.
@@ -50,16 +58,25 @@ fn join_url(base_url: &str, path: &str) -> String {
     )
 }
 
-fn method_name(method: BettyHttpMethod) -> &'static str {
+fn to_http_method(method: BettyHttpMethod) -> Method {
     match method {
-        BettyHttpMethod::Get => "get",
-        BettyHttpMethod::Post => "post",
-        BettyHttpMethod::Put => "put",
-        BettyHttpMethod::Patch => "patch",
-        BettyHttpMethod::Delete => "delete",
-        BettyHttpMethod::Head => "head",
-        BettyHttpMethod::Options => "options",
+        BettyHttpMethod::Get => Method::GET,
+        BettyHttpMethod::Post => Method::POST,
+        BettyHttpMethod::Put => Method::PUT,
+        BettyHttpMethod::Patch => Method::PATCH,
+        BettyHttpMethod::Delete => Method::DELETE,
+        BettyHttpMethod::Head => Method::HEAD,
+        BettyHttpMethod::Options => Method::OPTIONS,
     }
+}
+
+/// A body that is not JSON is returned as a JSON string, so the output is always valid JSON.
+fn to_json_string(body: &[u8]) -> String {
+    let text = String::from_utf8_lossy(body).into_owned();
+
+    serde_json::from_str::<serde_json::Value>(&text)
+        .unwrap_or(serde_json::Value::String(text))
+        .to_string()
 }
 
 export!(Component);
@@ -67,34 +84,116 @@ export!(Component);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{MockHttpClient, RecordedRequest};
 
     fn api(base_url: &str, path: &str) -> BettySoftwareApi {
         BettySoftwareApi {
             software_name: "Exact".to_string(),
-            api_name: "Get a user".to_string(),
+            api_name: "Get users".to_string(),
             base_url: base_url.to_string(),
             path: path.to_string(),
             method: BettyHttpMethod::Get,
         }
     }
 
-    fn parse(json: &str) -> serde_json::Value {
-        serde_json::from_str(json).unwrap()
-    }
+    #[tokio::test]
+    async fn sends_the_request_to_the_joined_url() {
+        let client = MockHttpClient::returning(200, "{}");
 
-    #[test]
-    fn returns_the_api_as_json() {
-        let json = describe(&api("https://api.example.com", "/users/{id}")).unwrap();
+        call(&client, &api("https://api.example.com/", "/users"))
+            .await
+            .unwrap();
 
         assert_eq!(
-            parse(&json),
-            serde_json::json!({
-                "softwareName": "Exact",
-                "apiName": "Get a user",
-                "method": "get",
-                "url": "https://api.example.com/users/{id}"
-            })
+            client.requests(),
+            vec![RecordedRequest {
+                method: Method::GET,
+                url: "https://api.example.com/users".to_string(),
+                headers: Vec::new(),
+                body: Vec::new(),
+            }]
         );
+    }
+
+    #[tokio::test]
+    async fn sends_the_method_of_the_api() {
+        let client = MockHttpClient::returning(200, "{}");
+        let api = BettySoftwareApi {
+            method: BettyHttpMethod::Delete,
+            ..api("https://api.example.com", "/users/1")
+        };
+
+        call(&client, &api).await.unwrap();
+
+        assert_eq!(client.requests()[0].method, Method::DELETE);
+    }
+
+    #[tokio::test]
+    async fn returns_a_json_body() {
+        let client = MockHttpClient::returning(200, r#"{"users": [{"id": 1}]}"#);
+
+        let output = call(&client, &api("https://api.example.com", "/users")).await;
+
+        assert_eq!(output, Ok(r#"{"users":[{"id":1}]}"#.to_string()));
+    }
+
+    #[tokio::test]
+    async fn returns_a_body_that_is_not_json_as_a_json_string() {
+        let client = MockHttpClient::returning(200, "OK");
+
+        let output = call(&client, &api("https://api.example.com", "/ping")).await;
+
+        assert_eq!(output, Ok(r#""OK""#.to_string()));
+    }
+
+    #[tokio::test]
+    async fn returns_an_empty_body_as_an_empty_json_string() {
+        let client = MockHttpClient::returning(204, "");
+
+        let output = call(&client, &api("https://api.example.com", "/users/1")).await;
+
+        assert_eq!(output, Ok(r#""""#.to_string()));
+    }
+
+    #[tokio::test]
+    async fn rejects_a_status_outside_2xx_without_the_body() {
+        let client = MockHttpClient::returning(401, r#"{"error": "invalid key abc123"}"#);
+
+        let output = call(&client, &api("https://api.example.com", "/users")).await;
+
+        assert_eq!(output, Err("The API responded with status 401".to_string()));
+    }
+
+    #[tokio::test]
+    async fn reports_a_request_that_failed() {
+        let client = MockHttpClient::failing("connection refused");
+
+        let output = call(&client, &api("https://api.example.com", "/users")).await;
+
+        assert_eq!(
+            output,
+            Err("The API request failed: connection refused".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_an_empty_base_url_without_a_request() {
+        let client = MockHttpClient::returning(200, "{}");
+
+        let output = call(&client, &api(" ", "/users")).await;
+
+        assert_eq!(output, Err("The API has no base url".to_string()));
+        assert!(client.requests().is_empty());
+    }
+
+    #[tokio::test]
+    async fn rejects_an_empty_path_without_a_request() {
+        let client = MockHttpClient::returning(200, "{}");
+
+        let output = call(&client, &api("https://api.example.com", "")).await;
+
+        assert_eq!(output, Err("The API has no path".to_string()));
+        assert!(client.requests().is_empty());
     }
 
     #[test]
@@ -109,34 +208,18 @@ mod tests {
     }
 
     #[test]
-    fn names_every_method_in_lowercase() {
+    fn maps_every_method() {
         let cases = [
-            (BettyHttpMethod::Get, "get"),
-            (BettyHttpMethod::Post, "post"),
-            (BettyHttpMethod::Put, "put"),
-            (BettyHttpMethod::Patch, "patch"),
-            (BettyHttpMethod::Delete, "delete"),
-            (BettyHttpMethod::Head, "head"),
-            (BettyHttpMethod::Options, "options"),
+            (BettyHttpMethod::Get, Method::GET),
+            (BettyHttpMethod::Post, Method::POST),
+            (BettyHttpMethod::Put, Method::PUT),
+            (BettyHttpMethod::Patch, Method::PATCH),
+            (BettyHttpMethod::Delete, Method::DELETE),
+            (BettyHttpMethod::Head, Method::HEAD),
+            (BettyHttpMethod::Options, Method::OPTIONS),
         ];
-        for (method, name) in cases {
-            assert_eq!(method_name(method), name);
+        for (method, expected) in cases {
+            assert_eq!(to_http_method(method), expected);
         }
-    }
-
-    #[test]
-    fn rejects_an_empty_base_url() {
-        assert_eq!(
-            describe(&api(" ", "/x")),
-            Err("The API has no base url".to_string())
-        );
-    }
-
-    #[test]
-    fn rejects_an_empty_path() {
-        assert_eq!(
-            describe(&api("https://a.com", "")),
-            Err("The API has no path".to_string())
-        );
     }
 }
