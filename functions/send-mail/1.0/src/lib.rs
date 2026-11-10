@@ -166,7 +166,7 @@ fn build_attachments(
 fn extract_url(value: &str) -> String {
     match serde_json::from_str::<UrlField>(value) {
         Ok(parsed) => parsed.url,
-        Err(_) => value.to_string(),
+        Err(_) => renderer::decode_json_string(value),
     }
 }
 
@@ -313,6 +313,14 @@ mod tests {
     fn extract_url_json_object_with_url() {
         assert_eq!(
             super::extract_url(r#"{"url":"https://example.com/file.pdf"}"#),
+            "https://example.com/file.pdf"
+        );
+    }
+
+    #[test]
+    fn extract_url_json_encoded_string() {
+        assert_eq!(
+            super::extract_url(r#""https://example.com/file.pdf""#),
             "https://example.com/file.pdf"
         );
     }

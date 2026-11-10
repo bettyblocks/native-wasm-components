@@ -1,4 +1,4 @@
-package betty-blocks:send-mail@4.0.0;
+package betty-blocks:send-mail@4.0.2;
 
 interface send-mail {
     use betty-blocks-types:types/types@3.1.0.{json-string, betty-send-mail};
