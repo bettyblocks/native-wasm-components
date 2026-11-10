@@ -1,3 +1,5 @@
+use wstd::http::body::Bytes;
+use wstd::http::body::util::Empty;
 use wstd::http::{Body, Client, Method, Request};
 
 pub(crate) trait HttpClient {
@@ -24,7 +26,7 @@ impl HttpClient for Client {
                 Request::builder().method(method).uri(url),
                 |builder, (name, value)| builder.header(name, value),
             )
-            .body(Body::from(body))
+            .body(to_request_body(body))
             .map_err(|error| error.to_string())?;
 
         let response = self
@@ -40,5 +42,14 @@ impl HttpClient for Client {
             .to_vec();
 
         Ok((status, bytes))
+    }
+}
+
+// Writing an empty body flakily fails on a GET, whose body stream the host may already have closed.
+fn to_request_body(body: Vec<u8>) -> Body {
+    if body.is_empty() {
+        Body::from_http_body(Empty::<Bytes>::new())
+    } else {
+        Body::from(body)
     }
 }
