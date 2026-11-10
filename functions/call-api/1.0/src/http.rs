@@ -45,7 +45,8 @@ impl HttpClient for Client {
     }
 }
 
-// Writing an empty body flakily fails on a GET, whose body stream the host may already have closed.
+// wstd writes even an empty Body::from(vec), which can fail with "connection reset" on a GET:
+// the host closed its body stream already. An Empty body is finished without that write.
 fn to_request_body(body: Vec<u8>) -> Body {
     if body.is_empty() {
         Body::from_http_body(Empty::<Bytes>::new())
