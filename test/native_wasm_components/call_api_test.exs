@@ -2,7 +2,7 @@ defmodule NativeWasmComponents.CallApiTest do
   use ExUnit.Case, async: true
 
   @component_path "functions/call-api/1.0/call_api.wasm"
-  @interface {"betty-blocks:call-api/call-api@1.2.0", "call-api"}
+  @interface {"betty-blocks:call-api/call-api@1.2.1", "call-api"}
 
   defp run_component(args) do
     TestHelper.run_component(@component_path, @interface, args)
