@@ -145,6 +145,7 @@ pub(crate) fn test_prompt(message: &str) -> Prompt {
         instructions: "You are helpful.".to_string(),
         message: message.to_string(),
         max_tokens: None,
+        output_schema: None,
     }
 }
 

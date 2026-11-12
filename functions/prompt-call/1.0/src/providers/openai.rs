@@ -8,6 +8,7 @@ use crate::providers::{
 };
 
 const WEB_SEARCH_TOOL_TYPE: &str = "web_search";
+const OUTPUT_SCHEMA_NAME: &str = "output";
 
 pub(crate) struct OpenAi;
 
@@ -59,13 +60,26 @@ impl ProviderRequest for OpenAi {
     const PATH: &'static str = "responses";
 
     fn base_body(agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
-        serde_json::json!({
+        let mut body = serde_json::json!({
             "model": agent.ai_model_name,
             "max_output_tokens": prompt.max_tokens(),
             "instructions": prompt.instructions,
             "input": prompt.message,
             "store": false,
-        })
+        });
+
+        if let Some(schema) = &prompt.output_schema {
+            body["text"] = serde_json::json!({
+                "format": {
+                    "type": "json_schema",
+                    "name": OUTPUT_SCHEMA_NAME,
+                    "schema": schema,
+                    "strict": true,
+                }
+            });
+        }
+
+        body
     }
 
     fn web_search_tool() -> serde_json::Value {
@@ -182,6 +196,26 @@ mod tests {
         assert_eq!(body["input"], "Summarise this");
         assert_eq!(body["store"], false);
         assert!(body.get("tools").is_none());
+        assert!(body.get("text").is_none());
+    }
+
+    #[test]
+    fn request_body_carries_an_output_schema_as_a_strict_json_schema_format() {
+        let schema = serde_json::json!({ "type": "object" });
+        let mut prompt = test_prompt("hi");
+        prompt.output_schema = Some(schema.clone());
+
+        assert_eq!(
+            body_of(&openai_agent(), &prompt)["text"],
+            serde_json::json!({
+                "format": {
+                    "type": "json_schema",
+                    "name": "output",
+                    "schema": schema,
+                    "strict": true,
+                }
+            })
+        );
     }
 
     #[test]
