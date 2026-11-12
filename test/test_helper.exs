@@ -9,7 +9,9 @@ defmodule TestHelper do
         imports: imports
       })
 
-    {:ok, result} = Wasmex.Components.call_function(pid, function, List.wrap(args))
+    {:ok, result} =
+      Wasmex.Components.call_function(pid, function, List.wrap(args), to_timeout(second: 30))
+
     result
   end
 end
