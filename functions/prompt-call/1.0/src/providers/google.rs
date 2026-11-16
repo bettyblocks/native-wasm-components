@@ -96,11 +96,18 @@ impl ProviderRequest for Google {
     }
 
     fn base_body(_agent: &BettyAiAgent, prompt: &Prompt) -> serde_json::Value {
-        serde_json::json!({
+        let mut body = serde_json::json!({
             "contents": [{ "role": "user", "parts": [{ "text": prompt.message }] }],
             "systemInstruction": { "parts": [{ "text": prompt.instructions }] },
             "generationConfig": { "maxOutputTokens": prompt.max_tokens() },
-        })
+        });
+
+        if let Some(schema) = &prompt.output_schema {
+            body["generationConfig"]["responseMimeType"] = "application/json".into();
+            body["generationConfig"]["responseJsonSchema"] = schema.clone();
+        }
+
+        body
     }
 
     fn web_search_tool() -> serde_json::Value {
@@ -229,6 +236,22 @@ mod tests {
             crate::providers::DEFAULT_MAX_TOKENS
         );
         assert!(body.get("tools").is_none());
+    }
+
+    #[test]
+    fn request_body_carries_an_output_schema_in_the_generation_config() {
+        let schema = serde_json::json!({ "type": "object" });
+        let mut prompt = test_prompt("hi");
+        prompt.output_schema = Some(schema.clone());
+
+        assert_eq!(
+            body_of(&google_agent(), &prompt)["generationConfig"],
+            serde_json::json!({
+                "maxOutputTokens": crate::providers::DEFAULT_MAX_TOKENS,
+                "responseMimeType": "application/json",
+                "responseJsonSchema": schema,
+            })
+        );
     }
 
     #[test]

@@ -42,6 +42,7 @@ jobs:
             ./functions/http/1.0/target
             ./functions/store-file/1.0/target
             ./functions/prompt-call/1.0/target
+            ./functions/call-api/1.0/target
       - name: Cache Elixir
         uses: actions/cache@v4
         with:
