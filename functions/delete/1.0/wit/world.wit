@@ -1,4 +1,4 @@
-package betty-blocks:delete@4.0.1;
+package betty-blocks:delete@4.0.3;
 
 interface delete {
     use betty-blocks-types:data-api/data-api@3.0.0.{data-api};
@@ -8,6 +8,6 @@ interface delete {
 }
 
 world main {
-    import betty-blocks-types:crud/crud@4.0.1;
+    import betty-blocks-types:crud/crud@4.0.3;
     export delete;
 }

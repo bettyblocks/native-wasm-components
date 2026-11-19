@@ -7,9 +7,9 @@ name = "betty-blocks-types:crud"
 registry = "bettyblocksdev.azurecr.io"
 
 [[packages.versions]]
-requirement = "=4.0.0"
-version = "4.0.0"
-digest = "sha256:9c1e662ad8ed7b04b1eefe3868eda77b8be6fad2ab949fe46b4606702ebe68b3"
+requirement = "=4.0.3"
+version = "4.0.3"
+digest = "sha256:32112e3fd1ba49155daf3529d55c363a2bf5062f248f1daf04ac203eb812d687"
 
 [[packages]]
 name = "betty-blocks-types:data-api"
