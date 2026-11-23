@@ -1,0 +1,20 @@
+name: Set up Rust caching
+description: Cache the cargo registry and the Rust compilations in the GitHub Actions cache
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+        key: cargo-registry-${{ hashFiles('functions/*/*/Cargo.lock') }}
+        restore-keys: cargo-registry-
+    - uses: mozilla-actions/sccache-action@v0.0.9
+    - shell: bash
+      run: |
+        echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+        echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+        echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
