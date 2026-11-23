@@ -4,9 +4,14 @@ description: Cache the cargo registry and the Rust compilations in the GitHub Ac
 runs:
   using: composite
   steps:
-    - uses: Swatinem/rust-cache@v2
+    - uses: actions/cache@v4
       with:
-        cache-targets: false
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+        key: cargo-registry-${{ hashFiles('functions/*/*/Cargo.lock') }}
+        restore-keys: cargo-registry-
     - uses: mozilla-actions/sccache-action@v0.0.9
     - shell: bash
       run: |
