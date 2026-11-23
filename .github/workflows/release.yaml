@@ -42,6 +42,8 @@ jobs:
 
       - name: Install wash
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           curl -fsSL https://wasmcloud.com/sh | INSTALL_DIR=/usr/local/bin bash
           wash --version
